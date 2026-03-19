@@ -1,0 +1,141 @@
+version: "6.0.0"
+project_name: "golf-assistant"
+project_level: 3
+current_sprint: 0
+sprint_plan_path: "docs/sprint-plan-golf-assistant-2026-03-20.md"
+
+sprints:
+  - sprint_number: 0
+    start_date: "2026-03-20"
+    end_date: "2026-03-27"
+    capacity_points: 15
+    committed_points: 15
+    completed_points: 0
+    status: "not_started"
+    goal: "開発環境構築＋認証＋レスポンシブレイアウト"
+    stories:
+      - story_id: "STORY-001"
+        title: "プロジェクト初期セットアップ"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-002"
+        title: "認証（サインアップ・ログイン・ログアウト）"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-003"
+        title: "共通レイアウト（PC/モバイル切り替え）"
+        points: 5
+        status: "not_started"
+
+  - sprint_number: 1
+    start_date: "2026-03-27"
+    end_date: "2026-04-03"
+    capacity_points: 15
+    committed_points: 13
+    completed_points: 0
+    status: "not_started"
+    goal: "プロファイル登録＋コース情報管理"
+    stories:
+      - story_id: "STORY-004"
+        title: "ユーザープロファイル管理"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-005"
+        title: "楽天GORA APIコース検索・保存"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-006"
+        title: "ホール情報・メモ管理"
+        points: 3
+        status: "not_started"
+
+  - sprint_number: 2
+    start_date: "2026-04-03"
+    end_date: "2026-04-10"
+    capacity_points: 17
+    committed_points: 17
+    completed_points: 0
+    status: "not_started"
+    goal: "スコア記録＋音声機能"
+    stories:
+      - story_id: "STORY-007"
+        title: "ラウンド開始・コース選択"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-008"
+        title: "ホール別スコア入力UI"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-009"
+        title: "音声入力による反省メモ"
+        points: 3
+        status: "not_started"
+      - story_id: "STORY-010"
+        title: "音声読み上げ"
+        points: 2
+        status: "not_started"
+      - story_id: "STORY-011"
+        title: "ラウンド完了・スコア集計"
+        points: 2
+        status: "not_started"
+
+  - sprint_number: 3
+    start_date: "2026-04-10"
+    end_date: "2026-04-17"
+    capacity_points: 21
+    committed_points: 21
+    completed_points: 0
+    status: "not_started"
+    goal: "AIキャディー（コア機能）"
+    stories:
+      - story_id: "STORY-012"
+        title: "コンテキストビルダー"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-013"
+        title: "Gemini APIアドバイス生成（ストリーミング）"
+        points: 8
+        status: "not_started"
+      - story_id: "STORY-014"
+        title: "プレー中状況入力UI"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-015"
+        title: "スコア状況のコンテキスト反映"
+        points: 3
+        status: "not_started"
+
+  - sprint_number: 4
+    start_date: "2026-04-17"
+    end_date: "2026-04-24"
+    capacity_points: 15
+    committed_points: 10
+    completed_points: 0
+    status: "not_started"
+    goal: "振り返り＋ダッシュボード＋MVP仕上げ"
+    stories:
+      - story_id: "STORY-016"
+        title: "ラウンド振り返り画面"
+        points: 5
+        status: "not_started"
+      - story_id: "STORY-017"
+        title: "ラウンド履歴一覧"
+        points: 2
+        status: "not_started"
+      - story_id: "STORY-018"
+        title: "ダッシュボード"
+        points: 3
+        status: "not_started"
+
+velocity:
+  sprint_0: null
+  sprint_1: null
+  sprint_2: null
+  sprint_3: null
+  sprint_4: null
+  rolling_average: null
+
+team:
+  size: 1
+  sprint_length_weeks: 1
+  capacity_per_sprint: 15
