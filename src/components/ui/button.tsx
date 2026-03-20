@@ -1,4 +1,5 @@
 import { type ButtonHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 
@@ -19,13 +20,17 @@ export function Button({
   variant = 'primary',
   isLoading = false,
   disabled,
-  className = '',
+  className,
   children,
   ...props
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-lg px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 disabled:cursor-not-allowed disabled:opacity-50 ${variantStyles[variant]} ${className}`}
+      className={cn(
+        'inline-flex items-center justify-center rounded-lg px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 disabled:cursor-not-allowed disabled:opacity-50',
+        variantStyles[variant],
+        className
+      )}
       disabled={disabled || isLoading}
       {...props}
     >

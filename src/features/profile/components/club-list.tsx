@@ -34,9 +34,8 @@ function ClubRow({ club, onDelete }: { club: Club; onDelete: (id: string) => voi
   );
 }
 
-export function ClubList({ clubs: initialClubs, profileExists }: { clubs: Club[]; profileExists: boolean }) {
+export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExists: boolean }) {
   const router = useRouter();
-  const [clubs, setClubs] = useState(initialClubs);
   const [showForm, setShowForm] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +60,7 @@ export function ClubList({ clubs: initialClubs, profileExists }: { clubs: Club[]
     if (result.error) {
       setError(result.error);
     } else {
-      setClubs(clubs.filter((c) => c.id !== clubId));
+      router.refresh();
     }
   }
 

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Profile } from '@/features/profile/types';
 
 export async function getProfile(): Promise<Profile | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) return null;
 
+  const supabase = await createClient();
   const { data } = await supabase
     .from('profiles')
     .select('*')
@@ -19,8 +20,7 @@ export async function getProfile(): Promise<Profile | null> {
 }
 
 export async function upsertProfile(formData: FormData): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
   const handicapRaw = formData.get('handicap');
@@ -41,6 +41,7 @@ export async function upsertProfile(formData: FormData): Promise<{ error?: strin
     situation_notes: (formData.get('situation_notes') as string) || null,
   };
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from('profiles')
     .upsert(profileData, { onConflict: 'user_id' });

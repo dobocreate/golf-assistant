@@ -2,24 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedProfileId } from '@/lib/auth-utils';
 import type { Club } from '@/features/profile/types';
 
-async function getProfileId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
-
-  return data?.id ?? null;
-}
-
 export async function getClubs(): Promise<Club[]> {
-  const profileId = await getProfileId();
+  const profileId = await getAuthenticatedProfileId();
   if (!profileId) return [];
 
   const supabase = await createClient();
@@ -33,7 +20,7 @@ export async function getClubs(): Promise<Club[]> {
 }
 
 export async function upsertClub(formData: FormData): Promise<{ error?: string }> {
-  const profileId = await getProfileId();
+  const profileId = await getAuthenticatedProfileId();
   if (!profileId) return { error: 'プロファイルを先に作成してください。' };
 
   const name = formData.get('name') as string;
@@ -89,7 +76,7 @@ export async function upsertClub(formData: FormData): Promise<{ error?: string }
 export async function deleteClub(clubId: string): Promise<{ error?: string }> {
   if (!clubId) return { error: 'クラブIDが必要です。' };
 
-  const profileId = await getProfileId();
+  const profileId = await getAuthenticatedProfileId();
   if (!profileId) return { error: 'ログインが必要です。' };
 
   const supabase = await createClient();
