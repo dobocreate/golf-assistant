@@ -21,8 +21,11 @@ export async function createClient() {
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
           );
-        } catch {
-          // Server Component からの呼び出し時は無視
+        } catch (error) {
+          // Server Component からの呼び出し時はcookieの書き込みが不可（想定内）
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Cookie set failed (expected in Server Components):', error);
+          }
         }
       },
     },
