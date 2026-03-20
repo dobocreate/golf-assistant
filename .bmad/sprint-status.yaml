@@ -25,7 +25,7 @@ sprints:
       - story_id: "STORY-003"
         title: "共通レイアウト（PC/モバイル切り替え）"
         points: 5
-        status: "not_started"
+        status: "in_progress"
     tech_spikes:
       - "Gemini API streaming + Vercel Edge Runtime 動作確認"
       - "楽天GORA API ホール別データ取得可否の確認"

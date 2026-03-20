@@ -10,7 +10,7 @@ export default async function Home() {
 
   if (!user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8">
+      <section className="flex min-h-[80vh] flex-col items-center justify-center p-8">
         <h1 className="text-4xl font-bold mb-4">Golf Assistant</h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
           AIキャディーがあなたのプレーをサポート
@@ -21,12 +21,12 @@ export default async function Home() {
         >
           ログイン
         </Link>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
+    <section className="flex min-h-[80vh] flex-col items-center justify-center p-8">
       <h1 className="text-4xl font-bold mb-4">Golf Assistant</h1>
       <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
         ようこそ、{user.email} さん
@@ -39,6 +39,6 @@ export default async function Home() {
           ログアウト
         </button>
       </form>
-    </main>
+    </section>
   );
 }

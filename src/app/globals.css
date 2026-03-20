@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --sidebar-width: 15rem;
+  --mobile-nav-height: 4rem;
+  --play-nav-height: 5rem;
 }
 
 @theme inline {
@@ -26,4 +29,12 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* タッチターゲット最小サイズ保証 */
+button,
+a,
+[role='button'] {
+  min-height: 48px;
 }
