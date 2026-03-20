@@ -164,6 +164,8 @@ create policy "Users can CRUD own profiles" on profiles
 create policy "Users can CRUD own clubs" on clubs
   for all using (
     profile_id in (select id from profiles where user_id = auth.uid())
+  ) with check (
+    profile_id in (select id from profiles where user_id = auth.uid())
   );
 
 -- hole_notes: 自分のメモのみ
@@ -178,17 +180,23 @@ create policy "Users can CRUD own rounds" on rounds
 create policy "Users can CRUD own scores" on scores
   for all using (
     round_id in (select id from rounds where user_id = auth.uid())
+  ) with check (
+    round_id in (select id from rounds where user_id = auth.uid())
   );
 
 -- shots: 自分のラウンドのショットのみ
 create policy "Users can CRUD own shots" on shots
   for all using (
     round_id in (select id from rounds where user_id = auth.uid())
+  ) with check (
+    round_id in (select id from rounds where user_id = auth.uid())
   );
 
 -- memos: 自分のラウンドのメモのみ
 create policy "Users can CRUD own memos" on memos
   for all using (
+    round_id in (select id from rounds where user_id = auth.uid())
+  ) with check (
     round_id in (select id from rounds where user_id = auth.uid())
   );
 
