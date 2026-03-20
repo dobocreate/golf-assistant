@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --sidebar-width: 15rem;
+  --mobile-nav-height: 4rem;
+  --play-nav-height: 5rem;
 }
 
 @theme inline {
