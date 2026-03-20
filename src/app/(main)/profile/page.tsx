@@ -1,8 +1,22 @@
-export default function ProfilePage() {
+import { getProfile } from '@/actions/profile';
+import { getClubs } from '@/actions/club';
+import { ProfileForm } from '@/features/profile/components/profile-form';
+import { ClubList } from '@/features/profile/components/club-list';
+
+export default async function ProfilePage() {
+  const [profile, clubs] = await Promise.all([getProfile(), getClubs()]);
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">プロファイル</h1>
-      <p className="text-gray-600 dark:text-gray-400">Sprint 1 で実装予定</p>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold mb-6">プロファイル</h1>
+        <ProfileForm profile={profile} />
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold mb-4">クラブ一覧</h2>
+        <ClubList clubs={clubs} profileExists={!!profile} />
+      </div>
     </div>
   );
 }
