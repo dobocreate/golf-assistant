@@ -10,18 +10,18 @@ sprints:
     end_date: "2026-03-27"
     capacity_points: 15
     committed_points: 15
-    completed_points: 0
+    completed_points: 5
     status: "in_progress"
     goal: "開発環境構築＋認証＋レスポンシブレイアウト＋技術スパイク"
     stories:
       - story_id: "STORY-001"
         title: "プロジェクト初期セットアップ"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-002"
         title: "認証（サインアップ・ログイン・ログアウト）"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-003"
         title: "共通レイアウト（PC/モバイル切り替え）"
         points: 5
