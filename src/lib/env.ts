@@ -6,7 +6,12 @@ function getEnvVar(name: string): string {
   return value;
 }
 
+function getOptionalEnvVar(name: string): string | undefined {
+  return process.env[name];
+}
+
 export const env = {
   NEXT_PUBLIC_SUPABASE_URL: getEnvVar('NEXT_PUBLIC_SUPABASE_URL'),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+  RAKUTEN_APP_ID: getOptionalEnvVar('RAKUTEN_APP_ID'),
 } as const;
