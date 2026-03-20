@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-20
 **Architect:** kishida
-**Version:** 1.0
+**Version:** 1.1
 **Project Type:** Web Application (Responsive)
 **Project Level:** Level 3
 **Status:** Draft
@@ -475,14 +475,14 @@ System Prompt 構成（推定 5,000〜10,000トークン）:
                   │  └──────┬───────┘  │  │ description     │
                   │         │          │  └─────────────────┘
                   │         │          │
-                  │  ┌──────▼───────┐  │  ┌─────────────────┐
-                  │  │ course_notes │  │  │ hole_notes      │
-                  │  │──────────────│  │  │─────────────────│
-                  │  │ id (PK)      │  │  │ id (PK)         │
-                  └──│ user_id (FK) │  │  │ user_id (FK)    │
-                     │ course_id(FK)│  │  │ hole_id (FK)    │
-                     │ note         │  │  │ note            │
-                     └──────────────┘  │  │ strategy        │
+                  │                    │  ┌─────────────────┐
+                  │                    │  │ hole_notes      │
+                  │                    │  │─────────────────│
+                  │                    │  │ id (PK)         │
+                  └────────────────────│  │ user_id (FK)    │
+                                       │  │ hole_id (FK)    │
+                                       │  │ note            │
+                                       │  │ strategy        │
                                        │  └─────────────────┘
                   ┌────────────────────┘
                   │
@@ -666,6 +666,8 @@ alter table scores enable row level security;
 alter table shots enable row level security;
 alter table memos enable row level security;
 alter table knowledge enable row level security;
+alter table courses enable row level security;
+alter table holes enable row level security;
 
 -- RLS Policies（全テーブル共通パターン）
 -- ユーザーは自分のデータのみアクセス可能
@@ -678,6 +680,16 @@ create policy "Courses are readable by all" on courses
   for select using (true);
 create policy "Holes are readable by all" on holes
   for select using (true);
+
+-- courses/holes への書き込みは認証済みユーザーに限定
+create policy "Authenticated users can insert courses" on courses
+  for insert with check (auth.role() = 'authenticated');
+create policy "Authenticated users can update courses" on courses
+  for update using (auth.role() = 'authenticated');
+create policy "Authenticated users can insert holes" on holes
+  for insert with check (auth.role() = 'authenticated');
+create policy "Authenticated users can update holes" on holes
+  for update using (auth.role() = 'authenticated');
 ```
 
 **インデックス:**
@@ -960,6 +972,7 @@ async function recordScore(data: HoleScore) {
 - **方式:** Row Level Security（RLS）
 - **ルール:** 全テーブルで `auth.uid() = user_id` ポリシーを適用
 - **例外:** `courses`, `holes` テーブルは全ユーザーが読み取り可能（共有データ）
+- **書き込み制限:** `courses`/`holes` への INSERT/UPDATE は認証済みユーザーに限定。DELETE は運用で制御（ポリシー未設定）。
 
 ### Data Encryption
 
@@ -1437,6 +1450,7 @@ RAKUTEN_APP_ID=
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-03-20 | kishida | Initial architecture |
+| 1.1 | 2026-03-21 | kishida | レビュー反映: courses/holesのRLS有効化+INSERT/UPDATE権限追加、ER図からcourse_notes削除 |
 
 ---
 

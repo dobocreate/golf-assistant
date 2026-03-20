@@ -3,24 +3,24 @@
 **Date:** 2026-03-20
 **Scrum Master:** kishida
 **Project Level:** Level 3
-**Total Stories:** 20（MVP: 16 / Post-MVP: 4）
-**Total Points:** 79（MVP: 62）
-**Planned Sprints:** 5（MVP: 4 / Post-MVP: 1）
+**Total Stories:** 22（MVP: 18 / Post-MVP: 4）
+**Total Points:** 93（MVP: 76）
+**Planned Sprints:** 6（MVP: 5 / Post-MVP: 1）
 **Sprint Length:** 1週間（最速MVP方針）
 
 ---
 
 ## Executive Summary
 
-最速でMVPを構築するため、1週間スプリントを採用する。Must Have機能に集中し、4スプリント（4週間）でMVPリリースを目指す。Should Have/Could Have機能はMVP後に追加する。
+最速でMVPを構築するため、1週間スプリントを採用する。Must Have機能に集中し、5スプリント（5週間）でMVPリリースを目指す。Should Have/Could Have機能はMVP後に追加する。
 
 **Key Metrics:**
 
 | 項目 | 値 |
 |------|-----|
-| MVP Stories | 16 |
-| MVP Points | 62 |
-| MVP Sprints | 4（4週間） |
+| MVP Stories | 18 |
+| MVP Points | 76 |
+| MVP Sprints | 5（5週間） |
 | Post-MVP Stories | 4 |
 | Post-MVP Points | 17 |
 | Definition of Done | 動作する機能 + 基本テスト |
@@ -112,6 +112,7 @@ So that プレー中はスマホ、準備や振り返りはPCで使える
 - [ ] レスポンシブブレイクポイントが正しく動作する
 - [ ] 高コントラスト配色で屋外でも見やすい
 - [ ] フォントサイズ16px以上、タッチターゲット48px以上
+- [ ] 同一アカウントで複数デバイスからアクセスできる（単一DB構成で自動充足）
 
 **Technical Notes:**
 - `(main)/layout.tsx`: PC用ナビレイアウト
@@ -144,6 +145,8 @@ So that AIが正確なアドバイスをくれる
 - [ ] クラブ一覧を登録できる（クラブ名、飛距離、苦手フラグ、自信度）
 - [ ] プロファイル・クラブ情報が保存・更新される
 - [ ] クラブはプリセット（1W, 3W, 5W, 3I〜9I, PW, AW, SW, PT）から選択 + カスタム追加
+- [ ] 得意なショット・距離帯を登録できる
+- [ ] 状況別の傾向を自由記述で追加できる
 
 **Technical Notes:**
 - `profiles` テーブル + `clubs` テーブルへの CRUD
@@ -211,7 +214,7 @@ So that ラウンド中にすぐ参照できる
 
 ---
 
-### Sprint 2: スコア記録 + 音声機能
+### Sprint 2: スコア記録 + 音声入力
 
 ---
 
@@ -228,13 +231,12 @@ So that スコア記録とAIアドバイスの準備ができる
 **Acceptance Criteria:**
 - [ ] プレー開始画面（`/play`）で保存済みコースを選択できる
 - [ ] ラウンド開始ボタンでラウンドが作成される
-- [ ] コンテキストスナップショットが自動構築・保存される
+- [ ] ラウンドレコードが作成される（コンテキスト構築はSTORY-012で実装）
 - [ ] プレー画面（`/play/[roundId]`）に遷移する
 
 **Technical Notes:**
 - `rounds` テーブルに新規レコード作成
-- `context-builder.ts` でプロファイル + コース + ナレッジを集約
-- `rounds.context_snapshot` にJSON保存
+- コンテキスト構築はSTORY-012で実装。本ストーリーではroundsレコード作成とプレー画面遷移のみ
 
 **Dependencies:** STORY-004, STORY-006
 
@@ -315,13 +317,14 @@ So that スマホ画面を見続けなくてもよい
 - [ ] アドバイス表示エリアにスピーカーボタンがある
 - [ ] タップすると日本語でアドバイスが読み上げられる
 - [ ] 読み上げ中に再度タップすると停止する
+- [ ] 読み上げ速度が調整可能
 
 **Technical Notes:**
 - `hooks/use-speech-synthesis.ts`（Web Speech Synthesis API）
 - 日本語音声を自動選択
 - AIアドバイスが表示された後に呼び出し可能
 
-**Dependencies:** STORY-001
+**Dependencies:** STORY-013
 
 **Story Points:** 2
 
@@ -349,7 +352,7 @@ So that 結果を振り返れる
 
 ---
 
-### Sprint 3: AIキャディー
+### Sprint 3: AIキャディー＋音声読み上げ
 
 ---
 
@@ -468,7 +471,7 @@ So that 後半の崩れ防止など状況に応じたアドバイスがもらえ
 
 ---
 
-### Sprint 4: 振り返り + 仕上げ
+### Sprint 4: スコアコンテキスト反映 + 振り返り + 仕上げ
 
 ---
 
@@ -634,9 +637,9 @@ So that 長期的な上達を確認できる
 
 ## Sprint Allocation
 
-### Sprint 0（Week 0）— 基盤構築 — 15pt
+### Sprint 0（Week 0）— 基盤構築＋技術スパイク — 15pt
 
-**Goal:** 開発環境構築＋認証＋レスポンシブレイアウトを完成させる
+**Goal:** 開発環境構築＋認証＋レスポンシブレイアウトを完成させる＋技術スパイク
 
 | Story | タイトル | Points | 優先度 |
 |-------|---------|--------|--------|
@@ -646,6 +649,11 @@ So that 長期的な上達を確認できる
 
 **Committed:** 15 points
 **Sprint完了条件:** Vercelにデプロイされ、ログインしてPC/モバイルレイアウトが表示される
+
+**技術スパイク（ポイント外）:**
+- [ ] Gemini API streaming + Vercel Edge Runtime の動作確認
+- [ ] 楽天GORA API ホール別データ取得可否の確認
+- [ ] Web Speech API の iOS Safari / Android Chrome 実機テスト
 
 ---
 
@@ -664,53 +672,53 @@ So that 長期的な上達を確認できる
 
 ---
 
-### Sprint 2（Week 2）— スコア記録 + 音声 — 17pt
+### Sprint 2（Week 2）— スコア記録 + 音声入力 — 15pt
 
-**Goal:** プレー中のスコア記録と音声機能が動作する
+**Goal:** プレー中のスコア記録と音声入力が動作する
 
 | Story | タイトル | Points | 優先度 |
 |-------|---------|--------|--------|
 | STORY-007 | ラウンド開始・コース選択 | 5 | Must |
 | STORY-008 | ホール別スコア入力UI | 5 | Must |
 | STORY-009 | 音声入力による反省メモ | 3 | Must |
-| STORY-010 | 音声読み上げ | 2 | Must |
 | STORY-011 | ラウンド完了・スコア集計 | 2 | Must |
 
-**Committed:** 17 points
+**Committed:** 15 points
 **Sprint完了条件:** ラウンド開始→スコア記録→音声メモ→ラウンド完了の一連の流れが動作する
 
 ---
 
-### Sprint 3（Week 3）— AIキャディー — 21pt
+### Sprint 3（Week 3）— AIキャディー＋音声読み上げ — 20pt
 
-**Goal:** AIアドバイス機能が動作し、プレー中に実用できる
+**Goal:** AIアドバイス機能が動作し、音声読み上げを含めプレー中に実用できる
 
 | Story | タイトル | Points | 優先度 |
 |-------|---------|--------|--------|
 | STORY-012 | コンテキストビルダー | 5 | Must |
 | STORY-013 | Gemini APIアドバイス生成 | 8 | Must |
 | STORY-014 | プレー中状況入力UI | 5 | Must |
-| STORY-015 | スコア状況のコンテキスト反映 | 3 | Must |
+| STORY-010 | 音声読み上げ | 2 | Must |
 
-**Committed:** 21 points
+**Committed:** 20 points
 **Sprint完了条件:** 状況を入力→AIがコンテキストに基づいたアドバイスを生成→音声読み上げが動作する
 
 **リスク:** STORY-013（Gemini API統合）は最大の技術リスク。ストリーミング動作の検証を早めに行う
 
 ---
 
-### Sprint 4（Week 4）— 振り返り + 仕上げ — MVP完成 — 10pt
+### Sprint 4（Week 4）— スコアコンテキスト反映 + 振り返り + 仕上げ — MVP完成 — 13pt
 
-**Goal:** ラウンド振り返り＋ダッシュボードを完成させ、MVP全体を仕上げる
+**Goal:** スコアコンテキスト反映＋振り返り＋ダッシュボードを完成させ、MVP全体を仕上げる
 
 | Story | タイトル | Points | 優先度 |
 |-------|---------|--------|--------|
+| STORY-015 | スコア状況のコンテキスト反映 | 3 | Must |
 | STORY-016 | ラウンド振り返り画面 | 5 | Must |
 | STORY-017 | ラウンド履歴一覧 | 2 | Must |
 | STORY-018 | ダッシュボード | 3 | Must |
 
-**Committed:** 10 points（バッファあり：バグ修正・UI調整に充当）
-**Sprint完了条件:** 全画面が動作し、ラウンドの一連の流れ（準備→プレー→振り返り）が完結する
+**Committed:** 13 points（バッファ2pt）
+**Sprint完了条件:** 全画面が動作し、ラウンドの一連の流れ（準備→プレー→振り返り）が完結する。スコア推移がAIアドバイスに反映される
 
 ---
 
@@ -735,7 +743,7 @@ So that 長期的な上達を確認できる
 | EPIC-001 | ユーザー基盤 | STORY-002, 003, 004, 018 | 18 | 0, 1, 4 |
 | EPIC-002 | コース情報管理 | STORY-005, 006 | 8 | 1 |
 | EPIC-004 | スコア・ショット記録 | STORY-007, 008, 009, 011, 019 | 20 | 2, Post |
-| EPIC-003 | AIキャディー | STORY-010, 012, 013, 014, 015, 020 | 26 | 2, 3, Post |
+| EPIC-003 | AIキャディー | STORY-010, 012, 013, 014, 015, 020 | 26 | 3, 4, Post |
 | EPIC-006 | AI分析（ラウンド後） | STORY-016, 017, 022 | 11 | 4, Post |
 | EPIC-005 | データアナリスト | STORY-021 | 5 | Post |
 
@@ -746,9 +754,9 @@ So that 長期的な上達を確認できる
 | FR ID | FR Name | Story | Sprint | Priority |
 |-------|---------|-------|--------|----------|
 | FR-001 | ショット戦略アドバイス | STORY-013, 014 | 3 | Must |
-| FR-002 | 状況別スイング注意点 | STORY-014（基本）, 021（ナレッジ連携） | 3, Post | Must/Could |
-| FR-003 | 疲労・メンタル考慮 | STORY-015（基本）, 020（高度化） | 3, Post | Must/Should |
-| FR-004 | 音声読み上げ | STORY-010 | 2 | Must |
+| FR-002 | 状況別スイング注意点 | STORY-014（基本）, 021（ナレッジ連携） | 3, Post | Should/Could |
+| FR-003 | 疲労・メンタル考慮 | STORY-015（基本）, 020（高度化） | 4, Post | Should |
+| FR-004 | 音声読み上げ | STORY-010 | 3 | Must |
 | FR-005 | 音声入力 | STORY-009 | 2 | Must |
 | FR-006 | ホール別スコア記録 | STORY-008 | 2 | Must |
 | FR-007 | ショット結果記録 | STORY-019 | Post | Should |
@@ -762,6 +770,30 @@ So that 長期的な上達を確認できる
 | FR-015 | AI傾向分析 | Claudeサブスク + STORY-022 | Post | Should |
 | FR-016 | ユーザー登録・認証 | STORY-002 | 0 | Must |
 | FR-017 | マルチデバイス対応 | STORY-003 | 0 | Must |
+
+---
+
+## Review Plan
+
+### 計画レビュー
+
+| タイミング | 内容 | 方法 |
+|-----------|------|------|
+| Sprint 0 開始前 | PRD・アーキテクチャ・スプリント計画の整合性 | Codex照査 + PM/テックリード/QA視点クロスレビュー（実施済み） |
+| Sprint 2 完了後 | MVP中間レビュー。技術スパイク結果を踏まえたSprint 3-4計画の再確認 | Codex照査 + 複数視点レビュー |
+
+### コードレビュー
+
+| タイミング | 内容 | 方法 |
+|-----------|------|------|
+| 各ストーリー完了時 | 実装コードのレビュー | エージェントによるPRレビュー（`/review-pr`） |
+| 各Sprint完了時 | Sprint全体の差分レビュー | PR作成 → エージェントレビュー → マージ |
+
+### レビュー実績
+
+| 日付 | 対象 | レビュアー | 結果 |
+|------|------|-----------|------|
+| 2026-03-21 | Sprint計画 v1.0 | Codex (o3) + PM/TechLead/QA | 指摘10件 → 計画修正済み（`docs/review-sprint-plan-2026-03-21.md`） |
 
 ---
 
@@ -779,7 +811,7 @@ So that 長期的な上達を確認できる
 | リスク | 影響 | 対策 |
 |-------|------|------|
 | 楽天GORA APIのホールデータ不足 | コース情報の精度 | 手動入力UIで補完 |
-| Sprint 3のポイント過多（21pt） | スプリント遅延 | STORY-015をSprint 4にバッファとして移動可能 |
+| Sprint 3のポイント過多（20pt） | スプリント遅延 | STORY-010をSprint 4にバッファとして移動可能 |
 
 ### Low
 
@@ -809,6 +841,10 @@ For a story to be considered complete:
 - [ ] 主要パスのテストが存在する
 - [ ] Vercelにデプロイされ、動作確認済み
 - [ ] レスポンシブ対応（PC + モバイル）
+- [ ] iOS Safari + Android Chrome での基本動作確認（Sprint 2 以降）
+- [ ] ネットワーク低速時（3G Slow 相当）でも致命的エラーが発生しない（Sprint 2 以降）
+- [ ] RLS ポリシーが正しく動作する（データアクセスを伴うストーリーのみ）
+- [ ] エラー発生時にユーザーに適切なフィードバックが表示される
 
 ※ MVPフェーズでは、カバレッジ目標やコードレビューは省略し、動作する機能の完成を最優先する
 
@@ -817,11 +853,11 @@ For a story to be considered complete:
 ## Sprint Timeline
 
 ```
-Week 0: Sprint 0 — 基盤構築（環境 + 認証 + レイアウト）
+Week 0: Sprint 0 — 基盤構築（環境 + 認証 + レイアウト + 技術スパイク）
 Week 1: Sprint 1 — プロファイル + コース情報
-Week 2: Sprint 2 — スコア記録 + 音声機能
-Week 3: Sprint 3 — AIキャディー ★コア機能
-Week 4: Sprint 4 — 振り返り + 仕上げ → MVP完成 🎉
+Week 2: Sprint 2 — スコア記録 + 音声入力
+Week 3: Sprint 3 — AIキャディー + 音声読み上げ ★コア機能
+Week 4: Sprint 4 — スコアコンテキスト反映 + 振り返り + 仕上げ → MVP完成 🎉
 Week 5+: Post-MVP — 機能拡充
 ```
 

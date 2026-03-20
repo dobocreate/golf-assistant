@@ -11,13 +11,13 @@ sprints:
     capacity_points: 15
     committed_points: 15
     completed_points: 0
-    status: "not_started"
-    goal: "開発環境構築＋認証＋レスポンシブレイアウト"
+    status: "in_progress"
+    goal: "開発環境構築＋認証＋レスポンシブレイアウト＋技術スパイク"
     stories:
       - story_id: "STORY-001"
         title: "プロジェクト初期セットアップ"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-002"
         title: "認証（サインアップ・ログイン・ログアウト）"
         points: 5
@@ -26,6 +26,10 @@ sprints:
         title: "共通レイアウト（PC/モバイル切り替え）"
         points: 5
         status: "not_started"
+    tech_spikes:
+      - "Gemini API streaming + Vercel Edge Runtime 動作確認"
+      - "楽天GORA API ホール別データ取得可否の確認"
+      - "Web Speech API iOS Safari / Android Chrome 実機テスト"
 
   - sprint_number: 1
     start_date: "2026-03-27"
@@ -52,11 +56,11 @@ sprints:
   - sprint_number: 2
     start_date: "2026-04-03"
     end_date: "2026-04-10"
-    capacity_points: 17
-    committed_points: 17
+    capacity_points: 15
+    committed_points: 15
     completed_points: 0
     status: "not_started"
-    goal: "スコア記録＋音声機能"
+    goal: "スコア記録＋音声入力"
     stories:
       - story_id: "STORY-007"
         title: "ラウンド開始・コース選択"
@@ -70,10 +74,6 @@ sprints:
         title: "音声入力による反省メモ"
         points: 3
         status: "not_started"
-      - story_id: "STORY-010"
-        title: "音声読み上げ"
-        points: 2
-        status: "not_started"
       - story_id: "STORY-011"
         title: "ラウンド完了・スコア集計"
         points: 2
@@ -82,11 +82,11 @@ sprints:
   - sprint_number: 3
     start_date: "2026-04-10"
     end_date: "2026-04-17"
-    capacity_points: 21
-    committed_points: 21
+    capacity_points: 20
+    committed_points: 20
     completed_points: 0
     status: "not_started"
-    goal: "AIキャディー（コア機能）"
+    goal: "AIキャディー＋音声読み上げ（コア機能）"
     stories:
       - story_id: "STORY-012"
         title: "コンテキストビルダー"
@@ -96,24 +96,28 @@ sprints:
         title: "Gemini APIアドバイス生成（ストリーミング）"
         points: 8
         status: "not_started"
+      - story_id: "STORY-010"
+        title: "音声読み上げ"
+        points: 2
+        status: "not_started"
       - story_id: "STORY-014"
         title: "プレー中状況入力UI"
         points: 5
-        status: "not_started"
-      - story_id: "STORY-015"
-        title: "スコア状況のコンテキスト反映"
-        points: 3
         status: "not_started"
 
   - sprint_number: 4
     start_date: "2026-04-17"
     end_date: "2026-04-24"
     capacity_points: 15
-    committed_points: 10
+    committed_points: 13
     completed_points: 0
     status: "not_started"
-    goal: "振り返り＋ダッシュボード＋MVP仕上げ"
+    goal: "スコアコンテキスト反映＋振り返り＋ダッシュボード＋MVP仕上げ"
     stories:
+      - story_id: "STORY-015"
+        title: "スコア状況のコンテキスト反映"
+        points: 3
+        status: "not_started"
       - story_id: "STORY-016"
         title: "ラウンド振り返り画面"
         points: 5
