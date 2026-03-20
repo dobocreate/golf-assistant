@@ -1,13 +1,82 @@
 import type { CourseSource, CourseSearchResult, CourseDetail } from './types';
 
-// TODO: Sprint 1 で実装
-export function createRakutenGoraSource(_appId: string): CourseSource {
+const GORA_BASE = 'https://app.rakuten.co.jp/services/api/Gora';
+const API_VERSION = '20170623';
+
+export function createRakutenGoraSource(appId: string): CourseSource {
   return {
-    async search(_query: string, _prefecture?: string): Promise<CourseSearchResult[]> {
-      throw new Error('Not implemented: Sprint 1 で実装予定');
+    async search(query: string, _prefecture?: string): Promise<CourseSearchResult[]> {
+      try {
+        const params = new URLSearchParams({
+          applicationId: appId,
+          keyword: query,
+          format: 'json',
+          hits: '20',
+        });
+
+        const res = await fetch(
+          `${GORA_BASE}/GoraGolfCourseSearch/${API_VERSION}?${params}`,
+          { next: { revalidate: 3600 } }
+        );
+
+        if (!res.ok) {
+          console.error('Rakuten GORA search failed:', res.status);
+          return [];
+        }
+
+        const data = await res.json();
+        const items = data.Items ?? [];
+
+        return items.map((item: Record<string, unknown>) => {
+          const golf = (item.Item ?? item) as Record<string, unknown>;
+          return {
+            id: String(golf.golfCourseId ?? ''),
+            name: String(golf.golfCourseName ?? ''),
+            prefecture: String(golf.prefecture ?? ''),
+            address: String(golf.address ?? ''),
+            image_url: golf.golfCourseImageUrl ? String(golf.golfCourseImageUrl) : undefined,
+          };
+        });
+      } catch (error) {
+        console.error('Rakuten GORA search error:', error);
+        return [];
+      }
     },
-    async getDetail(_courseId: string): Promise<CourseDetail | null> {
-      throw new Error('Not implemented: Sprint 1 で実装予定');
+
+    async getDetail(courseId: string): Promise<CourseDetail | null> {
+      try {
+        const params = new URLSearchParams({
+          applicationId: appId,
+          goraGolfCourseId: courseId,
+          format: 'json',
+        });
+
+        const res = await fetch(
+          `${GORA_BASE}/GoraGolfCourseDetail/${API_VERSION}?${params}`,
+          { next: { revalidate: 86400 } }
+        );
+
+        if (!res.ok) {
+          console.error('Rakuten GORA detail failed:', res.status);
+          return null;
+        }
+
+        const data = await res.json();
+        const item = data.Item ?? data;
+
+        return {
+          id: String(item.golfCourseId ?? courseId),
+          name: String(item.golfCourseName ?? ''),
+          prefecture: String(item.prefecture ?? ''),
+          address: String(item.address ?? ''),
+          layout_url: item.golfCourseImageUrl ? String(item.golfCourseImageUrl) : undefined,
+          holes: [],  // 楽天GORA APIはホール別詳細を返さないため空。手動入力で補完。
+          raw_data: item as Record<string, unknown>,
+        };
+      } catch (error) {
+        console.error('Rakuten GORA detail error:', error);
+        return null;
+      }
     },
   };
 }

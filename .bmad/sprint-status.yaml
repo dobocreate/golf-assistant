@@ -43,11 +43,11 @@ sprints:
       - story_id: "STORY-004"
         title: "ユーザープロファイル管理"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-005"
         title: "楽天GORA APIコース検索・保存"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-006"
         title: "ホール情報・メモ管理"
         points: 3
