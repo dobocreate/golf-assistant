@@ -22,8 +22,8 @@ function validateCredentials(formData: FormData): { email: string; password: str
   if (typeof email !== 'string' || !email.trim()) {
     return { error: 'メールアドレスは必須です。' };
   }
-  if (typeof password !== 'string' || password.length < 8) {
-    return { error: 'パスワードは8文字以上で入力してください。' };
+  if (typeof password !== 'string' || !password) {
+    return { error: 'パスワードは必須です。' };
   }
   return { email: email.trim(), password };
 }

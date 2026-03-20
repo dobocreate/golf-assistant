@@ -7,8 +7,8 @@ import { mapAuthError } from '@/lib/auth-errors';
 export async function updatePassword(formData: FormData) {
   const password = formData.get('password');
 
-  if (typeof password !== 'string' || password.length < 8) {
-    return { error: 'パスワードは8文字以上で入力してください。' };
+  if (typeof password !== 'string' || !password) {
+    return { error: 'パスワードは必須です。' };
   }
 
   const supabase = await createClient();

@@ -7,7 +7,7 @@ export function mapAuthError(message: string): string {
     case message.includes('User already registered'):
       return 'このメールアドレスは既に登録されています。';
     case message.includes('Password should be at least'):
-      return 'パスワードは8文字以上で入力してください。';
+      return 'パスワードが短すぎます。';
     case message.includes('rate limit'):
       return 'リクエストが多すぎます。しばらく待ってからお試しください。';
     default:

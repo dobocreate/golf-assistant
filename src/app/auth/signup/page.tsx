@@ -54,7 +54,7 @@ export default function SignupPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium mb-1">
-                パスワード（8文字以上）
+                パスワード
               </label>
               <input
                 id="password"
@@ -62,7 +62,6 @@ export default function SignupPage() {
                 type="password"
                 required
                 autoComplete="new-password"
-                minLength={8}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
               />
             </div>

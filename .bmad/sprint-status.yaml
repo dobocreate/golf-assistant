@@ -1,7 +1,7 @@
 version: "6.0.0"
 project_name: "golf-assistant"
 project_level: 3
-current_sprint: 0
+current_sprint: 1
 sprint_plan_path: "docs/sprint-plan-golf-assistant-2026-03-20.md"
 
 sprints:
@@ -10,8 +10,8 @@ sprints:
     end_date: "2026-03-27"
     capacity_points: 15
     committed_points: 15
-    completed_points: 5
-    status: "in_progress"
+    completed_points: 15
+    status: "completed"
     goal: "開発環境構築＋認証＋レスポンシブレイアウト＋技術スパイク"
     stories:
       - story_id: "STORY-001"
@@ -21,11 +21,11 @@ sprints:
       - story_id: "STORY-002"
         title: "認証（サインアップ・ログイン・ログアウト）"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-003"
         title: "共通レイアウト（PC/モバイル切り替え）"
         points: 5
-        status: "in_progress"
+        status: "completed"
     tech_spikes:
       - "Gemini API streaming + Vercel Edge Runtime 動作確認"
       - "楽天GORA API ホール別データ取得可否の確認"
@@ -37,13 +37,13 @@ sprints:
     capacity_points: 15
     committed_points: 13
     completed_points: 0
-    status: "not_started"
+    status: "in_progress"
     goal: "プロファイル登録＋コース情報管理"
     stories:
       - story_id: "STORY-004"
         title: "ユーザープロファイル管理"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-005"
         title: "楽天GORA APIコース検索・保存"
         points: 5
@@ -132,7 +132,7 @@ sprints:
         status: "not_started"
 
 velocity:
-  sprint_0: null
+  sprint_0: 15
   sprint_1: null
   sprint_2: null
   sprint_3: null

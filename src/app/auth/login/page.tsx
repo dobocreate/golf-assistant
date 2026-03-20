@@ -54,7 +54,6 @@ function LoginForm() {
             type="password"
             required
             autoComplete="current-password"
-            minLength={8}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
           />
         </div>
