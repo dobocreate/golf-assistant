@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { mapAuthError } from '@/lib/auth-errors';
 
 export async function updatePassword(formData: FormData) {
   const password = formData.get('password');
@@ -14,7 +15,7 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    return { error: 'パスワードの更新に失敗しました。もう一度お試しください。' };
+    return { error: mapAuthError(error.message) };
   }
 
   redirect('/');

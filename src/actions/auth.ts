@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { mapAuthError } from '@/lib/auth-errors';
 
 function getRedirectBase(): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -14,26 +15,7 @@ function getRedirectBase(): string {
   return siteUrl;
 }
 
-function mapAuthError(message: string): string {
-  if (message.includes('Invalid login credentials')) {
-    return 'メールアドレスまたはパスワードが正しくありません。';
-  }
-  if (message.includes('Email not confirmed')) {
-    return 'メールアドレスが確認されていません。確認メールをご確認ください。';
-  }
-  if (message.includes('User already registered')) {
-    return 'このメールアドレスは既に登録されています。';
-  }
-  if (message.includes('Password should be at least')) {
-    return 'パスワードは8文字以上で入力してください。';
-  }
-  if (message.includes('rate limit')) {
-    return 'リクエストが多すぎます。しばらく待ってからお試しください。';
-  }
-  return '認証エラーが発生しました。もう一度お試しください。';
-}
-
-export async function login(formData: FormData) {
+function validateCredentials(formData: FormData): { email: string; password: string } | { error: string } {
   const email = formData.get('email');
   const password = formData.get('password');
 
@@ -43,11 +25,19 @@ export async function login(formData: FormData) {
   if (typeof password !== 'string' || password.length < 8) {
     return { error: 'パスワードは8文字以上で入力してください。' };
   }
+  return { email: email.trim(), password };
+}
+
+export async function login(formData: FormData) {
+  const result = validateCredentials(formData);
+  if ('error' in result) {
+    return result;
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
+    email: result.email,
+    password: result.password,
   });
 
   if (error) {
@@ -57,21 +47,16 @@ export async function login(formData: FormData) {
   redirect('/');
 }
 
-export async function signup(formData: FormData) {
-  const email = formData.get('email');
-  const password = formData.get('password');
-
-  if (typeof email !== 'string' || !email.trim()) {
-    return { error: 'メールアドレスは必須です。' };
-  }
-  if (typeof password !== 'string' || password.length < 8) {
-    return { error: 'パスワードは8文字以上で入力してください。' };
+export async function signup(formData: FormData): Promise<{ error: string } | { success: string }> {
+  const result = validateCredentials(formData);
+  if ('error' in result) {
+    return result;
   }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
+    email: result.email,
+    password: result.password,
     options: {
       emailRedirectTo: `${getRedirectBase()}/auth/callback`,
     },

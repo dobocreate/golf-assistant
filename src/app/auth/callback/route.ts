@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   if (!code) {
     const loginUrl = new URL('/auth/login', origin);
     if (errorDescription) {
-      loginUrl.searchParams.set('error', errorDescription);
+      loginUrl.searchParams.set('error', '認証に失敗しました。時間をおいて再度お試しください。');
     }
     return NextResponse.redirect(loginUrl.toString());
   }
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   if (error) {
     const loginUrl = new URL('/auth/login', origin);
-    loginUrl.searchParams.set('error', 'callback_failed');
+    loginUrl.searchParams.set('error', '認証処理に失敗しました。もう一度お試しください。');
     return NextResponse.redirect(loginUrl.toString());
   }
 
