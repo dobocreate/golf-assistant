@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { createRakutenGoraSource } from '@/lib/course-source/rakuten-gora';
+import { env } from '@/lib/env';
 import type { Course } from '@/features/course/types';
 
 export async function getSavedCourses(): Promise<Course[]> {
@@ -39,7 +40,7 @@ export async function saveCourseFromGora(goraId: string): Promise<{ error?: stri
   }
 
   // 楽天GORA APIから詳細取得
-  const appId = process.env.RAKUTEN_APP_ID;
+  const appId = env.RAKUTEN_APP_ID;
   if (!appId) return { error: '楽天GORA APIが設定されていません。' };
 
   const gora = createRakutenGoraSource(appId);
@@ -106,6 +107,11 @@ export async function upsertHoleNote(formData: FormData): Promise<{ error?: stri
 
   if (error) return { error: 'メモの保存に失敗しました。' };
 
+  // holeIdからcourse_idを取得してコース詳細ページも再検証
+  const { data: hole } = await supabase.from('holes').select('course_id').eq('id', holeId).single();
+  if (hole?.course_id) {
+    revalidatePath(`/courses/${hole.course_id}`);
+  }
   revalidatePath('/courses');
   return {};
 }

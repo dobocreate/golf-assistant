@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createRakutenGoraSource } from '@/lib/course-source/rakuten-gora';
+import { env } from '@/lib/env';
 
 export async function GET(request: Request) {
   // 認証チェック
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: '検索キーワードを入力してください。' }, { status: 400 });
   }
 
-  const appId = process.env.RAKUTEN_APP_ID;
+  const appId = env.RAKUTEN_APP_ID;
   if (!appId) {
     return NextResponse.json(
       { error: '楽天GORA APIが設定されていません。' },
