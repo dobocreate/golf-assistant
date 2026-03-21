@@ -58,8 +58,8 @@ sprints:
     end_date: "2026-04-10"
     capacity_points: 15
     committed_points: 15
-    completed_points: 0
-    status: "in_progress"
+    completed_points: 15
+    status: "completed"
     goal: "スコア記録＋音声入力"
     stories:
       - story_id: "STORY-007"
@@ -69,15 +69,15 @@ sprints:
       - story_id: "STORY-008"
         title: "ホール別スコア入力UI"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-009"
         title: "音声入力による反省メモ"
         points: 3
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-011"
         title: "ラウンド完了・スコア集計"
         points: 2
-        status: "in_progress"
+        status: "completed"
 
   - sprint_number: 3
     start_date: "2026-04-10"
@@ -134,7 +134,7 @@ sprints:
 velocity:
   sprint_0: 15
   sprint_1: 13
-  sprint_2: null
+  sprint_2: 15
   sprint_3: null
   sprint_4: null
   rolling_average: null
