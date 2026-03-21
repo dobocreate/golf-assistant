@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import type { Score } from '@/features/score/types';
@@ -48,6 +48,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [fairwayHit, setFairwayHit] = useState<boolean | null>(score?.fairway_hit ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
 
+  // 直前のスコアを保持（ロールバック用）
+  const previousScoreRef = useRef<Score | undefined>(undefined);
+
   const saveHole = useCallback((
     holeNum: number,
     s: number,
@@ -65,34 +68,35 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       fairway_hit: fw,
       green_in_reg: gir,
     };
+
+    // 楽観的更新
     setScores(prev => {
-      const previousScore = prev.get(holeNum);
-      const next = new Map(prev).set(holeNum, newScore);
-      setSaveStatus('saving');
+      previousScoreRef.current = prev.get(holeNum);
+      return new Map(prev).set(holeNum, newScore);
+    });
+    setSaveStatus('saving');
 
-      startTransition(async () => {
-        const result = await upsertScore({
-          roundId,
-          holeNumber: holeNum,
-          strokes: s,
-          putts: p,
-          fairwayHit: fw,
-          greenInReg: gir,
-        });
-        if (result.error) {
-          // 楽観的更新をロールバック
-          if (previousScore) {
-            setScores(prev2 => new Map(prev2).set(holeNum, previousScore));
-          } else {
-            setScores(prev2 => { const m = new Map(prev2); m.delete(holeNum); return m; });
-          }
-          setSaveStatus('error');
-        } else {
-          setSaveStatus('saved');
-        }
+    startTransition(async () => {
+      const result = await upsertScore({
+        roundId,
+        holeNumber: holeNum,
+        strokes: s,
+        putts: p,
+        fairwayHit: fw,
+        greenInReg: gir,
       });
-
-      return next;
+      if (result.error) {
+        // 楽観的更新をロールバック
+        const prev = previousScoreRef.current;
+        if (prev) {
+          setScores(m => new Map(m).set(holeNum, prev));
+        } else {
+          setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
+        }
+        setSaveStatus('error');
+      } else {
+        setSaveStatus('saved');
+      }
     });
   }, [roundId]);
 
@@ -101,20 +105,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, score?.id);
   }, [currentHole, strokes, putts, fairwayHit, greenInReg, score?.id, saveHole]);
 
+  // スコアMapへの参照（switchHoleでの同期用）
+  const scoresRef = useRef(scores);
+  scoresRef.current = scores;
+
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
     if (strokes !== null) {
       saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
-    setScores(prev => {
-      const s = prev.get(holeNum);
-      setStrokes(s?.strokes ?? null);
-      setPutts(s?.putts ?? null);
-      setFairwayHit(s?.fairway_hit ?? null);
-      setGreenInReg(s?.green_in_reg ?? null);
-      return prev;
-    });
+    const s = scoresRef.current.get(holeNum);
+    setStrokes(s?.strokes ?? null);
+    setPutts(s?.putts ?? null);
+    setFairwayHit(s?.fairway_hit ?? null);
+    setGreenInReg(s?.green_in_reg ?? null);
     setSaveStatus('idle');
   }, [strokes, putts, fairwayHit, greenInReg, currentHole, score?.id, saveHole]);
 
