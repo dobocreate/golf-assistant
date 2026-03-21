@@ -54,7 +54,7 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                     {hole.hole_number}
                   </span>
                   <span className="font-medium">Par {hole.par}</span>
-                  {hole.distance && (
+                  {hole.distance != null && (
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                       {hole.distance}yd
                     </span>
@@ -98,11 +98,11 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                 )}
 
                 {/* ティー別距離 */}
-                {(hole.distance_back || hole.distance_front || hole.distance_ladies) && (
+                {(hole.distance_back != null || hole.distance_front != null || hole.distance_ladies != null) && (
                   <div className="ml-12 mb-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                    {hole.distance_back && <span>Back {hole.distance_back}y</span>}
-                    {hole.distance_front && <span>Front {hole.distance_front}y</span>}
-                    {hole.distance_ladies && <span>Ladies {hole.distance_ladies}y</span>}
+                    {hole.distance_back != null && <span>Back {hole.distance_back}y</span>}
+                    {hole.distance_front != null && <span>Front {hole.distance_front}y</span>}
+                    {hole.distance_ladies != null && <span>Ladies {hole.distance_ladies}y</span>}
                   </div>
                 )}
 

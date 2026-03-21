@@ -12,7 +12,10 @@ interface AdviceClientProps {
 }
 
 export function AdviceClient({ roundId, scoredHoles }: AdviceClientProps) {
-  const nextHole = Array.from({ length: 18 }, (_, i) => i + 1).find(h => !new Set(scoredHoles).has(h)) ?? 18;
+  const nextHole = (() => {
+    const scored = new Set(scoredHoles);
+    return Array.from({ length: 18 }, (_, i) => i + 1).find(h => !scored.has(h)) ?? 18;
+  })();
   const [currentHole, setCurrentHole] = useState(nextHole);
   const [adviceText, setAdviceText] = useState('');
   const [isLoading, setIsLoading] = useState(false);

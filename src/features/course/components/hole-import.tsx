@@ -313,7 +313,7 @@ export function HoleImport({ courseId }: HoleImportProps) {
     a.href = url;
     a.download = 'hole-import-sample.csv';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, []);
 
   // プレビューが新形式かどうか判定（hdcp以降にデータがあるか）

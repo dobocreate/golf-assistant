@@ -48,14 +48,21 @@ export async function POST(request: Request) {
     }
 
     // バリデーション
+    const VALID_DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
     if (!Number.isInteger(body.holeNumber) || body.holeNumber < 1 || body.holeNumber > 18) {
       return jsonError('ホール番号が不正です。', 400);
     }
     if (!VALID_SHOT_TYPES.includes(body.shotType)) {
       return jsonError('ショット種別が不正です。', 400);
     }
+    if (!VALID_DISTANCES.includes(body.remainingDistance)) {
+      return jsonError('残り距離が不正です。', 400);
+    }
     if (!VALID_LIES.includes(body.lie)) {
       return jsonError('ライが不正です。', 400);
+    }
+    if (body.notes && body.notes.length > 200) {
+      return jsonError('補足は200文字以内で入力してください。', 400);
     }
     if (body.slopeFB !== null && body.slopeFB !== undefined && !VALID_SLOPE_FB.includes(body.slopeFB)) {
       return jsonError('前後傾斜が不正です。', 400);

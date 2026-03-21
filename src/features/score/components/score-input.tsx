@@ -84,7 +84,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const computeFairwayHit = useCallback((par: number, lr: TeeShotLR | null, fb: TeeShotFB | null): boolean | null => {
     if (par === 3) return null;
     if (lr === null || fb === null) return null;
-    return lr === 'center' && fb === 'center';
+    return lr === 'center';
   }, []);
 
   // greenInReg 自動判定
@@ -315,7 +315,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               if (strokes === null || strokes < maxFixedStroke) {
                 setStrokes(maxFixedStroke);
               } else {
-                setStrokes(strokes + 1);
+                setStrokes(Math.min(strokes + 1, 20));
               }
             }}
             className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
@@ -497,7 +497,7 @@ function CounterGroup({
             if (value < 3) {
               onChange(3);
             } else {
-              onChange(value + 1);
+              onChange(Math.min(value + 1, 10));
             }
           }}
           className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${

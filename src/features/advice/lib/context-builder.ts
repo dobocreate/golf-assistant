@@ -183,15 +183,17 @@ export function formatContextForPrompt(context: AdviceContext): string {
  * - 疲労・連続ボギー検出による警告ノート
  */
 export async function buildScoreContext(roundId: string): Promise<string> {
-  if (!UUID_RE.test(roundId)) return '';
+  const user = await getAuthenticatedUser();
+  if (!user || !UUID_RE.test(roundId)) return '';
 
   const supabase = await createClient();
 
-  // ラウンドのコースIDを取得
+  // ラウンドのコースIDを取得（所有権確認付き）
   const { data: round } = await supabase
     .from('rounds')
     .select('course_id')
     .eq('id', roundId)
+    .eq('user_id', user.id)
     .single();
 
   if (!round) return '';
