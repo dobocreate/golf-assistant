@@ -32,9 +32,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* タッチターゲット最小サイズ保証 */
+/* タッチターゲット最小サイズ保証（ボタンとボタン的リンクのみ） */
+button,
+[role='button'] {
+  min-height: 48px;
+}
+
+/* タップフィードバック — 押し込み感（scaleのみ、opacityは屋外視認性に配慮し省略） */
 button,
 a,
 [role='button'] {
-  min-height: 48px;
+  transition: transform 0.1s ease;
+}
+
+button:not(:disabled):active,
+a:active,
+[role='button']:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+/* prefers-reduced-motion 対応 */
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):active,
+  a:active,
+  [role='button']:not(:disabled):active {
+    transform: none;
+  }
+
+  .animate-progress-bar {
+    animation: none;
+    width: 95%;
+  }
+}
+
+/* ページ遷移プログレスバーアニメーション */
+@keyframes progress-bar {
+  0% { width: 0; }
+  20% { width: 40%; }
+  50% { width: 70%; }
+  80% { width: 90%; }
+  100% { width: 95%; }
+}
+
+.animate-progress-bar {
+  animation: progress-bar 2s ease-out forwards;
 }
