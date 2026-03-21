@@ -46,16 +46,21 @@ Golf Assistant では楽天GORA APIを使用してゴルフ場情報を検索・
 ### ローカル開発（`.env.local`）
 
 ```
-RAKUTEN_APP_ID=your-application-id
-RAKUTEN_ACCESS_KEY=your-access-key
+NEXT_PUBLIC_RAKUTEN_APP_ID=your-application-id
+NEXT_PUBLIC_RAKUTEN_ACCESS_KEY=your-access-key
 ```
+
+`NEXT_PUBLIC_` プレフィックスが必要（クライアントサイドで使用するため）。
 
 ### Vercel
 
 ```bash
-echo "your-application-id" | vercel env add RAKUTEN_APP_ID production
-echo "your-access-key" | vercel env add RAKUTEN_ACCESS_KEY production
+# 重要: echo ではなく printf を使用（末尾改行防止）
+printf "your-application-id" | vercel env add NEXT_PUBLIC_RAKUTEN_APP_ID production
+printf "your-access-key" | vercel env add NEXT_PUBLIC_RAKUTEN_ACCESS_KEY production
 ```
+
+`NEXT_PUBLIC_` 変数はビルド時に埋め込まれるため、追加後に **Redeploy** が必要。
 
 環境変数追加後は **Redeploy** が必要（既存デプロイには反映されない）。
 
@@ -153,9 +158,11 @@ echo "your-access-key" | vercel env add RAKUTEN_ACCESS_KEY production
 
 ### APIキーの安全性
 
-- `RAKUTEN_APP_ID` と `RAKUTEN_ACCESS_KEY` はサーバーサイドのみで使用
-- `NEXT_PUBLIC_` プレフィックスなし → クライアントに露出しない
-- API Route で認証チェック済みユーザーのみ検索可能
+- 楽天の新APIキー（`pk_`プレフィックス）は**ブラウザからのリクエストのみ許可**する仕様
+- サーバーサイド（Vercel Serverless Function等）からの呼び出しは `403 Invalid Access Key` で拒否される
+- そのため、コース検索はクライアントサイドから直接楽天APIを呼び出す方式を採用
+- `NEXT_PUBLIC_` プレフィックス付きでクライアントに公開するが、楽天側の「許可されたWebサイト」設定でドメイン制限済み
+- コース保存（DB書き込み）は Server Action 経由で認証チェック付きで実行
 
 ---
 
@@ -166,5 +173,7 @@ echo "your-access-key" | vercel env add RAKUTEN_ACCESS_KEY production
 | `specify valid applicationId` | 旧エンドポイント使用、またはアプリID不正 | エンドポイントURLが `openapi.rakuten.co.jp` であることを確認 |
 | `403 REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING` | Origin/Refererヘッダー欠落 | fetch呼び出しにヘッダーを追加 |
 | `403` （その他） | 許可されたWebサイトにドメイン未登録 | 楽天管理画面で登録を確認 |
+| `403 Invalid Access Key` | サーバーサイドからの呼び出し | 楽天の新APIキーはブラウザからのみ許可。クライアントサイド呼び出しに変更 |
 | `該当するコースが見つかりませんでした` | 検索キーワードが一致しない、またはAPI設定不備 | 環境変数とAPIキーを確認 |
 | Vercelで動作しない | 環境変数未反映 | Redeploy（Build Cacheなし）を実行 |
+| 環境変数に `%0A` が混入 | `echo` コマンドの末尾改行 | `printf` を使用: `printf "value" \| vercel env add NAME production` |
