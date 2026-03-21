@@ -3,6 +3,8 @@
 import { useState, useTransition, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
+import { VoiceInputButton } from '@/features/voice/components/voice-input-button';
+import { MemoList } from '@/features/voice/components/memo-list';
 import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
@@ -39,6 +41,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   });
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [memoRefreshKey, setMemoRefreshKey] = useState(0);
 
   const hole = holes.find(h => h.hole_number === currentHole) ?? { hole_number: currentHole, par: 4, distance: null };
   const score = scores.get(currentHole);
@@ -295,6 +298,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {saveStatus === 'error' && (
         <p className="text-center text-sm text-red-400">保存に失敗しました</p>
       )}
+
+      {/* 音声メモ */}
+      <div className="space-y-3 border-t border-gray-800 pt-4">
+        <label className="block text-sm font-bold text-gray-300">反省メモ</label>
+        <VoiceInputButton
+          roundId={roundId}
+          holeNumber={currentHole}
+          onSaved={() => setMemoRefreshKey(k => k + 1)}
+        />
+        <MemoList
+          roundId={roundId}
+          holeNumber={currentHole}
+          refreshKey={memoRefreshKey}
+        />
+      </div>
 
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">

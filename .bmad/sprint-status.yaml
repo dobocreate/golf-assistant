@@ -73,7 +73,7 @@ sprints:
       - story_id: "STORY-009"
         title: "音声入力による反省メモ"
         points: 3
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-011"
         title: "ラウンド完了・スコア集計"
         points: 2
