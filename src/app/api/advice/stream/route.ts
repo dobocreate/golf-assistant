@@ -64,10 +64,10 @@ export async function POST(request: Request) {
     if (body.notes && body.notes.length > 200) {
       return jsonError('補足は200文字以内で入力してください。', 400);
     }
-    if (body.slopeFB !== null && body.slopeFB !== undefined && !VALID_SLOPE_FB.includes(body.slopeFB)) {
+    if (body.slopeFB != null && !VALID_SLOPE_FB.includes(body.slopeFB)) {
       return jsonError('前後傾斜が不正です。', 400);
     }
-    if (body.slopeLR !== null && body.slopeLR !== undefined && !VALID_SLOPE_LR.includes(body.slopeLR)) {
+    if (body.slopeLR != null && !VALID_SLOPE_LR.includes(body.slopeLR)) {
       return jsonError('左右傾斜が不正です。', 400);
     }
 

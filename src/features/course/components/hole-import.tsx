@@ -68,6 +68,10 @@ function parseCSVLine(line: string): string[] {
           // クォート終了
           inQuotes = false;
           i++;
+          // クォート終了後、区切り文字まで読み飛ばす（RFC4180: 不正文字は無視）
+          while (i < line.length && line[i] !== ',') {
+            i++;
+          }
         }
       } else {
         current += ch;
@@ -78,7 +82,7 @@ function parseCSVLine(line: string): string[] {
         inQuotes = true;
         i++;
       } else if (ch === ',') {
-        fields.push(current.trim());
+        fields.push(current);
         current = '';
         i++;
       } else {
@@ -87,7 +91,7 @@ function parseCSVLine(line: string): string[] {
       }
     }
   }
-  fields.push(current.trim());
+  fields.push(current);
   return fields;
 }
 

@@ -5,6 +5,26 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Course } from '@/features/course/types';
 
+function parseOptionalInt(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const v = parseInt(raw, 10);
+  return isNaN(v) ? null : v;
+}
+
+function validateOptionalInt(value: number | null, min: number, max: number, label: string): string | null {
+  if (value !== null && (isNaN(value) || value < min || value > max)) {
+    return `${label}は${min}〜${max}の範囲で入力してください。`;
+  }
+  return null;
+}
+
+function validateOptionalEnum(value: string | null, allowed: string[], label: string): string | null {
+  if (value !== null && !allowed.includes(value)) {
+    return `${label}の値が不正です。`;
+  }
+  return null;
+}
+
 export async function getSavedCourses(): Promise<Course[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
@@ -117,39 +137,21 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
   }
 
   // 新フィールドの読み取り
-  const hdcpRaw = formData.get('hdcp') as string;
-  const hdcp = hdcpRaw ? parseInt(hdcpRaw, 10) : null;
-  if (hdcp !== null && (isNaN(hdcp) || hdcp < 1 || hdcp > 18)) {
-    return { error: 'HDCPは1〜18で入力してください。' };
-  }
-
+  const hdcp = parseOptionalInt(formData.get('hdcp') as string);
+  const distanceBack = parseOptionalInt(formData.get('distance_back') as string);
+  const distanceFront = parseOptionalInt(formData.get('distance_front') as string);
+  const distanceLadies = parseOptionalInt(formData.get('distance_ladies') as string);
   const dogleg = (formData.get('dogleg') as string) || null;
-  if (dogleg !== null && !['straight', 'left', 'right'].includes(dogleg)) {
-    return { error: 'ドッグレッグの値が不正です。' };
-  }
-
   const elevation = (formData.get('elevation') as string) || null;
-  if (elevation !== null && !['flat', 'uphill', 'downhill'].includes(elevation)) {
-    return { error: '高低差の値が不正です。' };
-  }
 
-  const distanceBackRaw = formData.get('distance_back') as string;
-  const distanceBack = distanceBackRaw ? parseInt(distanceBackRaw, 10) : null;
-  if (distanceBack !== null && (isNaN(distanceBack) || distanceBack < 0 || distanceBack > 700)) {
-    return { error: 'バックティー距離は0〜700の範囲で入力してください。' };
-  }
-
-  const distanceFrontRaw = formData.get('distance_front') as string;
-  const distanceFront = distanceFrontRaw ? parseInt(distanceFrontRaw, 10) : null;
-  if (distanceFront !== null && (isNaN(distanceFront) || distanceFront < 0 || distanceFront > 700)) {
-    return { error: 'フロントティー距離は0〜700の範囲で入力してください。' };
-  }
-
-  const distanceLadiesRaw = formData.get('distance_ladies') as string;
-  const distanceLadies = distanceLadiesRaw ? parseInt(distanceLadiesRaw, 10) : null;
-  if (distanceLadies !== null && (isNaN(distanceLadies) || distanceLadies < 0 || distanceLadies > 700)) {
-    return { error: 'レディースティー距離は0〜700の範囲で入力してください。' };
-  }
+  const fieldError =
+    validateOptionalInt(hdcp, 1, 18, 'HDCP') ??
+    validateOptionalEnum(dogleg, ['straight', 'left', 'right'], 'ドッグレッグ') ??
+    validateOptionalEnum(elevation, ['flat', 'uphill', 'downhill'], '高低差') ??
+    validateOptionalInt(distanceBack, 0, 700, 'バックティー距離') ??
+    validateOptionalInt(distanceFront, 0, 700, 'フロントティー距離') ??
+    validateOptionalInt(distanceLadies, 0, 700, 'レディースティー距離');
+  if (fieldError) return { error: fieldError };
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -249,30 +251,17 @@ export async function importHoles(
     }
     seenHoles.add(h.holeNumber);
 
-    if (!Number.isInteger(h.par) || h.par < 3 || h.par > 5) {
-      return { error: `ホール${h.holeNumber}: Parは3〜5で入力してください。` };
-    }
-    if (h.distance !== null && (!Number.isInteger(h.distance) || h.distance < 0 || h.distance > 700)) {
-      return { error: `ホール${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
-    }
-    if (h.hdcp !== null && (!Number.isInteger(h.hdcp) || h.hdcp < 1 || h.hdcp > 18)) {
-      return { error: `ホール${h.holeNumber}: HDCPは1〜18で入力してください。` };
-    }
-    if (h.dogleg !== null && !['straight', 'left', 'right'].includes(h.dogleg)) {
-      return { error: `ホール${h.holeNumber}: ドッグレッグの値が不正です。` };
-    }
-    if (h.elevation !== null && !['flat', 'uphill', 'downhill'].includes(h.elevation)) {
-      return { error: `ホール${h.holeNumber}: 高低差の値が不正です。` };
-    }
-    if (h.distanceBack !== null && (!Number.isInteger(h.distanceBack) || h.distanceBack < 0 || h.distanceBack > 700)) {
-      return { error: `ホール${h.holeNumber}: バックティー距離は0〜700の範囲で入力してください。` };
-    }
-    if (h.distanceFront !== null && (!Number.isInteger(h.distanceFront) || h.distanceFront < 0 || h.distanceFront > 700)) {
-      return { error: `ホール${h.holeNumber}: フロントティー距離は0〜700の範囲で入力してください。` };
-    }
-    if (h.distanceLadies !== null && (!Number.isInteger(h.distanceLadies) || h.distanceLadies < 0 || h.distanceLadies > 700)) {
-      return { error: `ホール${h.holeNumber}: レディースティー距離は0〜700の範囲で入力してください。` };
-    }
+    const prefix = `ホール${h.holeNumber}: `;
+    const holeError =
+      validateOptionalInt(h.par, 3, 5, 'Par') ??
+      validateOptionalInt(h.distance, 0, 700, '距離') ??
+      validateOptionalInt(h.hdcp, 1, 18, 'HDCP') ??
+      validateOptionalEnum(h.dogleg, ['straight', 'left', 'right'], 'ドッグレッグ') ??
+      validateOptionalEnum(h.elevation, ['flat', 'uphill', 'downhill'], '高低差') ??
+      validateOptionalInt(h.distanceBack, 0, 700, 'バックティー距離') ??
+      validateOptionalInt(h.distanceFront, 0, 700, 'フロントティー距離') ??
+      validateOptionalInt(h.distanceLadies, 0, 700, 'レディースティー距離');
+    if (holeError) return { error: prefix + holeError };
   }
 
   const supabase = await createClient();
