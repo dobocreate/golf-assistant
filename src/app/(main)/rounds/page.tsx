@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Flag } from 'lucide-react';
+import { Flag, BarChart3 } from 'lucide-react';
 
 export default async function RoundsPage() {
   const user = await getAuthenticatedUser();
@@ -19,7 +19,16 @@ export default async function RoundsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">ラウンド履歴</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">ラウンド履歴</h1>
+        <Link
+          href="/rounds/stats"
+          className="inline-flex items-center gap-1.5 min-h-[48px] rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <BarChart3 className="h-4 w-4" />
+          統計
+        </Link>
+      </div>
 
       {roundList.length === 0 ? (
         <div className="text-center py-12">

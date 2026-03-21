@@ -240,6 +240,30 @@ export async function buildScoreContext(roundId: string): Promise<string> {
   const totalDiffStr = totalDiff > 0 ? `+${totalDiff}` : totalDiff === 0 ? 'E' : `${totalDiff}`;
   lines.push(`- 合計: ${totalStrokes}打 (${totalDiffStr}) / ${scores.length}ホール消化`);
 
+  // ダブルボギー以上の検出（メンタルリセット）
+  let lastDoubleBogeyHole: number | null = null;
+  for (const s of scores) {
+    const par = parMap.get(s.hole_number) ?? 0;
+    if (par > 0 && s.strokes >= par + 2) {
+      lastDoubleBogeyHole = s.hole_number;
+    }
+  }
+
+  // 直近3ホールのスコア傾向
+  const recentScores = scores.slice(-3);
+  let scoringTrend: 'struggling' | 'steady' | null = null;
+  if (recentScores.length >= 3) {
+    const recentAvgDiff = recentScores.reduce((sum, s) => {
+      const par = parMap.get(s.hole_number) ?? 0;
+      return sum + (s.strokes - par);
+    }, 0) / recentScores.length;
+    if (recentAvgDiff > 1) {
+      scoringTrend = 'struggling';
+    } else if (recentAvgDiff <= 0) {
+      scoringTrend = 'steady';
+    }
+  }
+
   // 疲労・メンタル警告
   const warnings: string[] = [];
   if (lastHoleNumber >= 14) {
@@ -247,6 +271,14 @@ export async function buildScoreContext(roundId: string): Promise<string> {
   }
   if (consecutiveBogeys >= 2) {
     warnings.push(`直近${consecutiveBogeys}ホール連続でボギー以上です。メンタルリセットを促し、守りの戦略を推奨してください。`);
+  }
+  if (lastDoubleBogeyHole !== null && lastDoubleBogeyHole === lastHoleNumber) {
+    warnings.push(`直前のHole ${lastDoubleBogeyHole}でダブルボギー以上でした。気持ちを切り替えて、次の一打に集中するようアドバイスしてください。`);
+  }
+  if (scoringTrend === 'struggling') {
+    warnings.push('直近3ホールの平均がパー+1以上です。安全策を推奨し、スコアの立て直しを優先してください。');
+  } else if (scoringTrend === 'steady') {
+    warnings.push('直近3ホールはパー以下で安定しています。このリズムを維持するようアドバイスしてください。');
   }
 
   if (warnings.length > 0) {
