@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Search } from 'lucide-react';
 import type { CourseSearchResult } from '@/lib/course-source/types';
-import { saveCourseFromGora } from '@/actions/course';
+import { saveCourse } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 
 const GORA_SEARCH_URL = 'https://openapi.rakuten.co.jp/engine/api/Gora/GoraGolfCourseSearch/20170623';
@@ -74,9 +74,15 @@ export function CourseSearch() {
     }
   }
 
-  async function handleSave(goraId: string) {
-    setSaving(goraId);
-    const result = await saveCourseFromGora(goraId);
+  async function handleSave(course: CourseSearchResult) {
+    setSaving(course.id);
+    const result = await saveCourse({
+      goraId: course.id,
+      name: course.name,
+      prefecture: course.prefecture,
+      address: course.address,
+      imageUrl: course.image_url,
+    });
     if (result.error) {
       setError(result.error);
     } else if (result.courseId) {
@@ -136,7 +142,7 @@ export function CourseSearch() {
               </div>
               <button
                 type="button"
-                onClick={() => handleSave(course.id)}
+                onClick={() => handleSave(course)}
                 disabled={saving === course.id}
                 className="shrink-0 rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
               >

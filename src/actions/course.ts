@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import { createRakutenGoraSource } from '@/lib/course-source/rakuten-gora';
-import { env } from '@/lib/env';
 import type { Course } from '@/features/course/types';
 
 export async function getSavedCourses(): Promise<Course[]> {
@@ -20,11 +18,19 @@ export async function getSavedCourses(): Promise<Course[]> {
   return data ?? [];
 }
 
-export async function saveCourseFromGora(goraId: string): Promise<{ error?: string; courseId?: string }> {
+interface SaveCourseData {
+  goraId: string;
+  name: string;
+  prefecture: string;
+  address: string;
+  imageUrl?: string;
+}
+
+export async function saveCourse(data: SaveCourseData): Promise<{ error?: string; courseId?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!goraId) return { error: 'コースIDが必要です。' };
+  if (!data.goraId || !data.name) return { error: 'コース情報が不足しています。' };
 
   const supabase = await createClient();
 
@@ -32,33 +38,22 @@ export async function saveCourseFromGora(goraId: string): Promise<{ error?: stri
   const { data: existing } = await supabase
     .from('courses')
     .select('id')
-    .eq('gora_id', goraId)
+    .eq('gora_id', data.goraId)
     .single();
 
   if (existing) {
     return { courseId: existing.id };
   }
 
-  // 楽天GORA APIから詳細取得
-  const appId = env.RAKUTEN_APP_ID;
-  const accessKey = env.RAKUTEN_ACCESS_KEY;
-  if (!appId || !accessKey) return { error: '楽天GORA APIが設定されていません。' };
-
-  const gora = createRakutenGoraSource(appId, accessKey);
-  const detail = await gora.getDetail(goraId);
-
-  if (!detail) return { error: 'コース情報の取得に失敗しました。' };
-
-  // DBに保存
+  // DBに保存（検索結果のデータをそのまま使用）
   const { data: course, error } = await supabase
     .from('courses')
     .insert({
-      gora_id: goraId,
-      name: detail.name,
-      prefecture: detail.prefecture,
-      address: detail.address,
-      layout_url: detail.layout_url,
-      raw_data: detail.raw_data,
+      gora_id: data.goraId,
+      name: data.name,
+      prefecture: data.prefecture,
+      address: data.address,
+      layout_url: data.imageUrl || null,
     })
     .select('id')
     .single();
