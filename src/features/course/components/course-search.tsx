@@ -7,6 +7,8 @@ import type { CourseSearchResult } from '@/lib/course-source/types';
 import { saveCourseFromGora } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 
+const GORA_SEARCH_URL = 'https://openapi.rakuten.co.jp/engine/api/Gora/GoraGolfCourseSearch/20170623';
+
 export function CourseSearch() {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -19,21 +21,51 @@ export function CourseSearch() {
     e.preventDefault();
     if (!query.trim()) return;
 
+    const appId = process.env.NEXT_PUBLIC_RAKUTEN_APP_ID;
+    const accessKey = process.env.NEXT_PUBLIC_RAKUTEN_ACCESS_KEY;
+    if (!appId || !accessKey) {
+      setError('楽天GORA APIが設定されていません。');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResults([]);
 
     try {
-      const res = await fetch(`/api/courses/search?q=${encodeURIComponent(query.trim())}`);
-      const data = await res.json();
+      const params = new URLSearchParams({
+        applicationId: appId,
+        accessKey,
+        keyword: query.trim(),
+        format: 'json',
+        hits: '20',
+      });
+
+      const res = await fetch(`${GORA_SEARCH_URL}?${params}`);
 
       if (!res.ok) {
-        setError(data.error ?? '検索に失敗しました。');
-      } else {
-        setResults(data.results ?? []);
-        if ((data.results ?? []).length === 0) {
-          setError('該当するコースが見つかりませんでした。');
-        }
+        setError('検索に失敗しました。');
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const items = data.Items ?? [];
+
+      const mapped: CourseSearchResult[] = items.map((item: Record<string, unknown>) => {
+        const golf = (item.Item ?? item) as Record<string, unknown>;
+        return {
+          id: String(golf.golfCourseId ?? ''),
+          name: String(golf.golfCourseName ?? ''),
+          prefecture: String(golf.prefecture ?? ''),
+          address: String(golf.address ?? ''),
+          image_url: golf.golfCourseImageUrl ? String(golf.golfCourseImageUrl) : undefined,
+        };
+      });
+
+      setResults(mapped);
+      if (mapped.length === 0) {
+        setError('該当するコースが見つかりませんでした。');
       }
     } catch {
       setError('ネットワークエラーが発生しました。');
