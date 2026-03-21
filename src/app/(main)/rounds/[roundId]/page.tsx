@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Flag } from 'lucide-react';
+import { CopyScoreButton } from './copy-score-button';
 
 export default async function RoundReviewPage({
   params,
@@ -73,6 +74,27 @@ export default async function RoundReviewPage({
         </div>
       )}
 
+      {/* コピーボタン */}
+      {completedHoles > 0 && (
+        <CopyScoreButton
+          text={buildCopyText({
+            courseName: round.courses?.name ?? '不明なコース',
+            playedAt: round.played_at,
+            holes,
+            scoreMap,
+            memos,
+            totalStrokes,
+            totalPar,
+            fwHits,
+            fwTotal,
+            girHits,
+            girTotal,
+            totalPutts,
+            puttsCount,
+          })}
+        />
+      )}
+
       {/* スコアテーブル */}
       {holes.length > 0 && (
         <div className="space-y-3">
@@ -123,14 +145,84 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+type ScoreEntry = { strokes: number; putts: number | null; fairway_hit: boolean | null; green_in_reg: boolean | null };
+type HoleEntry = { hole_number: number; par: number; distance: number | null };
+type MemoEntry = { id: string; hole_number: number; content: string; source: string };
+
+function buildCopyText({
+  courseName,
+  playedAt,
+  holes,
+  scoreMap,
+  memos,
+  totalStrokes,
+  totalPar,
+  fwHits,
+  fwTotal,
+  girHits,
+  girTotal,
+  totalPutts,
+  puttsCount,
+}: {
+  courseName: string;
+  playedAt: string;
+  holes: HoleEntry[];
+  scoreMap: Map<number, ScoreEntry>;
+  memos: MemoEntry[];
+  totalStrokes: number;
+  totalPar: number;
+  fwHits: number;
+  fwTotal: number;
+  girHits: number;
+  girTotal: number;
+  totalPutts: number;
+  puttsCount: number;
+}): string {
+  const lines: string[] = [];
+  lines.push(`# ラウンド結果`);
+  lines.push(`コース: ${courseName}`);
+  lines.push(`日付: ${playedAt}`);
+  lines.push('');
+  lines.push('## スコア');
+  lines.push('Hole | Par | Score | Putts | FW | GIR');
+  lines.push('--- | --- | --- | --- | --- | ---');
+
+  for (const h of holes) {
+    const s = scoreMap.get(h.hole_number);
+    if (!s) continue;
+    const fw = s.fairway_hit === true ? 'o' : s.fairway_hit === false ? 'x' : '-';
+    const gir = s.green_in_reg === true ? 'o' : s.green_in_reg === false ? 'x' : '-';
+    lines.push(`${h.hole_number} | ${h.par} | ${s.strokes} | ${s.putts ?? '-'} | ${fw} | ${gir}`);
+  }
+
+  const diff = totalStrokes - totalPar;
+  const diffStr = diff > 0 ? `+${diff}` : diff === 0 ? 'E' : `${diff}`;
+  lines.push('');
+  lines.push('## 集計');
+  lines.push(`合計: ${totalStrokes} (${diffStr})`);
+  if (fwTotal > 0) lines.push(`FWキープ率: ${Math.round((fwHits / fwTotal) * 100)}% (${fwHits}/${fwTotal})`);
+  if (girTotal > 0) lines.push(`パーオン率: ${Math.round((girHits / girTotal) * 100)}% (${girHits}/${girTotal})`);
+  if (puttsCount > 0) lines.push(`平均パット: ${(totalPutts / puttsCount).toFixed(1)} (計${totalPutts})`);
+
+  if (memos.length > 0) {
+    lines.push('');
+    lines.push('## メモ');
+    for (const m of memos) {
+      lines.push(`- Hole ${m.hole_number}: ${m.content}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 function ScoreTable({
   label,
   holes,
   scoreMap,
 }: {
   label: string;
-  holes: { hole_number: number; par: number; distance: number | null }[];
-  scoreMap: Map<number, { strokes: number; putts: number | null; fairway_hit: boolean | null; green_in_reg: boolean | null }>;
+  holes: HoleEntry[];
+  scoreMap: Map<number, ScoreEntry>;
 }) {
   const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
   const totalScore = holes.reduce((sum, h) => sum + (scoreMap.get(h.hole_number)?.strokes ?? 0), 0);

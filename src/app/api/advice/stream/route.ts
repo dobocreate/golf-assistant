@@ -1,7 +1,7 @@
 import { streamText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createClient } from '@/lib/supabase/server';
-import { buildAdviceContext, formatContextForPrompt } from '@/features/advice/lib/context-builder';
+import { buildAdviceContext, formatContextForPrompt, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
 
 function jsonError(message: string, status: number): Response {
@@ -44,8 +44,14 @@ export async function POST(request: Request) {
     const context = await buildAdviceContext(body.roundId);
     if (!context) return jsonError('ラウンド情報の取得に失敗しました。', 404);
 
-    const contextText = formatContextForPrompt(context);
-    const systemPrompt = createSystemPrompt(contextText);
+    const [contextText, scoreContext] = await Promise.all([
+      Promise.resolve(formatContextForPrompt(context)),
+      buildScoreContext(body.roundId),
+    ]);
+    const fullContext = scoreContext
+      ? `${contextText}\n\n${scoreContext}`
+      : contextText;
+    const systemPrompt = createSystemPrompt(fullContext);
     const userPrompt = createUserPrompt({
       holeNumber: body.holeNumber,
       shotType: body.shotType,

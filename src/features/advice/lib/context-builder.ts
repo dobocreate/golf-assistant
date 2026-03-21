@@ -171,3 +171,91 @@ export function formatContextForPrompt(context: AdviceContext): string {
   }
   return fullContext;
 }
+
+/**
+ * 当日のスコア推移コンテキストを構築する
+ * - 各ホールのスコアとパーとの差分
+ * - 疲労・連続ボギー検出による警告ノート
+ */
+export async function buildScoreContext(roundId: string): Promise<string> {
+  if (!UUID_RE.test(roundId)) return '';
+
+  const supabase = await createClient();
+
+  // ラウンドのコースIDを取得
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('course_id')
+    .eq('id', roundId)
+    .single();
+
+  if (!round) return '';
+
+  // スコアとホール情報を並列取得
+  const [scoresResult, holesResult] = await Promise.all([
+    supabase
+      .from('scores')
+      .select('hole_number, strokes, putts')
+      .eq('round_id', roundId)
+      .order('hole_number'),
+    supabase
+      .from('holes')
+      .select('hole_number, par')
+      .eq('course_id', round.course_id)
+      .order('hole_number'),
+  ]);
+
+  const scores = scoresResult.data ?? [];
+  const holes = holesResult.data ?? [];
+
+  if (scores.length === 0) return '';
+
+  const parMap = new Map(holes.map(h => [h.hole_number, h.par as number]));
+
+  const lines = ['## 当日のスコア推移'];
+  let totalStrokes = 0;
+  let totalPar = 0;
+  let consecutiveBogeys = 0;
+  const lastHoleNumber = Math.max(...scores.map(s => s.hole_number));
+
+  for (const s of scores) {
+    const par = parMap.get(s.hole_number) ?? 0;
+    const diff = s.strokes - par;
+    const diffStr = diff > 0 ? `+${diff}` : diff === 0 ? 'E' : `${diff}`;
+    let line = `- Hole ${s.hole_number}: ${s.strokes}打 (Par${par}, ${diffStr})`;
+    if (s.putts !== null) line += ` パット${s.putts}`;
+    lines.push(line);
+    totalStrokes += s.strokes;
+    totalPar += par;
+
+    // 連続ボギー以上の検出
+    if (diff >= 1) {
+      consecutiveBogeys++;
+    } else {
+      consecutiveBogeys = 0;
+    }
+  }
+
+  const totalDiff = totalStrokes - totalPar;
+  const totalDiffStr = totalDiff > 0 ? `+${totalDiff}` : totalDiff === 0 ? 'E' : `${totalDiff}`;
+  lines.push(`- 合計: ${totalStrokes}打 (${totalDiffStr}) / ${scores.length}ホール消化`);
+
+  // 疲労・メンタル警告
+  const warnings: string[] = [];
+  if (lastHoleNumber >= 14) {
+    warnings.push('終盤（14H以降）に入っています。疲労を考慮した安全なクラブ選択を推奨してください。');
+  }
+  if (consecutiveBogeys >= 2) {
+    warnings.push(`直近${consecutiveBogeys}ホール連続でボギー以上です。メンタルリセットを促し、守りの戦略を推奨してください。`);
+  }
+
+  if (warnings.length > 0) {
+    lines.push('');
+    lines.push('### 注意事項');
+    for (const w of warnings) {
+      lines.push(`- ${w}`);
+    }
+  }
+
+  return lines.join('\n');
+}
