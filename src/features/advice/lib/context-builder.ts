@@ -28,21 +28,23 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
 
   if (!round) return null;
 
-  // 並列でデータ取得
-  const [profileResult, clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult] = await Promise.all([
-    // プロファイル
-    supabase
-      .from('profiles')
-      .select('handicap, play_style, miss_tendency, fatigue_note, favorite_shot, favorite_distance, situation_notes')
-      .eq('user_id', user.id)
-      .single(),
+  // まずプロファイルを取得（クラブ取得にprofile.idが必要）
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, handicap, play_style, miss_tendency, fatigue_note, favorite_shot, favorite_distance, situation_notes')
+    .eq('user_id', user.id)
+    .single();
 
+  // 残りを並列でデータ取得
+  const [clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult] = await Promise.all([
     // クラブ一覧
-    supabase
-      .from('clubs')
-      .select('name, distance, is_weak, confidence, note')
-      .eq('profile_id', (await supabase.from('profiles').select('id').eq('user_id', user.id).single()).data?.id ?? '')
-      .order('name'),
+    profile?.id
+      ? supabase
+          .from('clubs')
+          .select('name, distance, is_weak, confidence, note')
+          .eq('profile_id', profile.id)
+          .order('name')
+      : Promise.resolve({ data: [], error: null }),
 
     // コース情報
     supabase
@@ -76,7 +78,7 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
   ]);
 
   return {
-    profile: profileResult.data ?? {},
+    profile: profile ?? {},
     clubs: clubsResult.data ?? [],
     course: courseResult.data ?? {},
     holes: holesResult.data ?? [],
@@ -162,9 +164,10 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   const fullContext = sections.join('\n\n');
 
-  // 30,000文字（≈10,000トークン）で打ち切り
-  if (fullContext.length > 30000) {
-    return fullContext.substring(0, 30000) + '\n\n（コンテキストが長いため一部省略）';
+  // 約10,000トークンに相当
+  const MAX_CONTEXT_LENGTH = 30000;
+  if (fullContext.length > MAX_CONTEXT_LENGTH) {
+    return fullContext.substring(0, MAX_CONTEXT_LENGTH) + '\n\n（コンテキストが長いため一部省略）';
   }
   return fullContext;
 }
