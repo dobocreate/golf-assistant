@@ -2,17 +2,26 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Flag, MessageSquare, BarChart3, Home } from 'lucide-react';
-
-const playNavItems = [
-  { href: '/play', label: 'プレー', icon: Flag, exact: true },
-  { href: '/play/advice', label: 'アドバイス', icon: MessageSquare, exact: false },
-  { href: '/play/score', label: 'スコア', icon: BarChart3, exact: false },
-  { href: '/', label: '戻る', icon: Home, exact: true },
-];
+import { Flag, MessageSquare, Pencil, Home } from 'lucide-react';
 
 export function PlayBottomNav() {
   const pathname = usePathname();
+
+  // /play/[roundId] からroundIdを抽出
+  const roundIdMatch = pathname.match(/^\/play\/([0-9a-f-]{36})/);
+  const roundId = roundIdMatch?.[1];
+
+  const navItems = roundId
+    ? [
+        { href: `/play/${roundId}`, label: 'プレー', icon: Flag, exact: true },
+        { href: `/play/${roundId}/score`, label: 'スコア', icon: Pencil, exact: false },
+        { href: `/play/${roundId}/advice`, label: 'アドバイス', icon: MessageSquare, exact: false },
+        { href: '/', label: '戻る', icon: Home, exact: true },
+      ]
+    : [
+        { href: '/play', label: 'プレー', icon: Flag, exact: true },
+        { href: '/', label: '戻る', icon: Home, exact: true },
+      ];
 
   return (
     <nav
@@ -20,7 +29,7 @@ export function PlayBottomNav() {
       aria-label="プレー中ナビゲーション"
     >
       <div className="flex justify-around">
-        {playNavItems.map((item) => {
+        {navItems.map((item) => {
           const isActive =
             item.href === '/'
               ? false

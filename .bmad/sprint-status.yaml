@@ -59,13 +59,13 @@ sprints:
     capacity_points: 15
     committed_points: 15
     completed_points: 0
-    status: "not_started"
+    status: "in_progress"
     goal: "スコア記録＋音声入力"
     stories:
       - story_id: "STORY-007"
         title: "ラウンド開始・コース選択"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-008"
         title: "ホール別スコア入力UI"
         points: 5
