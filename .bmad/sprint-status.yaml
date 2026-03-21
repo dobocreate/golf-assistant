@@ -1,7 +1,7 @@
 version: "6.0.0"
 project_name: "golf-assistant"
 project_level: 3
-current_sprint: 1
+current_sprint: 2
 sprint_plan_path: "docs/sprint-plan-golf-assistant-2026-03-20.md"
 
 sprints:
@@ -36,8 +36,8 @@ sprints:
     end_date: "2026-04-03"
     capacity_points: 15
     committed_points: 13
-    completed_points: 0
-    status: "in_progress"
+    completed_points: 13
+    status: "completed"
     goal: "プロファイル登録＋コース情報管理"
     stories:
       - story_id: "STORY-004"
@@ -51,7 +51,7 @@ sprints:
       - story_id: "STORY-006"
         title: "ホール情報・メモ管理"
         points: 3
-        status: "in_progress"
+        status: "completed"
 
   - sprint_number: 2
     start_date: "2026-04-03"
@@ -133,7 +133,7 @@ sprints:
 
 velocity:
   sprint_0: 15
-  sprint_1: null
+  sprint_1: 13
   sprint_2: null
   sprint_3: null
   sprint_4: null
