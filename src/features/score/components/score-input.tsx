@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useTransition, useCallback, useRef } from 'react';
+import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
-import type { Score } from '@/features/score/types';
+import type { Score, TeeShotLR, TeeShotFB } from '@/features/score/types';
 
 interface HoleInfo {
   hole_number: number;
@@ -22,6 +23,7 @@ interface ScoreInputProps {
   initialScores: Score[];
   courseName: string;
   clubs?: ClubOption[];
+  editMode?: boolean;
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -33,7 +35,20 @@ function getDefaultHoles(): HoleInfo[] {
   }));
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [] }: ScoreInputProps) {
+// ティーショット3×3グリッドの定義
+const TEE_SHOT_GRID: { lr: TeeShotLR; fb: TeeShotFB; label: string }[] = [
+  { lr: 'left', fb: 'long', label: '↖' },
+  { lr: 'center', fb: 'long', label: '↑' },
+  { lr: 'right', fb: 'long', label: '↗' },
+  { lr: 'left', fb: 'center', label: '←' },
+  { lr: 'center', fb: 'center', label: '○' },
+  { lr: 'right', fb: 'center', label: '→' },
+  { lr: 'left', fb: 'short', label: '↙' },
+  { lr: 'center', fb: 'short', label: '↓' },
+  { lr: 'right', fb: 'short', label: '↘' },
+];
+
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const [currentHole, setCurrentHole] = useState(1);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
@@ -53,9 +68,37 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
   const [fairwayHit, setFairwayHit] = useState<boolean | null>(score?.fairway_hit ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
+  const [teeShotLr, setTeeShotLr] = useState<TeeShotLR | null>(score?.tee_shot_lr ?? null);
+  const [teeShotFb, setTeeShotFb] = useState<TeeShotFB | null>(score?.tee_shot_fb ?? null);
+  const [obCount, setObCount] = useState(score?.ob_count ?? 0);
+  const [bunkerCount, setBunkerCount] = useState(score?.bunker_count ?? 0);
+  const [penaltyCount, setPenaltyCount] = useState(score?.penalty_count ?? 0);
+
+  // greenInReg の手動上書きフラグ
+  const [girManualOverride, setGirManualOverride] = useState(false);
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
+
+  // fairway_hit 自動判定（ティーショットグリッド選択時）
+  const computeFairwayHit = useCallback((par: number, lr: TeeShotLR | null, fb: TeeShotFB | null): boolean | null => {
+    if (par === 3) return null;
+    if (lr === null || fb === null) return null;
+    return lr === 'center' && fb === 'center';
+  }, []);
+
+  // greenInReg 自動判定
+  const computeGreenInReg = useCallback((s: number | null, p: number | null, par: number): boolean | null => {
+    if (s === null || p === null) return null;
+    return (s - p) <= (par - 2);
+  }, []);
+
+  // strokes/putts 変更時に greenInReg を自動計算（手動上書きされていない場合）
+  useEffect(() => {
+    if (!girManualOverride) {
+      setGreenInReg(computeGreenInReg(strokes, putts, hole.par));
+    }
+  }, [strokes, putts, hole.par, girManualOverride, computeGreenInReg]);
 
   const saveHole = useCallback((
     holeNum: number,
@@ -63,6 +106,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     p: number | null,
     fw: boolean | null,
     gir: boolean | null,
+    tsLr: TeeShotLR | null,
+    tsFb: TeeShotFB | null,
+    ob: number,
+    bunker: number,
+    penalty: number,
     existingId?: string,
   ) => {
     const newScore: Score = {
@@ -73,6 +121,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       putts: p,
       fairway_hit: fw,
       green_in_reg: gir,
+      tee_shot_lr: tsLr,
+      tee_shot_fb: tsFb,
+      ob_count: ob,
+      bunker_count: bunker,
+      penalty_count: penalty,
     };
 
     // 楽観的更新
@@ -90,6 +143,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         putts: p,
         fairwayHit: fw,
         greenInReg: gir,
+        teeShotLr: tsLr,
+        teeShotFb: tsFb,
+        obCount: ob,
+        bunkerCount: bunker,
+        penaltyCount: penalty,
       });
       if (result.error) {
         // 楽観的更新をロールバック
@@ -108,17 +166,19 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, score?.id);
-  }, [currentHole, strokes, putts, fairwayHit, greenInReg, score?.id, saveHole]);
+    saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id);
+  }, [currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id, saveHole]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
-  scoresRef.current = scores;
+  useEffect(() => {
+    scoresRef.current = scores;
+  }, [scores]);
 
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
     if (strokes !== null) {
-      saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, score?.id);
+      saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id);
     }
     setCurrentHole(holeNum);
     const s = scoresRef.current.get(holeNum);
@@ -126,8 +186,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setPutts(s?.putts ?? null);
     setFairwayHit(s?.fairway_hit ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
+    setTeeShotLr(s?.tee_shot_lr ?? null);
+    setTeeShotFb(s?.tee_shot_fb ?? null);
+    setObCount(s?.ob_count ?? 0);
+    setBunkerCount(s?.bunker_count ?? 0);
+    setPenaltyCount(s?.penalty_count ?? 0);
+    setGirManualOverride(false);
     setSaveStatus('idle');
-  }, [strokes, putts, fairwayHit, greenInReg, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, currentHole, score?.id, saveHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -157,8 +223,36 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     .reduce((sum, h) => sum + h.par, 0);
   const completedHoles = scores.size;
 
+  // 総打数ボタンの値を計算（末尾は N+ で増加可能）
+  const strokeButtons = Array.from({ length: 7 }, (_, i) => hole.par - 2 + i).filter(v => v >= 1);
+  const maxFixedStroke = strokeButtons[strokeButtons.length - 1];
+
+  // ティーショットグリッド選択ハンドラ
+  const handleTeeShotSelect = (lr: TeeShotLR, fb: TeeShotFB) => {
+    // 同じ選択をタップした場合は解除
+    if (teeShotLr === lr && teeShotFb === fb) {
+      setTeeShotLr(null);
+      setTeeShotFb(null);
+      setFairwayHit(computeFairwayHit(hole.par, null, null));
+    } else {
+      setTeeShotLr(lr);
+      setTeeShotFb(fb);
+      setFairwayHit(computeFairwayHit(hole.par, lr, fb));
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto space-y-4">
+      {/* 編集モード: 戻るリンク */}
+      {editMode && (
+        <Link
+          href={`/rounds/${roundId}`}
+          className="text-sm text-blue-400 hover:text-blue-300"
+        >
+          &larr; ラウンド詳細に戻る
+        </Link>
+      )}
+
       {/* ヘッダー: コース名 + 合計 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-400 truncate">{courseName}</p>
@@ -198,11 +292,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </button>
       </div>
 
-      {/* 打数入力 */}
+      {/* 総打数入力 */}
       <div className="space-y-2">
-        <label className="block text-sm font-bold text-gray-300">打数</label>
+        <label className="block text-sm font-bold text-gray-300">総打数</label>
         <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: 7 }, (_, i) => hole.par - 2 + i).filter(v => v >= 1).map(v => (
+          {strokeButtons.slice(0, -1).map(v => (
             <button
               key={v}
               onClick={() => setStrokes(v)}
@@ -215,6 +309,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               {v}
             </button>
           ))}
+          {/* N+ ボタン: maxFixedStroke 以上の値を扱う */}
+          <button
+            onClick={() => {
+              if (strokes === null || strokes < maxFixedStroke) {
+                setStrokes(maxFixedStroke);
+              } else {
+                setStrokes(strokes + 1);
+              }
+            }}
+            className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+              strokes !== null && strokes >= maxFixedStroke
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+            }`}
+          >
+            {strokes !== null && strokes >= maxFixedStroke ? strokes : `${maxFixedStroke}+`}
+          </button>
         </div>
         {strokes !== null && (
           <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
@@ -243,57 +354,79 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       </div>
 
-      {/* FWキープ / パーオン */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* ティーショット 3×3 グリッド（Par3以外） */}
+      {hole.par !== 3 && (
         <div className="space-y-2">
-          <label className="block text-sm font-bold text-gray-300">FWキープ</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setFairwayHit(true)}
-              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                fairwayHit === true
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              ○
-            </button>
-            <button
-              onClick={() => setFairwayHit(false)}
-              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                fairwayHit === false
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              ✕
-            </button>
+          <label className="block text-sm font-bold text-gray-300">ティーショット</label>
+          <div className="grid grid-cols-3 gap-2">
+            {TEE_SHOT_GRID.map(({ lr, fb, label }) => {
+              const isSelected = teeShotLr === lr && teeShotFb === fb;
+              return (
+                <button
+                  key={`${lr}-${fb}`}
+                  onClick={() => handleTeeShotSelect(lr, fb)}
+                  className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                    isSelected
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
+          {/* FWキープ 自動判定表示 */}
+          {fairwayHit !== null && (
+            <p className={`text-center text-xs ${fairwayHit ? 'text-green-400' : 'text-red-400'}`}>
+              FWキープ: {fairwayHit ? '○' : '✕'}
+            </p>
+          )}
         </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-bold text-gray-300">パーオン</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setGreenInReg(true)}
-              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                greenInReg === true
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              ○
-            </button>
-            <button
-              onClick={() => setGreenInReg(false)}
-              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                greenInReg === false
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              ✕
-            </button>
-          </div>
+      )}
+
+      {/* パーオン */}
+      <div className="space-y-2">
+        <label className="block text-sm font-bold text-gray-300">パーオン</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              setGirManualOverride(true);
+              setGreenInReg(true);
+            }}
+            className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+              greenInReg === true
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+            }`}
+          >
+            ○
+          </button>
+          <button
+            onClick={() => {
+              setGirManualOverride(true);
+              setGreenInReg(false);
+            }}
+            className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+              greenInReg === false
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+            }`}
+          >
+            ✕
+          </button>
+        </div>
+        {greenInReg !== null && !girManualOverride && (
+          <p className="text-center text-xs text-gray-500">自動判定</p>
+        )}
+      </div>
+
+      {/* OB / バンカー / ペナルティ カウンター */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-4">
+          <CounterGroup label="OB" value={obCount} onChange={setObCount} />
+          <CounterGroup label="バンカー" value={bunkerCount} onChange={setBunkerCount} />
+          <CounterGroup label="ペナルティ" value={penaltyCount} onChange={setPenaltyCount} />
         </div>
       </div>
 
@@ -326,6 +459,55 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
         <MiniScorecardRow holes={holes.slice(0, 9)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
         <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
+      </div>
+    </div>
+  );
+}
+
+// OB / バンカー / ペナルティ用カウンターコンポーネント
+function CounterGroup({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-bold text-gray-300 text-center">{label}</label>
+      <div className="grid grid-cols-4 gap-1">
+        {[0, 1, 2].map(v => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+              value === v
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+        {/* 3+ ボタン */}
+        <button
+          onClick={() => {
+            if (value < 3) {
+              onChange(3);
+            } else {
+              onChange(value + 1);
+            }
+          }}
+          className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+            value >= 3
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+          }`}
+        >
+          {value >= 3 ? value : '3+'}
+        </button>
       </div>
     </div>
   );

@@ -1,3 +1,6 @@
+export type TeeShotLR = 'left' | 'center' | 'right';
+export type TeeShotFB = 'short' | 'center' | 'long';
+
 export interface Score {
   id: string;
   round_id: string;
@@ -6,6 +9,11 @@ export interface Score {
   putts: number | null;
   fairway_hit: boolean | null;
   green_in_reg: boolean | null;
+  tee_shot_lr: TeeShotLR | null;
+  tee_shot_fb: TeeShotFB | null;
+  ob_count: number;
+  bunker_count: number;
+  penalty_count: number;
 }
 
 export type ShotResult = 'excellent' | 'good' | 'fair' | 'poor';

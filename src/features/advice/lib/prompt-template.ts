@@ -23,6 +23,8 @@ export function createUserPrompt(situation: {
   shotType: string;
   remainingDistance: string;
   lie: string;
+  slopeFB?: string | null;
+  slopeLR?: string | null;
   notes?: string;
 }): string {
   const parts = [
@@ -31,6 +33,14 @@ export function createUserPrompt(situation: {
     `残り距離: ${situation.remainingDistance}`,
     `ライ: ${situation.lie}`,
   ];
+
+  const slopes: string[] = [];
+  if (situation.slopeFB === 'toe_up') slopes.push('つま先上がり');
+  if (situation.slopeFB === 'toe_down') slopes.push('つま先下がり');
+  if (situation.slopeLR === 'left_up') slopes.push('左足上がり');
+  if (situation.slopeLR === 'left_down') slopes.push('左足下がり');
+  if (slopes.length > 0) parts.push(`傾斜: ${slopes.join('・')}`);
+
   if (situation.notes) {
     parts.push(`補足: ${situation.notes}`);
   }

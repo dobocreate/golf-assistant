@@ -116,6 +116,41 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
     return { error: '距離は0〜700の範囲で入力してください。' };
   }
 
+  // 新フィールドの読み取り
+  const hdcpRaw = formData.get('hdcp') as string;
+  const hdcp = hdcpRaw ? parseInt(hdcpRaw, 10) : null;
+  if (hdcp !== null && (isNaN(hdcp) || hdcp < 1 || hdcp > 18)) {
+    return { error: 'HDCPは1〜18で入力してください。' };
+  }
+
+  const dogleg = (formData.get('dogleg') as string) || null;
+  if (dogleg !== null && !['straight', 'left', 'right'].includes(dogleg)) {
+    return { error: 'ドッグレッグの値が不正です。' };
+  }
+
+  const elevation = (formData.get('elevation') as string) || null;
+  if (elevation !== null && !['flat', 'uphill', 'downhill'].includes(elevation)) {
+    return { error: '高低差の値が不正です。' };
+  }
+
+  const distanceBackRaw = formData.get('distance_back') as string;
+  const distanceBack = distanceBackRaw ? parseInt(distanceBackRaw, 10) : null;
+  if (distanceBack !== null && (isNaN(distanceBack) || distanceBack < 0 || distanceBack > 700)) {
+    return { error: 'バックティー距離は0〜700の範囲で入力してください。' };
+  }
+
+  const distanceFrontRaw = formData.get('distance_front') as string;
+  const distanceFront = distanceFrontRaw ? parseInt(distanceFrontRaw, 10) : null;
+  if (distanceFront !== null && (isNaN(distanceFront) || distanceFront < 0 || distanceFront > 700)) {
+    return { error: 'フロントティー距離は0〜700の範囲で入力してください。' };
+  }
+
+  const distanceLadiesRaw = formData.get('distance_ladies') as string;
+  const distanceLadies = distanceLadiesRaw ? parseInt(distanceLadiesRaw, 10) : null;
+  if (distanceLadies !== null && (isNaN(distanceLadies) || distanceLadies < 0 || distanceLadies > 700)) {
+    return { error: 'レディースティー距離は0〜700の範囲で入力してください。' };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from('holes')
@@ -125,6 +160,14 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
         hole_number: holeNumber,
         par,
         distance,
+        hdcp,
+        dogleg,
+        elevation,
+        distance_back: distanceBack,
+        distance_front: distanceFront,
+        distance_ladies: distanceLadies,
+        hazard: (formData.get('hazard') as string) || null,
+        ob: (formData.get('ob') as string) || null,
         description: (formData.get('description') as string) || null,
       },
       { onConflict: 'course_id,hole_number' }
@@ -171,6 +214,14 @@ interface HoleImportData {
   holeNumber: number;
   par: number;
   distance: number | null;
+  hdcp: number | null;
+  dogleg: string | null;
+  elevation: string | null;
+  distanceBack: number | null;
+  distanceFront: number | null;
+  distanceLadies: number | null;
+  hazard: string | null;
+  ob: string | null;
   description: string | null;
 }
 
@@ -204,6 +255,24 @@ export async function importHoles(
     if (h.distance !== null && (!Number.isInteger(h.distance) || h.distance < 0 || h.distance > 700)) {
       return { error: `ホール${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
     }
+    if (h.hdcp !== null && (!Number.isInteger(h.hdcp) || h.hdcp < 1 || h.hdcp > 18)) {
+      return { error: `ホール${h.holeNumber}: HDCPは1〜18で入力してください。` };
+    }
+    if (h.dogleg !== null && !['straight', 'left', 'right'].includes(h.dogleg)) {
+      return { error: `ホール${h.holeNumber}: ドッグレッグの値が不正です。` };
+    }
+    if (h.elevation !== null && !['flat', 'uphill', 'downhill'].includes(h.elevation)) {
+      return { error: `ホール${h.holeNumber}: 高低差の値が不正です。` };
+    }
+    if (h.distanceBack !== null && (!Number.isInteger(h.distanceBack) || h.distanceBack < 0 || h.distanceBack > 700)) {
+      return { error: `ホール${h.holeNumber}: バックティー距離は0〜700の範囲で入力してください。` };
+    }
+    if (h.distanceFront !== null && (!Number.isInteger(h.distanceFront) || h.distanceFront < 0 || h.distanceFront > 700)) {
+      return { error: `ホール${h.holeNumber}: フロントティー距離は0〜700の範囲で入力してください。` };
+    }
+    if (h.distanceLadies !== null && (!Number.isInteger(h.distanceLadies) || h.distanceLadies < 0 || h.distanceLadies > 700)) {
+      return { error: `ホール${h.holeNumber}: レディースティー距離は0〜700の範囲で入力してください。` };
+    }
   }
 
   const supabase = await createClient();
@@ -225,6 +294,14 @@ export async function importHoles(
         hole_number: h.holeNumber,
         par: h.par,
         distance: h.distance,
+        hdcp: h.hdcp,
+        dogleg: h.dogleg,
+        elevation: h.elevation,
+        distance_back: h.distanceBack,
+        distance_front: h.distanceFront,
+        distance_ladies: h.distanceLadies,
+        hazard: h.hazard,
+        ob: h.ob,
         description: h.description,
       })),
       { onConflict: 'course_id,hole_number' }

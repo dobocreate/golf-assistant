@@ -1,8 +1,13 @@
+export type SlopeFB = 'toe_up' | 'toe_down';
+export type SlopeLR = 'left_up' | 'left_down';
+
 export interface Situation {
   holeNumber: number;
   shotType: string;
   remainingDistance: string;
   lie: string;
+  slopeFB: SlopeFB | null;
+  slopeLR: SlopeLR | null;
   notes?: string;
 }
 
