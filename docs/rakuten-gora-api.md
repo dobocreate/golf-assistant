@@ -60,9 +60,7 @@ printf "your-application-id" | vercel env add NEXT_PUBLIC_RAKUTEN_APP_ID product
 printf "your-access-key" | vercel env add NEXT_PUBLIC_RAKUTEN_ACCESS_KEY production
 ```
 
-`NEXT_PUBLIC_` 変数はビルド時に埋め込まれるため、追加後に **Redeploy** が必要。
-
-環境変数追加後は **Redeploy** が必要（既存デプロイには反映されない）。
+`NEXT_PUBLIC_` 変数はビルド時にJSバンドルに埋め込まれるため、追加・変更後は必ず **Redeploy** が必要（既存デプロイには反映されない）。
 
 ---
 
@@ -86,14 +84,13 @@ printf "your-access-key" | vercel env add NEXT_PUBLIC_RAKUTEN_ACCESS_KEY product
 | `format` | `json` |
 | `keyword` / `areaCode` / `latitude+longitude` | 検索条件（いずれか1つ以上） |
 
-### 必須ヘッダー
+### リファラーチェック
 
-| ヘッダー | 値 | 理由 |
-|---------|-----|------|
-| `Origin` | `https://golf-assistant.vercel.app` | リファラーチェック対応 |
-| `Referer` | `https://golf-assistant.vercel.app` | 同上 |
+楽天APIは「許可されたWebサイト」に登録されたドメインからのリクエストのみ受け付ける。
 
-**リファラーチェック:** 楽天APIは「許可されたWebサイト」に登録されたドメインからのリクエストのみ受け付ける。ヘッダーがない場合 `403 REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING` エラーが返る。
+- **ブラウザからの呼び出し:** ブラウザが自動的に Origin/Referer ヘッダーを付与するため、追加設定不要
+- **サーバーサイドからの呼び出し:** 新APIキー（`pk_`プレフィックス）では `403 Invalid Access Key` で拒否される。**サーバーサイドからの呼び出しは不可**
+- **curl等でのテスト:** `-H "Origin: https://golf-assistant.vercel.app" -H "Referer: https://golf-assistant.vercel.app"` ヘッダーが必要
 
 ### レスポンス例（コース検索）
 
@@ -135,26 +132,32 @@ printf "your-access-key" | vercel env add NEXT_PUBLIC_RAKUTEN_ACCESS_KEY product
 | ファイル | 役割 |
 |---------|------|
 | `src/lib/course-source/types.ts` | `CourseSource` インターフェース定義 |
-| `src/lib/course-source/rakuten-gora.ts` | 楽天GORA 具象実装 |
-| `src/lib/env.ts` | 環境変数管理（`RAKUTEN_APP_ID`, `RAKUTEN_ACCESS_KEY`） |
-| `src/app/api/courses/search/route.ts` | API Route（検索プロキシ、認証チェック付き） |
-| `src/actions/course.ts` | Server Actions（保存、詳細取得） |
+| `src/lib/course-source/rakuten-gora.ts` | 楽天GORA 具象実装（Server Action からのコース保存時に使用） |
+| `src/lib/env.ts` | 環境変数管理（`NEXT_PUBLIC_RAKUTEN_APP_ID`, `NEXT_PUBLIC_RAKUTEN_ACCESS_KEY`） |
+| `src/features/course/components/course-search.tsx` | クライアントサイドでの検索UI + 楽天API直接呼び出し |
+| `src/actions/course.ts` | Server Actions（コース保存、詳細取得、ホール管理） |
 
 ### データフロー
 
 ```
-ブラウザ（検索UI）
-  → GET /api/courses/search?q=xxx（API Route）
-    → 認証チェック（Supabase Auth）
-    → 楽天GORA API 呼び出し（サーバーサイド）
-    → 検索結果を返却
+【コース検索】クライアントサイドで直接呼び出し
+ブラウザ（検索UI: course-search.tsx）
+  → fetch（楽天GORA API 直接呼び出し）
+  → ブラウザが自動的にOrigin/Refererヘッダーを付与
+  → 検索結果をクライアント側で表示
 
+【コース保存】Server Action 経由
 ブラウザ（保存ボタン）
   → saveCourseFromGora（Server Action）
-    → 楽天GORA API 詳細取得
+    → 認証チェック（Supabase Auth）
+    → 楽天GORA API 詳細取得（rakuten-gora.ts ※サーバーサイド）
     → courses テーブルに INSERT
     → コース詳細ページにリダイレクト
 ```
+
+**重要:** コース検索とコース保存で楽天APIの呼び出し元が異なる:
+- **検索:** ブラウザから直接（新APIキーの制約のため）
+- **保存:** サーバーサイドから（DB書き込みが必要なため。詳細取得APIがサーバーからも動作するか要確認。動作しない場合はクライアントから詳細を取得してServer Actionに渡す方式に変更する）
 
 ### APIキーの安全性
 
@@ -177,3 +180,47 @@ printf "your-access-key" | vercel env add NEXT_PUBLIC_RAKUTEN_ACCESS_KEY product
 | `該当するコースが見つかりませんでした` | 検索キーワードが一致しない、またはAPI設定不備 | 環境変数とAPIキーを確認 |
 | Vercelで動作しない | 環境変数未反映 | Redeploy（Build Cacheなし）を実行 |
 | 環境変数に `%0A` が混入 | `echo` コマンドの末尾改行 | `printf` を使用: `printf "value" \| vercel env add NAME production` |
+
+---
+
+## 開発時の知見・注意点
+
+### 1. 新APIキー（`pk_`プレフィックス）はブラウザ専用
+
+2026年3月時点の楽天ウェブサービスで発行されるアクセスキー（`pk_`プレフィックス）は、**ブラウザからのリクエストのみ許可**される。サーバーサイド（Node.js、Vercel Serverless Function、curl等）から同じキーで呼び出すと `403 Invalid Access Key` が返る。
+
+当初はNext.js API Route経由のサーバーサイドプロキシ方式で実装していたが、この制約のためクライアントサイド直接呼び出しに変更した。
+
+### 2. 旧エンドポイントは使用不可
+
+楽天APIのエンドポイントが変更されている:
+- **旧（使用不可）:** `https://app.rakuten.co.jp/services/api/Gora/...`
+- **新（現行）:** `https://openapi.rakuten.co.jp/engine/api/Gora/...`
+
+旧エンドポイントでは `specify valid applicationId` エラーが返る。
+
+### 3. 「許可されたWebサイト」の登録形式
+
+- プロトコル（`https://`）は**含めない**
+- ドメインのみ入力（例: `golf-assistant.vercel.app`）
+- `localhost` は登録できない場合がある
+- ワイルドカード（`*.vercel.app`）は使用可能だが、特定ドメインの方が安全
+
+### 4. Vercel環境変数設定時の改行混入
+
+`echo` コマンドは末尾に改行（`\n`）を付加するため、Vercel環境変数に `%0A` が混入する。これにより楽天APIが `403` を返す。
+
+```bash
+# NG: 末尾に改行が入る
+echo "value" | vercel env add NAME production
+
+# OK: 改行なし
+printf "value" | vercel env add NAME production
+```
+
+### 5. `NEXT_PUBLIC_` 環境変数のデプロイタイミング
+
+`NEXT_PUBLIC_` プレフィックス付き環境変数はビルド時にJSバンドルに埋め込まれる。そのため:
+- 環境変数の追加・変更後は**必ず再デプロイ**が必要
+- GitHub連携の自動デプロイはコードプッシュ時のみ。環境変数だけの変更では自動デプロイされない
+- `vercel deploy --prod` で手動デプロイするか、Vercelダッシュボードから Redeploy する
