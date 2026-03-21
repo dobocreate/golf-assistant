@@ -110,34 +110,34 @@ sprints:
     end_date: "2026-04-24"
     capacity_points: 15
     committed_points: 13
-    completed_points: 0
-    status: "in_progress"
+    completed_points: 13
+    status: "completed"
     goal: "スコアコンテキスト反映＋振り返り＋ダッシュボード＋MVP仕上げ"
     stories:
       - story_id: "STORY-015"
         title: "スコア状況のコンテキスト反映"
         points: 3
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-016"
         title: "ラウンド振り返り画面"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-017"
         title: "ラウンド履歴一覧"
         points: 2
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-018"
         title: "ダッシュボード"
         points: 3
-        status: "in_progress"
+        status: "completed"
 
 velocity:
   sprint_0: 15
   sprint_1: 13
   sprint_2: 15
   sprint_3: 20
-  sprint_4: null
-  rolling_average: null
+  sprint_4: 13
+  rolling_average: 15.2
 
 team:
   size: 1
