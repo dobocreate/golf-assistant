@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       model: googleAI(process.env.GEMINI_MODEL || 'gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
-      maxOutputTokens: 500,
+      maxOutputTokens: 8192,
     });
 
     return result.toTextStreamResponse();
