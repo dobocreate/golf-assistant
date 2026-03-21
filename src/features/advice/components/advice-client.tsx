@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { SituationInput } from './situation-input';
 import { AdviceDisplay } from './advice-display';
+import { useSpeechSynthesis } from '@/features/voice/hooks/use-speech-synthesis';
 import type { Situation } from '../types';
 
 interface AdviceClientProps {
@@ -15,6 +16,7 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const { speak, stop, isSpeaking, isSupported, rate, setRate } = useSpeechSynthesis();
 
   const handleSubmit = useCallback(async (situation: Situation) => {
     // 前回のリクエストをキャンセル
@@ -42,8 +44,14 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'アドバイスの取得に失敗しました。');
+        let errorMessage = 'アドバイスの取得に失敗しました。';
+        try {
+          const data = await res.json();
+          errorMessage = data.error ?? errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error response:', jsonError);
+        }
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -68,6 +76,7 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
       setIsLoading(false);
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
+      console.error('Failed to fetch advice:', err);
       setError('アドバイスの取得に失敗しました。');
       setIsLoading(false);
     }
@@ -117,7 +126,32 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
       <AdviceDisplay
         text={adviceText}
         isStreaming={isLoading}
+        onSpeak={isSupported ? () => speak(adviceText) : undefined}
+        onStopSpeak={stop}
+        isSpeaking={isSpeaking}
       />
+
+      {/* 読み上げ速度調整 */}
+      {isSupported && adviceText && !isLoading && (
+        <div className="flex items-center gap-3 rounded-lg bg-gray-800 border border-gray-700 p-3">
+          <label htmlFor="speech-rate" className="text-xs text-gray-400 shrink-0">
+            速度
+          </label>
+          <input
+            id="speech-rate"
+            type="range"
+            min="0.5"
+            max="2.0"
+            step="0.1"
+            value={rate}
+            onChange={(e) => setRate(parseFloat(e.target.value))}
+            className="flex-1 h-2 accent-green-500"
+          />
+          <span className="text-xs text-gray-400 min-w-[32px] text-right">
+            {rate.toFixed(1)}x
+          </span>
+        </div>
+      )}
     </div>
   );
 }
