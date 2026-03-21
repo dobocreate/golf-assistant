@@ -86,6 +86,7 @@ export function CourseSearch() {
     if (result.error) {
       setError(result.error);
     } else if (result.courseId) {
+      router.refresh();
       router.push(`/courses/${result.courseId}`);
     }
     setSaving(null);
