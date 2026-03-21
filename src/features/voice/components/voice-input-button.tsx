@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useEffect, useTransition, useCallback } from 'react';
 import { Mic, MicOff, Save, X } from 'lucide-react';
 import { useSpeechRecognition } from '@/features/voice/hooks/use-speech-recognition';
 import { saveMemo } from '@/actions/memo';
@@ -78,6 +78,19 @@ export function VoiceInputButton({ roundId, holeNumber, onSaved }: VoiceInputBut
     setSaveStatus('idle');
     setSaveError(null);
   }, [isListening, stop]);
+
+  const handleCancelText = useCallback(() => {
+    setShowTextInput(false);
+    setTextInput('');
+  }, []);
+
+  // 保存メッセージの自動非表示
+  useEffect(() => {
+    if (saveStatus === 'saved') {
+      const timer = setTimeout(() => setSaveStatus('idle'), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveStatus]);
 
   const displayText = editedText || transcript;
 
@@ -186,7 +199,7 @@ export function VoiceInputButton({ roundId, holeNumber, onSaved }: VoiceInputBut
               {isPending ? '保存中...' : 'メモを保存'}
             </button>
             <button
-              onClick={() => { setShowTextInput(false); setTextInput(''); }}
+              onClick={handleCancelText}
               disabled={isPending}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
               aria-label="キャンセル"

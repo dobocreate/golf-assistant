@@ -17,8 +17,7 @@ export function MemoList({ roundId, holeNumber, refreshKey }: MemoListProps) {
 
   const fetchMemos = useCallback(async () => {
     setIsLoading(true);
-    const allMemos = await getMemos(roundId);
-    const holeMemos = allMemos.filter(m => m.hole_number === holeNumber);
+    const holeMemos = await getMemos(roundId, holeNumber);
     setMemos(holeMemos);
     setIsLoading(false);
   }, [roundId, holeNumber]);

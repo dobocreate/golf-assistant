@@ -64,7 +64,7 @@ export async function saveMemo(data: {
   return { memo: memo as Memo };
 }
 
-export async function getMemos(roundId: string): Promise<Memo[]> {
+export async function getMemos(roundId: string, holeNumber?: number): Promise<Memo[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
   if (!UUID_RE.test(roundId)) return [];
@@ -80,11 +80,16 @@ export async function getMemos(roundId: string): Promise<Memo[]> {
     .single();
   if (!round) return [];
 
-  const { data } = await supabase
+  let query = supabase
     .from('memos')
     .select('*')
-    .eq('round_id', roundId)
-    .order('created_at', { ascending: false });
+    .eq('round_id', roundId);
+
+  if (holeNumber !== undefined) {
+    query = query.eq('hole_number', holeNumber);
+  }
+
+  const { data } = await query.order('created_at', { ascending: false });
 
   return (data as Memo[]) ?? [];
 }
@@ -97,17 +102,14 @@ export async function deleteMemo(memoId: string): Promise<{ error?: string }> {
 
   const supabase = await createClient();
 
-  // メモの所有確認（rounds経由）
+  // メモの所有確認（RLSに依存）
   const { data: memo } = await supabase
     .from('memos')
-    .select('id, round_id, rounds!inner(user_id)')
+    .select('id, round_id')
     .eq('id', memoId)
     .single();
 
   if (!memo) return { error: 'メモが見つかりません。' };
-
-  const rounds = memo.rounds as unknown as { user_id: string };
-  if (rounds.user_id !== user.id) return { error: 'メモが見つかりません。' };
 
   const { error } = await supabase
     .from('memos')
