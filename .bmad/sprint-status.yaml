@@ -84,26 +84,26 @@ sprints:
     end_date: "2026-04-17"
     capacity_points: 20
     committed_points: 20
-    completed_points: 0
-    status: "in_progress"
+    completed_points: 20
+    status: "completed"
     goal: "AIキャディー＋音声読み上げ（コア機能）"
     stories:
       - story_id: "STORY-012"
         title: "コンテキストビルダー"
         points: 5
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-013"
         title: "Gemini APIアドバイス生成（ストリーミング）"
         points: 8
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-010"
         title: "音声読み上げ"
         points: 2
-        status: "in_progress"
+        status: "completed"
       - story_id: "STORY-014"
         title: "プレー中状況入力UI"
         points: 5
-        status: "in_progress"
+        status: "completed"
 
   - sprint_number: 4
     start_date: "2026-04-17"
@@ -135,7 +135,7 @@ velocity:
   sprint_0: 15
   sprint_1: 13
   sprint_2: 15
-  sprint_3: null
+  sprint_3: 20
   sprint_4: null
   rolling_average: null
 
