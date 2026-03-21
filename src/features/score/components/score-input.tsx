@@ -3,6 +3,7 @@
 import { useState, useTransition, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
+import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
@@ -11,11 +12,16 @@ interface HoleInfo {
   distance: number | null;
 }
 
+interface ClubOption {
+  name: string;
+}
+
 interface ScoreInputProps {
   roundId: string;
   holes: HoleInfo[];
   initialScores: Score[];
   courseName: string;
+  clubs?: ClubOption[];
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -27,7 +33,7 @@ function getDefaultHoles(): HoleInfo[] {
   }));
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [] }: ScoreInputProps) {
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const [currentHole, setCurrentHole] = useState(1);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
@@ -290,6 +296,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           </div>
         </div>
       </div>
+
+      {/* ショット記録 */}
+      <ShotRecorder
+        roundId={roundId}
+        holeNumber={currentHole}
+        clubs={clubs}
+      />
 
       {/* 保存ボタン */}
       <button

@@ -166,3 +166,72 @@ export async function upsertHoleNote(formData: FormData): Promise<{ error?: stri
   revalidatePath('/courses');
   return {};
 }
+
+interface HoleImportData {
+  holeNumber: number;
+  par: number;
+  distance: number | null;
+  description: string | null;
+}
+
+export async function importHoles(
+  courseId: string,
+  holes: HoleImportData[]
+): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+
+  if (!UUID_RE.test(courseId)) return { error: 'コースIDが不正です。' };
+
+  if (!Array.isArray(holes) || holes.length === 0) {
+    return { error: 'ホールデータが必要です。' };
+  }
+
+  // バリデーション
+  const seenHoles = new Set<number>();
+  for (const h of holes) {
+    if (!Number.isInteger(h.holeNumber) || h.holeNumber < 1 || h.holeNumber > 18) {
+      return { error: `ホール番号が不正です: ${h.holeNumber}` };
+    }
+    if (seenHoles.has(h.holeNumber)) {
+      return { error: `ホール${h.holeNumber}が重複しています。` };
+    }
+    seenHoles.add(h.holeNumber);
+
+    if (!Number.isInteger(h.par) || h.par < 3 || h.par > 5) {
+      return { error: `ホール${h.holeNumber}: Parは3〜5で入力してください。` };
+    }
+    if (h.distance !== null && (!Number.isInteger(h.distance) || h.distance < 0 || h.distance > 700)) {
+      return { error: `ホール${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
+    }
+  }
+
+  const supabase = await createClient();
+
+  // コースの存在確認
+  const { data: course } = await supabase
+    .from('courses')
+    .select('id')
+    .eq('id', courseId)
+    .single();
+  if (!course) return { error: 'コースが見つかりません。' };
+
+  // 全ホールをupsert
+  const { error } = await supabase
+    .from('holes')
+    .upsert(
+      holes.map(h => ({
+        course_id: courseId,
+        hole_number: h.holeNumber,
+        par: h.par,
+        distance: h.distance,
+        description: h.description,
+      })),
+      { onConflict: 'course_id,hole_number' }
+    );
+
+  if (error) return { error: 'ホール情報のインポートに失敗しました。' };
+
+  revalidatePath(`/courses/${courseId}`);
+  return {};
+}

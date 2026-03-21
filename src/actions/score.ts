@@ -129,6 +129,4 @@ export async function recordScore(_formData: FormData) {
   throw new Error('Use upsertScore() instead');
 }
 
-export async function recordShot(_formData: FormData) {
-  throw new Error('Not implemented: Post-MVP (STORY-019) で実装予定');
-}
+// recordShot は src/actions/shot.ts に移動しました (STORY-019)
