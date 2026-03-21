@@ -10,24 +10,32 @@ export function useSpeechSynthesis() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const [rate, setRate] = useState(1.0);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // ブラウザサポート判定
+  // ブラウザサポート判定 + 音声リスト取得
   useEffect(() => {
-    setIsSupported(
-      typeof window !== 'undefined' && 'speechSynthesis' in window
-    );
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setIsSupported(false);
+      return;
+    }
+    setIsSupported(true);
+
+    const updateVoices = () => {
+      setVoices(window.speechSynthesis.getVoices());
+    };
+
+    window.speechSynthesis.addEventListener('voiceschanged', updateVoices);
+    updateVoices();
+
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', updateVoices);
+      window.speechSynthesis.cancel();
+    };
   }, []);
 
-  /**
-   * 日本語音声を選択する
-   * voiceschanged イベントを待つ必要がある場合があるため、
-   * 利用可能な音声から ja で始まるものを優先選択する
-   */
   const getJapaneseVoice = useCallback((): SpeechSynthesisVoice | null => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-
-    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
     // ja-JP を優先、次に ja で始まるもの
     const jaJP = voices.find((v) => v.lang === 'ja-JP');
     if (jaJP) return jaJP;
@@ -36,7 +44,7 @@ export function useSpeechSynthesis() {
     if (ja) return ja;
 
     return null;
-  }, []);
+  }, [voices]);
 
   const speak = useCallback(
     (text: string) => {
@@ -72,15 +80,6 @@ export function useSpeechSynthesis() {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     setIsSpeaking(false);
-  }, []);
-
-  // クリーンアップ: アンマウント時に読み上げを停止
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
   }, []);
 
   return { speak, stop, isSpeaking, isSupported, rate, setRate };

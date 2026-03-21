@@ -44,8 +44,14 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'アドバイスの取得に失敗しました。');
+        let errorMessage = 'アドバイスの取得に失敗しました。';
+        try {
+          const data = await res.json();
+          errorMessage = data.error ?? errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error response:', jsonError);
+        }
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -70,6 +76,7 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
       setIsLoading(false);
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
+      console.error('Failed to fetch advice:', err);
       setError('アドバイスの取得に失敗しました。');
       setIsLoading(false);
     }
