@@ -9,3 +9,13 @@ export interface Round {
   total_score: number | null;
   status: RoundStatus;
 }
+
+export interface RoundCourse {
+  id: string;
+  name: string;
+  prefecture: string | null;
+}
+
+export interface RoundWithCourse extends Round {
+  courses: RoundCourse | null;
+}

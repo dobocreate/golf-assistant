@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { Round } from '@/features/round/types';
+import type { Round, RoundWithCourse } from '@/features/round/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -73,7 +73,7 @@ export async function getRound(roundId: string): Promise<Round | null> {
   return data as Round | null;
 }
 
-export async function getRoundWithCourse(roundId: string) {
+export async function getRoundWithCourse(roundId: string): Promise<RoundWithCourse | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
   if (!UUID_RE.test(roundId)) return null;
@@ -86,10 +86,10 @@ export async function getRoundWithCourse(roundId: string) {
     .eq('user_id', user.id)
     .single();
 
-  return data;
+  return data as RoundWithCourse | null;
 }
 
-export async function getActiveRound() {
+export async function getActiveRound(): Promise<RoundWithCourse | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
 
@@ -103,7 +103,7 @@ export async function getActiveRound() {
     .limit(1)
     .maybeSingle();
 
-  return data;
+  return data as RoundWithCourse | null;
 }
 
 export async function completeRound(_roundId: string) {

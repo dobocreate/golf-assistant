@@ -17,7 +17,7 @@ export default async function PlayMainPage({
 
   if (!round) notFound();
 
-  const course = round.courses as { id: string; name: string; prefecture: string } | null;
+  const course = round.courses;
 
   return (
     <div className="max-w-md mx-auto space-y-6">

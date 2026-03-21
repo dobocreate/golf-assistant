@@ -21,7 +21,7 @@ export default async function PlayPage() {
           <div className="rounded-lg bg-gray-800 border border-gray-700 p-4">
             <p className="text-sm text-gray-400 mb-1">進行中のラウンド</p>
             <p className="text-lg font-bold text-white">
-              {(activeRound.courses as { name: string })?.name}
+              {activeRound.courses?.name}
             </p>
             <p className="text-sm text-gray-400 mt-1">{activeRound.played_at}</p>
           </div>
