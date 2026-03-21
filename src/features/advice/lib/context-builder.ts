@@ -56,7 +56,7 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
     // ホール情報
     supabase
       .from('holes')
-      .select('hole_number, par, distance, description')
+      .select('hole_number, par, distance, hdcp, dogleg, elevation, hazard, ob, description')
       .eq('course_id', round.course_id)
       .order('hole_number'),
 
@@ -133,6 +133,11 @@ export function formatContextForPrompt(context: AdviceContext): string {
     for (const h of context.holes as Record<string, unknown>[]) {
       let line = `- Hole ${h.hole_number}: Par${h.par}`;
       if (h.distance) line += ` ${h.distance}y`;
+      if (h.hdcp) line += ` HDCP${h.hdcp}`;
+      if (h.dogleg && h.dogleg !== 'straight') line += ` ${h.dogleg === 'left' ? '左ドッグレッグ' : '右ドッグレッグ'}`;
+      if (h.elevation && h.elevation !== 'flat') line += ` ${h.elevation === 'uphill' ? '打ち上げ' : '打ち下ろし'}`;
+      if (h.hazard) line += ` ハザード:${h.hazard}`;
+      if (h.ob) line += ` OB:${h.ob}`;
       if (h.description) line += ` — ${h.description}`;
       lines.push(line);
     }
@@ -178,15 +183,17 @@ export function formatContextForPrompt(context: AdviceContext): string {
  * - 疲労・連続ボギー検出による警告ノート
  */
 export async function buildScoreContext(roundId: string): Promise<string> {
-  if (!UUID_RE.test(roundId)) return '';
+  const user = await getAuthenticatedUser();
+  if (!user || !UUID_RE.test(roundId)) return '';
 
   const supabase = await createClient();
 
-  // ラウンドのコースIDを取得
+  // ラウンドのコースIDを取得（所有権確認付き）
   const { data: round } = await supabase
     .from('rounds')
     .select('course_id')
     .eq('id', roundId)
+    .eq('user_id', user.id)
     .single();
 
   if (!round) return '';

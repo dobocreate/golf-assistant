@@ -8,10 +8,15 @@ import type { Situation } from '../types';
 
 interface AdviceClientProps {
   roundId: string;
+  scoredHoles: number[];
 }
 
-export function AdviceClient({ roundId }: AdviceClientProps) {
-  const [currentHole, setCurrentHole] = useState(1);
+export function AdviceClient({ roundId, scoredHoles }: AdviceClientProps) {
+  const nextHole = (() => {
+    const scored = new Set(scoredHoles);
+    return Array.from({ length: 18 }, (_, i) => i + 1).find(h => !scored.has(h)) ?? 18;
+  })();
+  const [currentHole, setCurrentHole] = useState(nextHole);
   const [adviceText, setAdviceText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +43,8 @@ export function AdviceClient({ roundId }: AdviceClientProps) {
           shotType: situation.shotType,
           remainingDistance: situation.remainingDistance,
           lie: situation.lie,
+          slopeFB: situation.slopeFB,
+          slopeLR: situation.slopeLR,
           notes: situation.notes,
         }),
         signal: controller.signal,

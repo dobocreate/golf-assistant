@@ -2,11 +2,11 @@
 
 import { useState, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
-import type { Situation } from '../types';
+import type { Situation, SlopeFB, SlopeLR } from '../types';
 
 const SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 'パット'];
 const DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
-const LIES = ['フェアウェイ', 'ラフ', 'バンカー', '林', '打ち下ろし', '打ち上げ'];
+const LIES = ['ティーアップ', 'フェアウェイ', 'ラフ', 'バンカー', '林'];
 
 interface SituationInputProps {
   holeNumber: number;
@@ -18,6 +18,8 @@ export function SituationInput({ holeNumber, onSubmit, isLoading }: SituationInp
   const [shotType, setShotType] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
   const [lie, setLie] = useState<string | null>(null);
+  const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(null);
+  const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(null);
 
   const handleSubmit = useCallback(() => {
     if (!shotType || !distance || !lie) return;
@@ -26,8 +28,10 @@ export function SituationInput({ holeNumber, onSubmit, isLoading }: SituationInp
       shotType,
       remainingDistance: distance,
       lie,
+      slopeFB,
+      slopeLR,
     });
-  }, [holeNumber, shotType, distance, lie, onSubmit]);
+  }, [holeNumber, shotType, distance, lie, slopeFB, slopeLR, onSubmit]);
 
   const canSubmit = shotType && distance && lie && !isLoading;
 
@@ -90,6 +94,63 @@ export function SituationInput({ holeNumber, onSubmit, isLoading }: SituationInp
               {l}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 傾斜（任意） */}
+      <div className="space-y-2">
+        <label className="block text-sm font-bold text-gray-300">傾斜（任意）</label>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 min-w-[32px]">前後</span>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <button
+                onClick={() => setSlopeFB(prev => prev === 'toe_up' ? null : 'toe_up')}
+                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                  slopeFB === 'toe_up'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                }`}
+              >
+                つま先上がり
+              </button>
+              <button
+                onClick={() => setSlopeFB(prev => prev === 'toe_down' ? null : 'toe_down')}
+                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                  slopeFB === 'toe_down'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                }`}
+              >
+                つま先下がり
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 min-w-[32px]">左右</span>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <button
+                onClick={() => setSlopeLR(prev => prev === 'left_up' ? null : 'left_up')}
+                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                  slopeLR === 'left_up'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                }`}
+              >
+                左足上がり
+              </button>
+              <button
+                onClick={() => setSlopeLR(prev => prev === 'left_down' ? null : 'left_down')}
+                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                  slopeLR === 'left_down'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                }`}
+              >
+                左足下がり
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

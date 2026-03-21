@@ -49,22 +49,62 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                 key={hole.id}
                 className="rounded-lg border border-gray-200 dark:border-gray-800 p-4"
               >
-                <div className="flex items-center gap-4 mb-2">
+                <div className="flex items-center gap-4 mb-1">
                   <span className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
                     {hole.hole_number}
                   </span>
                   <span className="font-medium">Par {hole.par}</span>
-                  {hole.distance && (
+                  {hole.distance != null && (
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                       {hole.distance}yd
                     </span>
                   )}
-                  {hole.description && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {hole.description}
+                  {hole.hdcp && (
+                    <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded px-1.5 py-0.5">
+                      HDCP {hole.hdcp}
                     </span>
                   )}
                 </div>
+
+                {/* タグ行: ドッグレッグ・高低差・ハザード・OB */}
+                {(hole.dogleg || hole.elevation || hole.hazard || hole.ob || hole.description) && (
+                  <div className="ml-12 mb-1 flex flex-wrap items-center gap-1.5 text-xs">
+                    {hole.dogleg && hole.dogleg !== 'straight' && (
+                      <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5">
+                        {hole.dogleg === 'left' ? '左DL' : '右DL'}
+                      </span>
+                    )}
+                    {hole.elevation && hole.elevation !== 'flat' && (
+                      <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
+                        {hole.elevation === 'uphill' ? '打ち上げ' : '打ち下ろし'}
+                      </span>
+                    )}
+                    {hole.hazard && (
+                      <span className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded px-1.5 py-0.5">
+                        {hole.hazard}
+                      </span>
+                    )}
+                    {hole.ob && (
+                      <span className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded px-1.5 py-0.5">
+                        OB: {hole.ob}
+                      </span>
+                    )}
+                    {hole.description && (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {hole.description}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* ティー別距離 */}
+                {(hole.distance_back != null || hole.distance_front != null || hole.distance_ladies != null) && (
+                  <div className="ml-12 mb-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    {hole.distance_back != null && <span>Back {hole.distance_back}y</span>}
+                    {hole.distance_front != null && <span>Front {hole.distance_front}y</span>}
+                    {hole.distance_ladies != null && <span>Ladies {hole.distance_ladies}y</span>}
+                  </div>
+                )}
 
                 {editingNote === hole.id ? (
                   <HoleNoteEditor

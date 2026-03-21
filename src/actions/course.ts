@@ -5,6 +5,26 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Course } from '@/features/course/types';
 
+function parseOptionalInt(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const v = parseInt(raw, 10);
+  return isNaN(v) ? null : v;
+}
+
+function validateOptionalInt(value: number | null, min: number, max: number, label: string): string | null {
+  if (value !== null && (isNaN(value) || value < min || value > max)) {
+    return `${label}は${min}〜${max}の範囲で入力してください。`;
+  }
+  return null;
+}
+
+function validateOptionalEnum(value: string | null, allowed: string[], label: string): string | null {
+  if (value !== null && !allowed.includes(value)) {
+    return `${label}の値が不正です。`;
+  }
+  return null;
+}
+
 export async function getSavedCourses(): Promise<Course[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
@@ -116,6 +136,23 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
     return { error: '距離は0〜700の範囲で入力してください。' };
   }
 
+  // 新フィールドの読み取り
+  const hdcp = parseOptionalInt(formData.get('hdcp') as string);
+  const distanceBack = parseOptionalInt(formData.get('distance_back') as string);
+  const distanceFront = parseOptionalInt(formData.get('distance_front') as string);
+  const distanceLadies = parseOptionalInt(formData.get('distance_ladies') as string);
+  const dogleg = (formData.get('dogleg') as string) || null;
+  const elevation = (formData.get('elevation') as string) || null;
+
+  const fieldError =
+    validateOptionalInt(hdcp, 1, 18, 'HDCP') ??
+    validateOptionalEnum(dogleg, ['straight', 'left', 'right'], 'ドッグレッグ') ??
+    validateOptionalEnum(elevation, ['flat', 'uphill', 'downhill'], '高低差') ??
+    validateOptionalInt(distanceBack, 0, 700, 'バックティー距離') ??
+    validateOptionalInt(distanceFront, 0, 700, 'フロントティー距離') ??
+    validateOptionalInt(distanceLadies, 0, 700, 'レディースティー距離');
+  if (fieldError) return { error: fieldError };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from('holes')
@@ -125,6 +162,14 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
         hole_number: holeNumber,
         par,
         distance,
+        hdcp,
+        dogleg,
+        elevation,
+        distance_back: distanceBack,
+        distance_front: distanceFront,
+        distance_ladies: distanceLadies,
+        hazard: (formData.get('hazard') as string) || null,
+        ob: (formData.get('ob') as string) || null,
         description: (formData.get('description') as string) || null,
       },
       { onConflict: 'course_id,hole_number' }
@@ -171,6 +216,14 @@ interface HoleImportData {
   holeNumber: number;
   par: number;
   distance: number | null;
+  hdcp: number | null;
+  dogleg: string | null;
+  elevation: string | null;
+  distanceBack: number | null;
+  distanceFront: number | null;
+  distanceLadies: number | null;
+  hazard: string | null;
+  ob: string | null;
   description: string | null;
 }
 
@@ -198,12 +251,17 @@ export async function importHoles(
     }
     seenHoles.add(h.holeNumber);
 
-    if (!Number.isInteger(h.par) || h.par < 3 || h.par > 5) {
-      return { error: `ホール${h.holeNumber}: Parは3〜5で入力してください。` };
-    }
-    if (h.distance !== null && (!Number.isInteger(h.distance) || h.distance < 0 || h.distance > 700)) {
-      return { error: `ホール${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
-    }
+    const prefix = `ホール${h.holeNumber}: `;
+    const holeError =
+      validateOptionalInt(h.par, 3, 5, 'Par') ??
+      validateOptionalInt(h.distance, 0, 700, '距離') ??
+      validateOptionalInt(h.hdcp, 1, 18, 'HDCP') ??
+      validateOptionalEnum(h.dogleg, ['straight', 'left', 'right'], 'ドッグレッグ') ??
+      validateOptionalEnum(h.elevation, ['flat', 'uphill', 'downhill'], '高低差') ??
+      validateOptionalInt(h.distanceBack, 0, 700, 'バックティー距離') ??
+      validateOptionalInt(h.distanceFront, 0, 700, 'フロントティー距離') ??
+      validateOptionalInt(h.distanceLadies, 0, 700, 'レディースティー距離');
+    if (holeError) return { error: prefix + holeError };
   }
 
   const supabase = await createClient();
@@ -225,6 +283,14 @@ export async function importHoles(
         hole_number: h.holeNumber,
         par: h.par,
         distance: h.distance,
+        hdcp: h.hdcp,
+        dogleg: h.dogleg,
+        elevation: h.elevation,
+        distance_back: h.distanceBack,
+        distance_front: h.distanceFront,
+        distance_ladies: h.distanceLadies,
+        hazard: h.hazard,
+        ob: h.ob,
         description: h.description,
       })),
       { onConflict: 'course_id,hole_number' }

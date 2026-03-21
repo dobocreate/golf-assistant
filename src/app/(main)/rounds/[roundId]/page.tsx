@@ -4,7 +4,7 @@ import { getMemos } from '@/actions/memo';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Flag } from 'lucide-react';
+import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
 
 export default async function RoundReviewPage({
@@ -129,6 +129,15 @@ export default async function RoundReviewPage({
           className="inline-flex items-center justify-center min-h-[48px] rounded-lg bg-green-600 px-6 py-3 text-lg font-bold text-white hover:bg-green-500 transition-colors"
         >
           プレーに戻る
+        </Link>
+      )}
+      {round.status === 'completed' && (
+        <Link
+          href={`/play/${roundId}/score?edit=1`}
+          className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-lg bg-blue-600 px-6 py-3 text-lg font-bold text-white hover:bg-blue-500 transition-colors"
+        >
+          <Pencil className="h-5 w-5" />
+          スコアを編集
         </Link>
       )}
     </div>

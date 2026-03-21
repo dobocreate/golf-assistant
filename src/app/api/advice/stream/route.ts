@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 import { buildAdviceContext, formatContextForPrompt, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
 
+const VALID_SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 'パット'];
+const VALID_LIES = ['ティーアップ', 'フェアウェイ', 'ラフ', 'バンカー', '林'];
+const VALID_SLOPE_FB = ['toe_up', 'toe_down'];
+const VALID_SLOPE_LR = ['left_up', 'left_down'];
+
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -27,6 +32,8 @@ export async function POST(request: Request) {
       shotType: string;
       remainingDistance: string;
       lie: string;
+      slopeFB?: string | null;
+      slopeLR?: string | null;
       notes?: string;
     };
 
@@ -38,6 +45,30 @@ export async function POST(request: Request) {
 
     if (!body.roundId || !body.holeNumber || !body.shotType || !body.remainingDistance || !body.lie) {
       return jsonError('必須パラメータが不足しています。', 400);
+    }
+
+    // バリデーション
+    const VALID_DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
+    if (!Number.isInteger(body.holeNumber) || body.holeNumber < 1 || body.holeNumber > 18) {
+      return jsonError('ホール番号が不正です。', 400);
+    }
+    if (!VALID_SHOT_TYPES.includes(body.shotType)) {
+      return jsonError('ショット種別が不正です。', 400);
+    }
+    if (!VALID_DISTANCES.includes(body.remainingDistance)) {
+      return jsonError('残り距離が不正です。', 400);
+    }
+    if (!VALID_LIES.includes(body.lie)) {
+      return jsonError('ライが不正です。', 400);
+    }
+    if (body.notes && body.notes.length > 200) {
+      return jsonError('補足は200文字以内で入力してください。', 400);
+    }
+    if (body.slopeFB != null && !VALID_SLOPE_FB.includes(body.slopeFB)) {
+      return jsonError('前後傾斜が不正です。', 400);
+    }
+    if (body.slopeLR != null && !VALID_SLOPE_LR.includes(body.slopeLR)) {
+      return jsonError('左右傾斜が不正です。', 400);
     }
 
     // コンテキスト構築
@@ -57,6 +88,8 @@ export async function POST(request: Request) {
       shotType: body.shotType,
       remainingDistance: body.remainingDistance,
       lie: body.lie,
+      slopeFB: body.slopeFB,
+      slopeLR: body.slopeLR,
       notes: body.notes,
     });
 
