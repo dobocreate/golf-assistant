@@ -111,25 +111,25 @@ sprints:
     capacity_points: 15
     committed_points: 13
     completed_points: 0
-    status: "not_started"
+    status: "in_progress"
     goal: "スコアコンテキスト反映＋振り返り＋ダッシュボード＋MVP仕上げ"
     stories:
       - story_id: "STORY-015"
         title: "スコア状況のコンテキスト反映"
         points: 3
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-016"
         title: "ラウンド振り返り画面"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-017"
         title: "ラウンド履歴一覧"
         points: 2
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-018"
         title: "ダッシュボード"
         points: 3
-        status: "not_started"
+        status: "in_progress"
 
 velocity:
   sprint_0: 15
