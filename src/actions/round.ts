@@ -106,6 +106,57 @@ export async function getActiveRound(): Promise<RoundWithCourse | null> {
   return data as RoundWithCourse | null;
 }
 
-export async function completeRound(_roundId: string) {
-  throw new Error('Not implemented: STORY-011 で実装予定');
+export async function completeRound(
+  _prevState: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+
+  const roundId = formData.get('roundId') as string;
+  if (!roundId || !UUID_RE.test(roundId)) {
+    return { error: 'ラウンドIDが不正です。' };
+  }
+
+  const supabase = await createClient();
+
+  // ラウンドの所有確認 + status='in_progress' チェック
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .eq('status', 'in_progress')
+    .single();
+
+  if (!round) {
+    return { error: 'ラウンドが見つからない、または既に完了しています。' };
+  }
+
+  // スコアを取得して合計打数を計算
+  const { data: scores } = await supabase
+    .from('scores')
+    .select('strokes')
+    .eq('round_id', roundId);
+
+  const totalScore = (scores ?? []).reduce((sum, s) => sum + s.strokes, 0);
+
+  // ラウンドを完了に更新
+  const { error } = await supabase
+    .from('rounds')
+    .update({
+      status: 'completed',
+      total_score: totalScore > 0 ? totalScore : null,
+    })
+    .eq('id', roundId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    return { error: 'ラウンドの完了に失敗しました。' };
+  }
+
+  revalidatePath('/play');
+  revalidatePath('/rounds');
+  revalidatePath(`/rounds/${roundId}`);
+  redirect(`/rounds/${roundId}`);
 }
