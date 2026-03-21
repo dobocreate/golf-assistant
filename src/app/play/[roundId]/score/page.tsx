@@ -1,14 +1,27 @@
+import { getScoresWithHoles } from '@/actions/score';
+import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { redirect, notFound } from 'next/navigation';
+import { ScoreInput } from '@/features/score/components/score-input';
+
 export default async function ScoreInputPage({
   params,
 }: {
   params: Promise<{ roundId: string }>;
 }) {
+  const user = await getAuthenticatedUser();
+  if (!user) redirect('/auth/login');
+
   const { roundId } = await params;
+  const data = await getScoresWithHoles(roundId);
+
+  if (!data) notFound();
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">スコア入力</h1>
-      <p className="text-gray-500">ラウンドID: {roundId}</p>
-      <p className="text-gray-500">Sprint 2 で実装予定</p>
-    </div>
+    <ScoreInput
+      roundId={roundId}
+      holes={data.holes}
+      initialScores={data.scores}
+      courseName={data.round.courseName}
+    />
   );
 }
