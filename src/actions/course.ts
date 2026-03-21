@@ -199,10 +199,10 @@ export async function importHoles(
     seenHoles.add(h.holeNumber);
 
     if (!Number.isInteger(h.par) || h.par < 3 || h.par > 5) {
-      return { error: `Hole ${h.holeNumber}: Parは3〜5で入力してください。` };
+      return { error: `ホール${h.holeNumber}: Parは3〜5で入力してください。` };
     }
     if (h.distance !== null && (!Number.isInteger(h.distance) || h.distance < 0 || h.distance > 700)) {
-      return { error: `Hole ${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
+      return { error: `ホール${h.holeNumber}: 距離は0〜700の範囲で入力してください。` };
     }
   }
 

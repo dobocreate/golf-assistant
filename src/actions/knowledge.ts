@@ -8,6 +8,36 @@ import type { Knowledge } from '@/features/knowledge/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function parseKnowledgeForm(formData: FormData): {
+  data: { title: string; content: string; category: string | null; tags: string[]; source_url: string | null };
+  error?: string;
+} {
+  const title = (formData.get('title') as string)?.trim();
+  const content = (formData.get('content') as string)?.trim();
+  const category = (formData.get('category') as string)?.trim() || null;
+  const tagsRaw = (formData.get('tags') as string)?.trim() || '';
+  const sourceUrl = (formData.get('source_url') as string)?.trim() || null;
+
+  if (!title) return { data: null!, error: 'タイトルは必須です。' };
+  if (!content) return { data: null!, error: '内容は必須です。' };
+  if (title.length > 200) return { data: null!, error: 'タイトルは200文字以内で入力してください。' };
+  if (content.length > 10000) return { data: null!, error: '内容は10000文字以内で入力してください。' };
+  if (sourceUrl) {
+    if (sourceUrl.length > 2000) return { data: null!, error: 'URLは2000文字以内で入力してください。' };
+    try {
+      new URL(sourceUrl);
+    } catch {
+      return { data: null!, error: 'URLの形式が不正です。' };
+    }
+  }
+
+  const tags = tagsRaw
+    ? tagsRaw.split(/[,、]/).map(t => t.trim()).filter(Boolean)
+    : [];
+
+  return { data: { title, content, category, tags, source_url: sourceUrl } };
+}
+
 export async function getKnowledgeList(category?: string | null): Promise<Knowledge[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
@@ -47,30 +77,13 @@ export async function createKnowledge(formData: FormData): Promise<{ error?: str
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  const title = (formData.get('title') as string)?.trim();
-  const content = (formData.get('content') as string)?.trim();
-  const category = (formData.get('category') as string)?.trim() || null;
-  const tagsRaw = (formData.get('tags') as string)?.trim() || '';
-  const sourceUrl = (formData.get('source_url') as string)?.trim() || null;
-
-  if (!title) return { error: 'タイトルは必須です。' };
-  if (!content) return { error: '内容は必須です。' };
-  if (title.length > 200) return { error: 'タイトルは200文字以内で入力してください。' };
-  if (content.length > 10000) return { error: '内容は10000文字以内で入力してください。' };
-  if (sourceUrl && sourceUrl.length > 2000) return { error: 'URLは2000文字以内で入力してください。' };
-
-  const tags = tagsRaw
-    ? tagsRaw.split(/[,、]/).map(t => t.trim()).filter(Boolean)
-    : [];
+  const parsed = parseKnowledgeForm(formData);
+  if (parsed.error) return { error: parsed.error };
 
   const supabase = await createClient();
   const { error } = await supabase.from('knowledge').insert({
     user_id: user.id,
-    title,
-    content,
-    category,
-    tags,
-    source_url: sourceUrl,
+    ...parsed.data,
   });
 
   if (error) return { error: 'ナレッジの保存に失敗しました。' };
@@ -86,31 +99,14 @@ export async function updateKnowledge(formData: FormData): Promise<{ error?: str
   const id = formData.get('id') as string;
   if (!id || !UUID_RE.test(id)) return { error: 'IDが不正です。' };
 
-  const title = (formData.get('title') as string)?.trim();
-  const content = (formData.get('content') as string)?.trim();
-  const category = (formData.get('category') as string)?.trim() || null;
-  const tagsRaw = (formData.get('tags') as string)?.trim() || '';
-  const sourceUrl = (formData.get('source_url') as string)?.trim() || null;
-
-  if (!title) return { error: 'タイトルは必須です。' };
-  if (!content) return { error: '内容は必須です。' };
-  if (title.length > 200) return { error: 'タイトルは200文字以内で入力してください。' };
-  if (content.length > 10000) return { error: '内容は10000文字以内で入力してください。' };
-  if (sourceUrl && sourceUrl.length > 2000) return { error: 'URLは2000文字以内で入力してください。' };
-
-  const tags = tagsRaw
-    ? tagsRaw.split(/[,、]/).map(t => t.trim()).filter(Boolean)
-    : [];
+  const parsed = parseKnowledgeForm(formData);
+  if (parsed.error) return { error: parsed.error };
 
   const supabase = await createClient();
   const { error } = await supabase
     .from('knowledge')
     .update({
-      title,
-      content,
-      category,
-      tags,
-      source_url: sourceUrl,
+      ...parsed.data,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
