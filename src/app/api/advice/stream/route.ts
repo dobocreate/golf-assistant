@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     // Gemini API ストリーミング
     const googleAI = createGoogleGenerativeAI({ apiKey });
     const result = streamText({
-      model: googleAI(process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'),
+      model: googleAI(process.env.GEMINI_MODEL || 'gemini-2.5-flash'),
       system: systemPrompt,
       prompt: userPrompt,
       maxOutputTokens: 500,
