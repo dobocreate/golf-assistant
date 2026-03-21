@@ -7,10 +7,14 @@ export function CopyScoreButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
+    const showCopiedMessage = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    };
+
+    try {
+      await navigator.clipboard.writeText(text);
+      showCopiedMessage();
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement('textarea');
@@ -21,8 +25,7 @@ export function CopyScoreButton({ text }: { text: string }) {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      showCopiedMessage();
     }
   };
 

@@ -216,7 +216,6 @@ export async function buildScoreContext(roundId: string): Promise<string> {
   let totalStrokes = 0;
   let totalPar = 0;
   let consecutiveBogeys = 0;
-  let maxConsecutiveBogeys = 0;
   const lastHoleNumber = Math.max(...scores.map(s => s.hole_number));
 
   for (const s of scores) {
@@ -232,7 +231,6 @@ export async function buildScoreContext(roundId: string): Promise<string> {
     // 連続ボギー以上の検出
     if (diff >= 1) {
       consecutiveBogeys++;
-      maxConsecutiveBogeys = Math.max(maxConsecutiveBogeys, consecutiveBogeys);
     } else {
       consecutiveBogeys = 0;
     }
