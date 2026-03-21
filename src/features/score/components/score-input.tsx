@@ -65,32 +65,36 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       fairway_hit: fw,
       green_in_reg: gir,
     };
-    const previousScore = scores.get(holeNum);
-    setScores(prev => new Map(prev).set(holeNum, newScore));
-    setSaveStatus('saving');
+    setScores(prev => {
+      const previousScore = prev.get(holeNum);
+      const next = new Map(prev).set(holeNum, newScore);
+      setSaveStatus('saving');
 
-    startTransition(async () => {
-      const result = await upsertScore({
-        roundId,
-        holeNumber: holeNum,
-        strokes: s,
-        putts: p,
-        fairwayHit: fw,
-        greenInReg: gir,
-      });
-      if (result.error) {
-        // 楽観的更新をロールバック
-        if (previousScore) {
-          setScores(prev => new Map(prev).set(holeNum, previousScore));
+      startTransition(async () => {
+        const result = await upsertScore({
+          roundId,
+          holeNumber: holeNum,
+          strokes: s,
+          putts: p,
+          fairwayHit: fw,
+          greenInReg: gir,
+        });
+        if (result.error) {
+          // 楽観的更新をロールバック
+          if (previousScore) {
+            setScores(prev2 => new Map(prev2).set(holeNum, previousScore));
+          } else {
+            setScores(prev2 => { const m = new Map(prev2); m.delete(holeNum); return m; });
+          }
+          setSaveStatus('error');
         } else {
-          setScores(prev => { const m = new Map(prev); m.delete(holeNum); return m; });
+          setSaveStatus('saved');
         }
-        setSaveStatus('error');
-      } else {
-        setSaveStatus('saved');
-      }
+      });
+
+      return next;
     });
-  }, [roundId, scores]);
+  }, [roundId]);
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
@@ -103,13 +107,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
-    const s = scores.get(holeNum);
-    setStrokes(s?.strokes ?? null);
-    setPutts(s?.putts ?? null);
-    setFairwayHit(s?.fairway_hit ?? null);
-    setGreenInReg(s?.green_in_reg ?? null);
+    setScores(prev => {
+      const s = prev.get(holeNum);
+      setStrokes(s?.strokes ?? null);
+      setPutts(s?.putts ?? null);
+      setFairwayHit(s?.fairway_hit ?? null);
+      setGreenInReg(s?.green_in_reg ?? null);
+      return prev;
+    });
     setSaveStatus('idle');
-  }, [scores, strokes, putts, fairwayHit, greenInReg, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, fairwayHit, greenInReg, currentHole, score?.id, saveHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -299,49 +306,47 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">
         <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
-        <div className="grid grid-cols-9 gap-1">
-          {holes.slice(0, 9).map(h => {
-            const s = scores.get(h.hole_number);
-            return (
-              <button
-                key={h.hole_number}
-                onClick={() => switchHole(h.hole_number)}
-                className={`min-h-[48px] rounded text-xs font-bold transition-colors ${
-                  currentHole === h.hole_number
-                    ? 'bg-green-600 text-white'
-                    : s
-                      ? 'bg-gray-700 text-white'
-                      : 'bg-gray-800 text-gray-500'
-                }`}
-              >
-                <div>{h.hole_number}</div>
-                {s && <div className={getScoreColor(s.strokes, h.par)}>{s.strokes}</div>}
-              </button>
-            );
-          })}
-        </div>
-        <div className="grid grid-cols-9 gap-1">
-          {holes.slice(9, 18).map(h => {
-            const s = scores.get(h.hole_number);
-            return (
-              <button
-                key={h.hole_number}
-                onClick={() => switchHole(h.hole_number)}
-                className={`min-h-[48px] rounded text-xs font-bold transition-colors ${
-                  currentHole === h.hole_number
-                    ? 'bg-green-600 text-white'
-                    : s
-                      ? 'bg-gray-700 text-white'
-                      : 'bg-gray-800 text-gray-500'
-                }`}
-              >
-                <div>{h.hole_number}</div>
-                {s && <div className={getScoreColor(s.strokes, h.par)}>{s.strokes}</div>}
-              </button>
-            );
-          })}
-        </div>
+        <MiniScorecardRow holes={holes.slice(0, 9)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
+        <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
       </div>
+    </div>
+  );
+}
+
+function MiniScorecardRow({
+  holes,
+  scores,
+  currentHole,
+  onSwitch,
+  getScoreColor,
+}: {
+  holes: HoleInfo[];
+  scores: Map<number, Score>;
+  currentHole: number;
+  onSwitch: (holeNum: number) => void;
+  getScoreColor: (s: number, par: number) => string;
+}) {
+  return (
+    <div className="grid grid-cols-9 gap-1">
+      {holes.map(h => {
+        const s = scores.get(h.hole_number);
+        return (
+          <button
+            key={h.hole_number}
+            onClick={() => onSwitch(h.hole_number)}
+            className={`min-h-[48px] rounded text-xs font-bold transition-colors ${
+              currentHole === h.hole_number
+                ? 'bg-green-600 text-white'
+                : s
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-gray-800 text-gray-500'
+            }`}
+          >
+            <div>{h.hole_number}</div>
+            {s && <div className={getScoreColor(s.strokes, h.par)}>{s.strokes}</div>}
+          </button>
+        );
+      })}
     </div>
   );
 }
