@@ -85,17 +85,17 @@ sprints:
     capacity_points: 20
     committed_points: 20
     completed_points: 0
-    status: "not_started"
+    status: "in_progress"
     goal: "AIキャディー＋音声読み上げ（コア機能）"
     stories:
       - story_id: "STORY-012"
         title: "コンテキストビルダー"
         points: 5
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-013"
         title: "Gemini APIアドバイス生成（ストリーミング）"
         points: 8
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-010"
         title: "音声読み上げ"
         points: 2
