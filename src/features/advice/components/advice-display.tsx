@@ -20,7 +20,7 @@ export function AdviceDisplay({ text, isStreaming, onSpeak, onStopSpeak, isSpeak
         {text && !isStreaming && onSpeak && (
           <button
             onClick={isSpeaking ? onStopSpeak : onSpeak}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+            className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
             aria-label={isSpeaking ? '読み上げ停止' : '読み上げ'}
           >
             {isSpeaking ? <VolumeOff className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}

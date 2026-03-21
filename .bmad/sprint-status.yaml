@@ -99,11 +99,11 @@ sprints:
       - story_id: "STORY-010"
         title: "音声読み上げ"
         points: 2
-        status: "not_started"
+        status: "in_progress"
       - story_id: "STORY-014"
         title: "プレー中状況入力UI"
         points: 5
-        status: "not_started"
+        status: "in_progress"
 
   - sprint_number: 4
     start_date: "2026-04-17"
