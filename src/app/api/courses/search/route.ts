@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   }
 
   const appId = env.RAKUTEN_APP_ID;
-  if (!appId) {
+  const accessKey = env.RAKUTEN_ACCESS_KEY;
+  if (!appId || !accessKey) {
     return NextResponse.json(
       { error: '楽天GORA APIが設定されていません。' },
       { status: 503 }
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const gora = createRakutenGoraSource(appId);
+    const gora = createRakutenGoraSource(appId, accessKey);
     const results = await gora.search(query.trim());
     return NextResponse.json({ results });
   } catch (error) {

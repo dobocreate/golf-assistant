@@ -41,9 +41,10 @@ export async function saveCourseFromGora(goraId: string): Promise<{ error?: stri
 
   // 楽天GORA APIから詳細取得
   const appId = env.RAKUTEN_APP_ID;
-  if (!appId) return { error: '楽天GORA APIが設定されていません。' };
+  const accessKey = env.RAKUTEN_ACCESS_KEY;
+  if (!appId || !accessKey) return { error: '楽天GORA APIが設定されていません。' };
 
-  const gora = createRakutenGoraSource(appId);
+  const gora = createRakutenGoraSource(appId, accessKey);
   const detail = await gora.getDetail(goraId);
 
   if (!detail) return { error: 'コース情報の取得に失敗しました。' };

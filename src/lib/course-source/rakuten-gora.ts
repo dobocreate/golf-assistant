@@ -1,14 +1,17 @@
 import type { CourseSource, CourseSearchResult, CourseDetail } from './types';
 
-const GORA_BASE = 'https://app.rakuten.co.jp/services/api/Gora';
+const GORA_BASE = 'https://openapi.rakuten.co.jp/engine/api/Gora';
 const API_VERSION = '20170623';
 
-export function createRakutenGoraSource(appId: string): CourseSource {
+export function createRakutenGoraSource(appId: string, accessKey: string): CourseSource {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://golf-assistant.vercel.app';
+
   return {
     async search(query: string, _prefecture?: string): Promise<CourseSearchResult[]> {
       try {
         const params = new URLSearchParams({
           applicationId: appId,
+          accessKey,
           keyword: query,
           format: 'json',
           hits: '20',
@@ -16,11 +19,17 @@ export function createRakutenGoraSource(appId: string): CourseSource {
 
         const res = await fetch(
           `${GORA_BASE}/GoraGolfCourseSearch/${API_VERSION}?${params}`,
-          { next: { revalidate: 3600 } }
+          {
+            next: { revalidate: 3600 },
+            headers: {
+              'Referer': siteUrl,
+              'Origin': siteUrl,
+            },
+          }
         );
 
         if (!res.ok) {
-          console.error('Rakuten GORA search failed:', res.status);
+          console.error('Rakuten GORA search failed:', res.status, await res.text());
           return [];
         }
 
@@ -47,17 +56,24 @@ export function createRakutenGoraSource(appId: string): CourseSource {
       try {
         const params = new URLSearchParams({
           applicationId: appId,
+          accessKey,
           goraGolfCourseId: courseId,
           format: 'json',
         });
 
         const res = await fetch(
           `${GORA_BASE}/GoraGolfCourseDetail/${API_VERSION}?${params}`,
-          { next: { revalidate: 86400 } }
+          {
+            next: { revalidate: 86400 },
+            headers: {
+              'Referer': siteUrl,
+              'Origin': siteUrl,
+            },
+          }
         );
 
         if (!res.ok) {
-          console.error('Rakuten GORA detail failed:', res.status);
+          console.error('Rakuten GORA detail failed:', res.status, await res.text());
           return null;
         }
 
@@ -70,7 +86,7 @@ export function createRakutenGoraSource(appId: string): CourseSource {
           prefecture: String(item.prefecture ?? ''),
           address: String(item.address ?? ''),
           layout_url: item.golfCourseImageUrl ? String(item.golfCourseImageUrl) : undefined,
-          holes: [],  // 楽天GORA APIはホール別詳細を返さないため空。手動入力で補完。
+          holes: [],
           raw_data: item as Record<string, unknown>,
         };
       } catch (error) {
