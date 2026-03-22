@@ -1,5 +1,6 @@
 import { getRoundWithCourse } from '@/actions/round';
 import { getScores } from '@/actions/score';
+import { getShot } from '@/actions/shot';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import { AdviceClient } from '@/features/advice/components/advice-client';
@@ -9,7 +10,7 @@ export default async function AdvicePage({
   searchParams,
 }: {
   params: Promise<{ roundId: string }>;
-  searchParams: Promise<{ hole?: string; lie?: string; slopeFB?: string; slopeLR?: string; shotNumber?: string }>;
+  searchParams: Promise<{ hole?: string; shotNumber?: string; lie?: string; slopeFB?: string; slopeLR?: string }>;
 }) {
   const user = await getAuthenticatedUser();
   if (!user) redirect('/auth/login');
@@ -24,13 +25,29 @@ export default async function AdvicePage({
 
   const scoredHoles = scores.map(s => s.hole_number);
 
-  // クエリパラメータから初期値を構築
+  const holeNumber = query.hole ? parseInt(query.hole, 10) : undefined;
+  const shotNumber = query.shotNumber ? parseInt(query.shotNumber, 10) : undefined;
+
+  // DBからショット取得を試み、取得できたらその値を使う。できなければ searchParams のフォールバック
+  let initialLie: string | undefined = query.lie || undefined;
+  let initialSlopeFB: string | undefined = query.slopeFB || undefined;
+  let initialSlopeLR: string | undefined = query.slopeLR || undefined;
+
+  if (holeNumber && shotNumber) {
+    const shot = await getShot(roundId, holeNumber, shotNumber);
+    if (shot) {
+      initialLie = shot.lie ?? undefined;
+      initialSlopeFB = shot.slope_fb ?? undefined;
+      initialSlopeLR = shot.slope_lr ?? undefined;
+    }
+  }
+
   const initialValues = {
-    hole: query.hole ? parseInt(query.hole, 10) : undefined,
-    lie: query.lie || undefined,
-    slopeFB: query.slopeFB || undefined,
-    slopeLR: query.slopeLR || undefined,
-    shotNumber: query.shotNumber ? parseInt(query.shotNumber, 10) : undefined,
+    hole: holeNumber,
+    lie: initialLie,
+    slopeFB: initialSlopeFB,
+    slopeLR: initialSlopeLR,
+    shotNumber,
   };
 
   return (

@@ -1,11 +1,13 @@
-export type SlopeFB = 'toe_up' | 'toe_down';
-export type SlopeLR = 'left_up' | 'left_down';
+import type { ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
+
+export type SlopeFB = ShotSlopeFB;
+export type SlopeLR = ShotSlopeLR;
 
 export interface Situation {
   holeNumber: number;
   shotType: string;
   remainingDistance: string;
-  lie: string;
+  lie: ShotLie;
   slopeFB: SlopeFB | null;
   slopeLR: SlopeLR | null;
   notes?: string;

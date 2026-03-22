@@ -8,11 +8,12 @@ import { usePlayRoundOptional } from '@/features/play/context/play-round-context
 import { updateShotAdvice, getAdviceHistory } from '@/actions/shot';
 import { useToast } from '@/components/ui/toast';
 import type { Situation } from '../types';
+import type { ShotLie } from '@/features/score/types';
 import type { AdviceHistoryItem } from '@/features/score/types';
 
 interface AdviceInitialValues {
   hole?: number;
-  lie?: string;
+  lie?: ShotLie | string;
   slopeFB?: string;
   slopeLR?: string;
   shotNumber?: number;
@@ -144,7 +145,7 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
       setError('アドバイスの取得に失敗しました。');
       setIsLoading(false);
     }
-  }, [roundId]);
+  }, [roundId, showToast, initialValues?.shotNumber]);
 
   return (
     <div className="space-y-4">
@@ -174,6 +175,7 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
 
       {/* 状況入力 */}
       <SituationInput
+        key={currentHole}
         holeNumber={currentHole}
         onSubmit={handleSubmit}
         isLoading={isLoading}

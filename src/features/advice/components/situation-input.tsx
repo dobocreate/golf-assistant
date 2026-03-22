@@ -2,40 +2,28 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
+import { SHOT_TYPES, DISTANCES, LIE_OPTIONS, VALID_LIES } from '@/lib/golf-constants';
+import type { ShotLie } from '@/features/score/types';
 import type { Situation, SlopeFB, SlopeLR } from '../types';
-
-const SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 'パット'];
-const DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
-const LIES = ['ティーアップ', 'フェアウェイ', 'ラフ', 'バンカー', '林'];
-
-// ショット記録のDB値 → アドバイス画面の日本語ラベル変換
-const LIE_DB_TO_LABEL: Record<string, string> = {
-  tee: 'ティーアップ',
-  fairway: 'フェアウェイ',
-  rough: 'ラフ',
-  bunker: 'バンカー',
-  woods: '林',
-};
 
 interface SituationInputProps {
   holeNumber: number;
   onSubmit: (situation: Situation) => void;
   isLoading: boolean;
-  initialLie?: string;
+  initialLie?: ShotLie | string;
   initialSlopeFB?: string;
   initialSlopeLR?: string;
+}
+
+function parseLie(value: string | undefined): ShotLie | null {
+  if (!value) return null;
+  return (VALID_LIES as readonly string[]).includes(value) ? (value as ShotLie) : null;
 }
 
 export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, initialSlopeFB, initialSlopeLR }: SituationInputProps) {
   const [shotType, setShotType] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
-  const [lie, setLie] = useState<string | null>(() => {
-    if (!initialLie) return null;
-    // 日本語ラベルならそのまま、DB値なら変換
-    if (LIES.includes(initialLie)) return initialLie;
-    const mapped = LIE_DB_TO_LABEL[initialLie];
-    return mapped && LIES.includes(mapped) ? mapped : null;
-  });
+  const [lie, setLie] = useState<ShotLie | null>(() => parseLie(initialLie));
   const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(() => {
     return (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') ? initialSlopeFB : null;
   });
@@ -45,21 +33,16 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
 
   // props の初期値が変化した場合に state を同期（ページ遷移でコンポーネントが再利用されるケース）
   useEffect(() => {
-    if (!initialLie) return;
-    if (LIES.includes(initialLie)) { setLie(initialLie); return; }
-    const mapped = LIE_DB_TO_LABEL[initialLie];
-    if (mapped && LIES.includes(mapped)) setLie(mapped);
+    setLie(parseLie(initialLie));
   }, [initialLie]);
 
   useEffect(() => {
     if (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') setSlopeFB(initialSlopeFB);
-    else if (initialSlopeFB === undefined) { /* 初期値なし: 変更しない */ }
     else setSlopeFB(null);
   }, [initialSlopeFB]);
 
   useEffect(() => {
     if (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') setSlopeLR(initialSlopeLR);
-    else if (initialSlopeLR === undefined) { /* 初期値なし: 変更しない */ }
     else setSlopeLR(null);
   }, [initialSlopeLR]);
 
@@ -123,17 +106,17 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
       <div className="space-y-2">
         <label className="block text-sm font-bold text-gray-300">ライ・状況</label>
         <div className="grid grid-cols-3 gap-2">
-          {LIES.map(l => (
+          {LIE_OPTIONS.map(l => (
             <button
-              key={l}
-              onClick={() => setLie(l)}
+              key={l.value}
+              onClick={() => setLie(l.value)}
               className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-                lie === l
+                lie === l.value
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
               }`}
             >
-              {l}
+              {l.label}
             </button>
           ))}
         </div>

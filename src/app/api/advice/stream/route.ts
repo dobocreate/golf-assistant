@@ -3,11 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createClient } from '@/lib/supabase/server';
 import { buildAdviceContext, formatContextForPrompt, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
-
-const VALID_SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 'パット'];
-const VALID_LIES = ['ティーアップ', 'フェアウェイ', 'ラフ', 'バンカー', '林'];
-const VALID_SLOPE_FB = ['toe_up', 'toe_down'];
-const VALID_SLOPE_LR = ['left_up', 'left_down'];
+import { SHOT_TYPES, DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR } from '@/lib/golf-constants';
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -48,26 +44,25 @@ export async function POST(request: Request) {
     }
 
     // バリデーション
-    const VALID_DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
     if (!Number.isInteger(body.holeNumber) || body.holeNumber < 1 || body.holeNumber > 18) {
       return jsonError('ホール番号が不正です。', 400);
     }
-    if (!VALID_SHOT_TYPES.includes(body.shotType)) {
+    if (!(SHOT_TYPES as readonly string[]).includes(body.shotType)) {
       return jsonError('ショット種別が不正です。', 400);
     }
-    if (!VALID_DISTANCES.includes(body.remainingDistance)) {
+    if (!(DISTANCES as readonly string[]).includes(body.remainingDistance)) {
       return jsonError('残り距離が不正です。', 400);
     }
-    if (!VALID_LIES.includes(body.lie)) {
+    if (!(VALID_LIES as readonly string[]).includes(body.lie)) {
       return jsonError('ライが不正です。', 400);
     }
     if (body.notes && body.notes.length > 200) {
       return jsonError('補足は200文字以内で入力してください。', 400);
     }
-    if (body.slopeFB != null && !VALID_SLOPE_FB.includes(body.slopeFB)) {
+    if (body.slopeFB != null && !(VALID_SLOPE_FB as readonly string[]).includes(body.slopeFB)) {
       return jsonError('前後傾斜が不正です。', 400);
     }
-    if (body.slopeLR != null && !VALID_SLOPE_LR.includes(body.slopeLR)) {
+    if (body.slopeLR != null && !(VALID_SLOPE_LR as readonly string[]).includes(body.slopeLR)) {
       return jsonError('左右傾斜が不正です。', 400);
     }
 
