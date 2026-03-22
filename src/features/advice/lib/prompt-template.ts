@@ -1,4 +1,4 @@
-import { LIE_DB_TO_LABEL, SLOPE_FB_DB_TO_LABEL, SLOPE_LR_DB_TO_LABEL } from '@/lib/golf-constants';
+import { LIE_DB_TO_LABEL, SLOPE_FB_DB_TO_LABEL, SLOPE_LR_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
 
 const SYSTEM_PROMPT = `あなたはプロゴルファーの経験を持つAIキャディーです。
 プレーヤーの特性、コース情報、過去の傾向を踏まえて、具体的で実用的なアドバイスを提供します。
@@ -30,10 +30,11 @@ export function createUserPrompt(situation: {
   notes?: string;
 }): string {
   const lieLabel = LIE_DB_TO_LABEL[situation.lie] ?? situation.lie;
+  const shotTypeLabel = SHOT_TYPE_DB_TO_LABEL[situation.shotType] ?? situation.shotType;
 
   const parts = [
     `Hole ${situation.holeNumber}`,
-    `ショット: ${situation.shotType}`,
+    `ショット: ${shotTypeLabel}`,
     `残り距離: ${situation.remainingDistance}`,
     `ライ: ${lieLabel}`,
   ];

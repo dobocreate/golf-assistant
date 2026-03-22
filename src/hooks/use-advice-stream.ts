@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { SHOT_TYPE_DB_TO_LABEL, LIE_DB_TO_LABEL } from '@/lib/golf-constants';
+// DB値のまま API に送信。日本語変換は prompt-template.ts が担当
 
 export interface AdviceRequestParams {
   roundId: string;
@@ -49,9 +49,7 @@ export function useAdviceStream(): UseAdviceStreamReturn {
     setIsStreaming(true);
 
     try {
-      // shotType と lie を日本語ラベルに変換（API は日本語を期待）
-      const shotTypeLabel = params.shotType ? (SHOT_TYPE_DB_TO_LABEL[params.shotType] ?? params.shotType) : 'セカンド';
-      const lieLabel = params.lie ? (LIE_DB_TO_LABEL[params.lie] ?? params.lie) : 'フェアウェイ';
+      // DB値のまま送信。日本語変換は prompt-template.ts が担当
       const distanceStr = params.remainingDistance != null ? `${params.remainingDistance}y` : '150y';
 
       const res = await fetch('/api/advice/stream', {
@@ -60,9 +58,9 @@ export function useAdviceStream(): UseAdviceStreamReturn {
         body: JSON.stringify({
           roundId: params.roundId,
           holeNumber: params.holeNumber,
-          shotType: shotTypeLabel,
+          shotType: params.shotType ?? 'second',
           remainingDistance: distanceStr,
-          lie: lieLabel,
+          lie: params.lie ?? 'fairway',
           slopeFB: params.slopeFB,
           slopeLR: params.slopeLR,
           notes: params.notes,
