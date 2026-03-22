@@ -14,7 +14,7 @@ export async function getClubs(): Promise<Club[]> {
     .from('clubs')
     .select('*')
     .eq('profile_id', profileId)
-    .order('name');
+    .order('distance', { ascending: false, nullsFirst: false });
 
   return data ?? [];
 }
