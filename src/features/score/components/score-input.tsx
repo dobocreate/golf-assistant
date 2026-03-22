@@ -325,28 +325,34 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         }}
       />
 
-      {/* 保存ボタン */}
-      <button
-        onClick={handleSave}
-        disabled={strokes === null || isPending}
-        className="w-full min-h-[56px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-4 text-xl font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <Save className="h-5 w-5" />
-        {isPending ? '保存中...' : '保存'}
-      </button>
-
-      {saveStatus === 'saved' && (
-        <p className="text-center text-sm text-green-400">保存しました</p>
-      )}
-      {saveStatus === 'error' && (
-        <p className="text-center text-sm text-red-400">保存に失敗しました</p>
-      )}
-
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">
         <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
         <MiniScorecardRow holes={holes.slice(0, 9)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
         <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
+      </div>
+
+      {/* フローティング保存ボタン用のスペーサー */}
+      <div className="h-20" />
+
+      {/* フローティング保存ボタン */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur-sm border-t border-gray-800 px-4 py-3">
+        <div className="max-w-md mx-auto flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={strokes === null || isPending}
+            className="flex-1 min-h-[52px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-lg font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Save className="h-5 w-5" />
+            {isPending ? '保存中...' : '保存'}
+          </button>
+          {saveStatus === 'saved' && (
+            <span className="text-sm text-green-400 shrink-0">保存済</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-sm text-red-400 shrink-0">エラー</span>
+          )}
+        </div>
       </div>
     </div>
   );
