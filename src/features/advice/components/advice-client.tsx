@@ -6,13 +6,22 @@ import { AdviceDisplay } from './advice-display';
 import { useSpeechSynthesis } from '@/features/voice/hooks/use-speech-synthesis';
 import type { Situation } from '../types';
 
+interface AdviceInitialValues {
+  hole?: number;
+  lie?: string;
+  slopeFB?: string;
+  slopeLR?: string;
+}
+
 interface AdviceClientProps {
   roundId: string;
   scoredHoles: number[];
+  initialValues?: AdviceInitialValues;
 }
 
-export function AdviceClient({ roundId, scoredHoles }: AdviceClientProps) {
+export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClientProps) {
   const nextHole = (() => {
+    if (initialValues?.hole && initialValues.hole >= 1 && initialValues.hole <= 18) return initialValues.hole;
     const scored = new Set(scoredHoles);
     return Array.from({ length: 18 }, (_, i) => i + 1).find(h => !scored.has(h)) ?? 18;
   })();
@@ -120,6 +129,9 @@ export function AdviceClient({ roundId, scoredHoles }: AdviceClientProps) {
         holeNumber={currentHole}
         onSubmit={handleSubmit}
         isLoading={isLoading}
+        initialLie={initialValues?.lie}
+        initialSlopeFB={initialValues?.slopeFB}
+        initialSlopeLR={initialValues?.slopeLR}
       />
 
       {/* エラー表示 */}
