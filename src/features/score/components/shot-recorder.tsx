@@ -495,39 +495,39 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
             </div>
           )}
 
-          {/* Advice button */}
-          {onRequestAdvice && (
-            <button
-              onClick={() => onRequestAdvice({
-                lie: currentForm.lie ?? 'fairway',
-                slopeFB: currentForm.slopeFb,
-                slopeLR: currentForm.slopeLr,
-                shotNumber: currentShotNumber,
-              })}
-              className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
-            >
-              このショットのアドバイスを聞く
-            </button>
-          )}
-
-          {/* Record / Update button */}
-          {isNewShotSlot ? (
-            <button
-              onClick={handleRecordShot}
-              disabled={currentForm.result === null || isPending}
-              className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isPending ? '記録中...' : `第${nextShotNumber}打を記録`}
-            </button>
-          ) : (
-            <button
-              onClick={handleUpdateShot}
-              disabled={!isChanged || isPending}
-              className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isPending ? '更新中...' : '更新'}
-            </button>
-          )}
+          {/* Advice + Record/Update buttons (横並び) */}
+          <div className="grid grid-cols-2 gap-2">
+            {onRequestAdvice && (
+              <button
+                onClick={() => onRequestAdvice({
+                  lie: currentForm.lie ?? 'fairway',
+                  slopeFB: currentForm.slopeFb,
+                  slopeLR: currentForm.slopeLr,
+                  shotNumber: currentShotNumber,
+                })}
+                className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
+              >
+                アドバイス
+              </button>
+            )}
+            {isNewShotSlot ? (
+              <button
+                onClick={handleRecordShot}
+                disabled={currentForm.result === null || isPending}
+                className={`min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${!onRequestAdvice ? 'col-span-2' : ''}`}
+              >
+                {isPending ? '記録中...' : '記録'}
+              </button>
+            ) : (
+              <button
+                onClick={handleUpdateShot}
+                disabled={!isChanged || isPending}
+                className={`min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${!onRequestAdvice ? 'col-span-2' : ''}`}
+              >
+                {isPending ? '更新中...' : '更新'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
