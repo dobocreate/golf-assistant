@@ -6,7 +6,9 @@ import { AdviceDisplay } from './advice-display';
 import { useSpeechSynthesis } from '@/features/voice/hooks/use-speech-synthesis';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import { updateShotAdvice, getAdviceHistory } from '@/actions/shot';
+import { useToast } from '@/components/ui/toast';
 import type { Situation } from '../types';
+import type { AdviceHistoryItem } from '@/features/score/types';
 
 interface AdviceInitialValues {
   hole?: number;
@@ -26,6 +28,7 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
   const playRound = usePlayRoundOptional();
   const playRoundRef = useRef(playRound);
   useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
+  const { showToast } = useToast();
 
   const initialHole = (() => {
     if (initialValues?.hole && initialValues.hole >= 1 && initialValues.hole <= 18) return initialValues.hole;
@@ -33,23 +36,26 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
     const scored = new Set(scoredHoles);
     return Array.from({ length: 18 }, (_, i) => i + 1).find(h => !scored.has(h)) ?? 18;
   })();
-  const [currentHole, setCurrentHoleLocal] = useState(initialHole);
+  const [currentHole, setCurrentHoleLocal] = useState(playRound?.currentHole ?? initialHole);
   const [adviceText, setAdviceText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { speak, stop, isSpeaking, isSupported, rate, setRate } = useSpeechSynthesis();
-  const [adviceHistory, setAdviceHistory] = useState<{ hole_number: number; shot_number: number; advice_text: string; club: string | null }[]>([]);
-  const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
+  const [adviceHistory, setAdviceHistory] = useState<AdviceHistoryItem[]>([]);
+  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
 
-  // mount時に Context を初期化 & 履歴を取得
+  // mount時に Context を初期化
   useEffect(() => {
     playRound?.setCurrentHole(initialHole);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playRound, initialHole]);
 
+  // 履歴取得
   useEffect(() => {
-    getAdviceHistory(roundId).then(setAdviceHistory).catch(console.error);
-  }, [roundId]);
+    getAdviceHistory(roundId).then(setAdviceHistory).catch(() => {
+      showToast('アドバイス履歴の取得に失敗しました', 'error');
+    });
+  }, [roundId, showToast]);
 
   const changeHole = useCallback((hole: number) => {
     setCurrentHoleLocal(hole);
@@ -121,8 +127,14 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
           shotNumber: initialValues.shotNumber,
           adviceText: text,
         })
-          .then(() => getAdviceHistory(roundId).then(setAdviceHistory).catch(console.error))
-          .catch(console.error);
+          .then((result) => {
+            if (result.error) {
+              showToast('アドバイスの保存に失敗しました', 'error');
+            } else {
+              getAdviceHistory(roundId).then(setAdviceHistory).catch(() => {});
+            }
+          })
+          .catch(() => showToast('アドバイスの保存に失敗しました', 'error'));
       }
 
       setIsLoading(false);
@@ -212,23 +224,26 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
       {adviceHistory.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-bold text-gray-300">アドバイス履歴</label>
-          {adviceHistory.map((h, i) => (
-            <button
-              key={i}
-              onClick={() => setExpandedHistory(expandedHistory === i ? null : i)}
-              className="w-full text-left rounded-lg bg-gray-800 border border-gray-700 p-3 text-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold">Hole {h.hole_number} - 第{h.shot_number}打</span>
-                {h.club && <span className="text-xs text-gray-400">{h.club}</span>}
-              </div>
-              {expandedHistory === i ? (
-                <p className="mt-2 text-gray-300 whitespace-pre-wrap">{h.advice_text}</p>
-              ) : (
-                <p className="mt-1 text-gray-500 truncate">{h.advice_text}</p>
-              )}
-            </button>
-          ))}
+          {adviceHistory.map((h) => {
+            const key = `${h.hole_number}-${h.shot_number}`;
+            return (
+              <button
+                key={key}
+                onClick={() => setExpandedHistory(expandedHistory === key ? null : key)}
+                className="w-full text-left rounded-lg bg-gray-800 border border-gray-700 p-3 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">Hole {h.hole_number} - 第{h.shot_number}打</span>
+                  {h.club && <span className="text-xs text-gray-400">{h.club}</span>}
+                </div>
+                {expandedHistory === key ? (
+                  <p className="mt-2 text-gray-300 whitespace-pre-wrap">{h.advice_text}</p>
+                ) : (
+                  <p className="mt-1 text-gray-500 truncate">{h.advice_text}</p>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

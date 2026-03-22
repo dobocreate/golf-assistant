@@ -41,3 +41,10 @@ export interface Shot {
   landing: ShotLanding | null;
   advice_text: string | null;
 }
+
+export interface AdviceHistoryItem {
+  hole_number: number;
+  shot_number: number;
+  advice_text: string;
+  club: string | null;
+}
