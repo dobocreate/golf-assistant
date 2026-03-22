@@ -198,13 +198,17 @@ export async function updateShot(data: {
 export async function getShot(roundId: string, holeNumber: number, shotNumber: number): Promise<Shot | null> {
   const { error, supabase } = await verifyRoundOwnership(roundId);
   if (error || !supabase) return null;
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from('shots')
     .select('*')
     .eq('round_id', roundId)
     .eq('hole_number', holeNumber)
     .eq('shot_number', shotNumber)
     .single();
+  if (queryError) {
+    console.error('Error fetching shot:', queryError);
+    return null;
+  }
   return (data as Shot) ?? null;
 }
 
