@@ -56,9 +56,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
-  const [obCount, setObCount] = useState(score?.ob_count ?? 0);
-  const [bunkerCount, setBunkerCount] = useState(score?.bunker_count ?? 0);
-  // penaltyCount は廃止（OB・ペナルティに統合）。DB互換のため 0 固定で送信
+  // penaltyCount / obCount / bunkerCount は廃止（ショット単位の landing に移行）。DB互換のため 0 固定で送信
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
@@ -79,8 +77,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     s: number,
     p: number | null,
     gir: boolean | null,
-    ob: number,
-    bunker: number,
     existingId?: string,
   ) => {
     const newScore: Score = {
@@ -93,8 +89,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       green_in_reg: gir,
       tee_shot_lr: null,
       tee_shot_fb: null,
-      ob_count: ob,
-      bunker_count: bunker,
+      ob_count: 0,
+      bunker_count: 0,
       penalty_count: 0,
     };
 
@@ -115,8 +111,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         greenInReg: gir,
         teeShotLr: null,
         teeShotFb: null,
-        obCount: ob,
-        bunkerCount: bunker,
+        obCount: 0,
+        bunkerCount: 0,
         penaltyCount: 0,
       });
       if (result.error) {
@@ -136,8 +132,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id);
-  }, [currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id, saveHole]);
+    saveHole(currentHole, strokes, putts, greenInReg, score?.id);
+  }, [currentHole, strokes, putts, greenInReg, score?.id, saveHole]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -148,17 +144,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
     if (strokes !== null) {
-      saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id);
+      saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
-    setObCount(s?.ob_count ?? 0);
-    setBunkerCount(s?.bunker_count ?? 0);
     setSaveStatus('idle');
-  }, [strokes, putts, greenInReg, obCount, bunkerCount, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -314,14 +308,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       </div>
 
-      {/* OB・ペナルティ / バンカー カウンター */}
-      <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-4">
-          <CounterGroup label="OB・ペナ" value={obCount} onChange={setObCount} />
-          <CounterGroup label="バンカー" value={bunkerCount} onChange={setBunkerCount} />
-        </div>
-      </div>
-
       {/* ショット記録 */}
       <ShotRecorder
         roundId={roundId}
@@ -361,55 +347,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
         <MiniScorecardRow holes={holes.slice(0, 9)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
         <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
-      </div>
-    </div>
-  );
-}
-
-// OB / バンカー / ペナルティ用カウンターコンポーネント
-function CounterGroup({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="block text-xs font-bold text-gray-300 text-center">{label}</label>
-      <div className="grid grid-cols-4 gap-1">
-        {[0, 1, 2].map(v => (
-          <button
-            key={v}
-            onClick={() => onChange(v)}
-            className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-              value === v
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-            }`}
-          >
-            {v}
-          </button>
-        ))}
-        {/* 3+ ボタン */}
-        <button
-          onClick={() => {
-            if (value < 3) {
-              onChange(3);
-            } else {
-              onChange(Math.min(value + 1, 10));
-            }
-          }}
-          className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-            value >= 3
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-          }`}
-        >
-          {value >= 3 ? value : '3+'}
-        </button>
       </div>
     </div>
   );

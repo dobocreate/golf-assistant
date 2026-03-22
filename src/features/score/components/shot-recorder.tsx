@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { recordShot, getShots, deleteShot, updateShot } from '@/actions/shot';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -33,6 +33,20 @@ const LIES: { value: ShotLie; label: string }[] = [
   { value: 'woods', label: '林' },
 ];
 
+const LANDINGS: { value: ShotLanding; label: string }[] = [
+  { value: 'ob', label: 'OB' },
+  { value: 'water', label: '池' },
+  { value: 'bunker', label: 'バンカー' },
+];
+
+function landingColor(value: ShotLanding): string {
+  switch (value) {
+    case 'ob': return 'bg-red-600 text-white';
+    case 'water': return 'bg-blue-600 text-white';
+    case 'bunker': return 'bg-yellow-600 text-white';
+  }
+}
+
 const DIRECTION_GRID: { lr: DirectionLR; fb: DirectionFB; label: string }[] = [
   { lr: 'left', fb: 'long', label: '↖' },
   { lr: 'center', fb: 'long', label: '↑' },
@@ -54,6 +68,7 @@ interface ShotFormState {
   lie: ShotLie | null;
   slopeFb: ShotSlopeFB | null;
   slopeLr: ShotSlopeLR | null;
+  landing: ShotLanding | null;
 }
 
 function emptyShotForm(): ShotFormState {
@@ -66,6 +81,7 @@ function emptyShotForm(): ShotFormState {
     lie: null,
     slopeFb: null,
     slopeLr: null,
+    landing: null,
   };
 }
 
@@ -79,6 +95,7 @@ function shotToForm(shot: Shot): ShotFormState {
     lie: shot.lie,
     slopeFb: shot.slope_fb,
     slopeLr: shot.slope_lr,
+    landing: shot.landing,
   };
 }
 
@@ -91,7 +108,8 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.directionFb !== shot.direction_fb ||
     form.lie !== shot.lie ||
     form.slopeFb !== shot.slope_fb ||
-    form.slopeLr !== shot.slope_lr
+    form.slopeLr !== shot.slope_lr ||
+    form.landing !== shot.landing
   );
 }
 
@@ -200,6 +218,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         lie: currentForm.lie,
         slopeFb: currentForm.slopeFb,
         slopeLr: currentForm.slopeLr,
+        landing: currentForm.landing,
       });
       if (result.error) {
         setError(result.error);
@@ -232,6 +251,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         lie: currentForm.lie,
         slopeFb: currentForm.slopeFb,
         slopeLr: currentForm.slopeLr,
+        landing: currentForm.landing,
       });
       if (result.error) {
         setError(result.error);
@@ -418,34 +438,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
             </div>
           </div>
 
-          {/* Direction 3x3 grid */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-500">方向</label>
-            <div className="grid grid-cols-3 gap-2 max-w-[200px] mx-auto">
-              {DIRECTION_GRID.map(({ lr, fb, label }) => {
-                const isSelected = currentForm.directionLr === lr && currentForm.directionFb === fb;
-                return (
-                  <button
-                    key={`${lr}-${fb}`}
-                    onClick={() => updateForm(currentShotIndex, f => {
-                      if (f.directionLr === lr && f.directionFb === fb) {
-                        return { ...f, directionLr: null, directionFb: null };
-                      }
-                      return { ...f, directionLr: lr, directionFb: fb };
-                    })}
-                    className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Result */}
           <div className="space-y-1">
             <label className="block text-xs text-gray-500">結果</label>
@@ -494,6 +486,51 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
               </div>
             </div>
           )}
+
+          {/* Direction 3x3 grid + Landing buttons */}
+          <div className="space-y-2">
+            <label className="block text-xs text-gray-500">方向・着地</label>
+            <div className="grid grid-cols-4 gap-2">
+              {DIRECTION_GRID.map(({ lr, fb, label }) => {
+                const isSelected = currentForm.directionLr === lr && currentForm.directionFb === fb;
+                return (
+                  <button
+                    key={`${lr}-${fb}`}
+                    onClick={() => updateForm(currentShotIndex, f => {
+                      if (f.directionLr === lr && f.directionFb === fb) {
+                        return { ...f, directionLr: null, directionFb: null };
+                      }
+                      return { ...f, directionLr: lr, directionFb: fb };
+                    })}
+                    className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                      isSelected
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {/* 右列: 着地状況（OB/池/バンカー） */}
+              {LANDINGS.map(({ value, label }) => {
+                const isSelected = currentForm.landing === value;
+                return (
+                  <button
+                    key={value}
+                    onClick={() => updateForm(currentShotIndex, prev => ({
+                      ...prev, landing: prev.landing === value ? null : value
+                    }))}
+                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                      isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Advice + Record/Update buttons (横並び) */}
           <div className="grid grid-cols-2 gap-2">

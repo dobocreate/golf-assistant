@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -14,6 +14,7 @@ const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
 const VALID_LIES: ShotLie[] = ['tee', 'fairway', 'rough', 'bunker', 'woods'];
 const VALID_SLOPE_FB: ShotSlopeFB[] = ['toe_up', 'toe_down'];
 const VALID_SLOPE_LR: ShotSlopeLR[] = ['left_up', 'left_down'];
+const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
 
 function validateShotFields(data: {
   club?: string | null;
@@ -24,6 +25,7 @@ function validateShotFields(data: {
   lie: string | null;
   slopeFb: string | null;
   slopeLr: string | null;
+  landing: string | null;
 }): string | null {
   if (data.club !== undefined && data.club !== null && (typeof data.club !== 'string' || data.club.length > 20)) {
     return 'クラブ名が不正です。';
@@ -49,6 +51,9 @@ function validateShotFields(data: {
   if (data.slopeLr !== null && !VALID_SLOPE_LR.includes(data.slopeLr as ShotSlopeLR)) {
     return '左右傾斜が不正です。';
   }
+  if (data.landing !== null && !VALID_LANDINGS.includes(data.landing as ShotLanding)) {
+    return '着地状況が不正です。';
+  }
   return null;
 }
 
@@ -64,6 +69,7 @@ export async function recordShot(data: {
   lie: string | null;
   slopeFb: string | null;
   slopeLr: string | null;
+  landing: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -106,6 +112,7 @@ export async function recordShot(data: {
       lie: data.lie,
       slope_fb: data.slopeFb,
       slope_lr: data.slopeLr,
+      landing: data.landing,
     })
     .select('*')
     .single();
@@ -127,6 +134,7 @@ export async function updateShot(data: {
   lie: string | null;
   slopeFb: string | null;
   slopeLr: string | null;
+  landing: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -161,6 +169,7 @@ export async function updateShot(data: {
       lie: data.lie,
       slope_fb: data.slopeFb,
       slope_lr: data.slopeLr,
+      landing: data.landing,
     })
     .eq('id', data.shotId)
     .eq('round_id', data.roundId)
