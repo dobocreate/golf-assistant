@@ -131,6 +131,50 @@ sprints:
         points: 3
         status: "completed"
 
+  - sprint_number: "post-mvp-1"
+    start_date: "2026-03-21"
+    end_date: "2026-03-21"
+    status: "completed"
+    goal: "Post-MVP Sprint 1 — 5ストーリー実装"
+    stories:
+      - story_id: "STORY-019"
+        title: "ショット結果詳細記録"
+        status: "completed"
+      - story_id: "STORY-020"
+        title: "疲労・メンタル考慮の高度化"
+        status: "completed"
+      - story_id: "STORY-021"
+        title: "ナレッジベースCRUD"
+        status: "completed"
+      - story_id: "STORY-022"
+        title: "スコア統計・グラフ（詳細版）"
+        status: "completed"
+      - story_id: "STORY-023"
+        title: "ホール詳細一括インポート"
+        status: "completed"
+
+  - sprint_number: "post-mvp-2"
+    start_date: "2026-03-22"
+    end_date: "2026-03-22"
+    status: "completed"
+    goal: "Post-MVP Sprint 2 — ホール詳細・スコア再設計・編集・AIアドバイス改善 + UX改善"
+    stories:
+      - story_id: "TASK-001"
+        title: "ホールインポートCSV拡張（4→12カラム、RFC4180準拠）"
+        status: "completed"
+      - story_id: "TASK-002"
+        title: "スコア入力画面の再設計（3×3グリッド、OB/バンカー/ペナルティ）"
+        status: "completed"
+      - story_id: "TASK-003"
+        title: "ラウンド完了後のスコア編集機能"
+        status: "completed"
+      - story_id: "TASK-004"
+        title: "AIアドバイス画面の改善（傾斜入力・ライ整理・ホール自動選択）"
+        status: "completed"
+      - story_id: "UX-001"
+        title: "タップフィードバック・プログレスバー・スケルトンスクリーン（全14画面）"
+        status: "completed"
+
 velocity:
   sprint_0: 15
   sprint_1: 13
