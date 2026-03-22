@@ -17,6 +17,8 @@ interface AdviceInitialValues {
   slopeFB?: string;
   slopeLR?: string;
   shotNumber?: number;
+  shotType?: string;
+  remainingDistance?: number;
 }
 
 interface AdviceClientProps {
@@ -182,6 +184,8 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
         initialLie={initialValues?.lie}
         initialSlopeFB={initialValues?.slopeFB}
         initialSlopeLR={initialValues?.slopeLR}
+        initialShotType={initialValues?.shotType}
+        initialDistance={initialValues?.remainingDistance}
       />
 
       {/* エラー表示 */}

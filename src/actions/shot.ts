@@ -26,7 +26,8 @@ const VALID_RESULTS: ShotResult[] = ['excellent', 'good', 'fair', 'poor'];
 const VALID_MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
 const VALID_DIRECTION_LR: DirectionLR[] = ['left', 'center', 'right'];
 const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
-import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR } from '@/lib/golf-constants';
+import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
+import type { ShotType } from '@/features/score/types';
 const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
 
 function validateShotFields(data: {
@@ -39,6 +40,8 @@ function validateShotFields(data: {
   slopeFb: string | null;
   slopeLr: string | null;
   landing: string | null;
+  shotType?: string | null;
+  remainingDistance?: number | null;
 }): string | null {
   if (data.club !== undefined && data.club !== null && (typeof data.club !== 'string' || data.club.length > 20)) {
     return 'クラブ名が不正です。';
@@ -67,6 +70,12 @@ function validateShotFields(data: {
   if (data.landing !== null && !VALID_LANDINGS.includes(data.landing as ShotLanding)) {
     return '着地状況が不正です。';
   }
+  if (data.shotType != null && !VALID_SHOT_TYPES.includes(data.shotType as ShotType)) {
+    return 'ショット種別が不正です。';
+  }
+  if (data.remainingDistance != null && (!Number.isInteger(data.remainingDistance) || data.remainingDistance < 0 || data.remainingDistance > 700)) {
+    return '残り距離が不正です。';
+  }
   return null;
 }
 
@@ -83,6 +92,8 @@ export async function recordShot(data: {
   slopeFb: string | null;
   slopeLr: string | null;
   landing: string | null;
+  shotType: string | null;
+  remainingDistance: number | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -126,6 +137,8 @@ export async function recordShot(data: {
       slope_fb: data.slopeFb,
       slope_lr: data.slopeLr,
       landing: data.landing,
+      shot_type: data.shotType,
+      remaining_distance: data.remainingDistance,
     })
     .select('*')
     .single();
@@ -148,6 +161,8 @@ export async function updateShot(data: {
   slopeFb: string | null;
   slopeLr: string | null;
   landing: string | null;
+  shotType: string | null;
+  remainingDistance: number | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -183,6 +198,8 @@ export async function updateShot(data: {
       slope_fb: data.slopeFb,
       slope_lr: data.slopeLr,
       landing: data.landing,
+      shot_type: data.shotType,
+      remaining_distance: data.remainingDistance,
     })
     .eq('id', data.shotId)
     .eq('round_id', data.roundId)

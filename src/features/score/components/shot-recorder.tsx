@@ -3,8 +3,8 @@
 import { useReducer, useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { recordShot, getShots, deleteShot, updateShot } from '@/actions/shot';
-import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS } from '@/lib/golf-constants';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
+import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS } from '@/lib/golf-constants';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotType } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -20,6 +20,8 @@ interface ShotRecorderProps {
     slopeLR: string | null;
     shotNumber: number;
     isNewShot: boolean;
+    shotType: string | null;
+    remainingDistance: number | null;
   }) => void;
 }
 
@@ -68,6 +70,8 @@ interface ShotFormState {
   slopeFb: ShotSlopeFB | null;
   slopeLr: ShotSlopeLR | null;
   landing: ShotLanding | null;
+  shotType: ShotType | null;
+  remainingDistance: number | null;
 }
 
 function emptyShotForm(): ShotFormState {
@@ -81,6 +85,8 @@ function emptyShotForm(): ShotFormState {
     slopeFb: null,
     slopeLr: null,
     landing: null,
+    shotType: null,
+    remainingDistance: null,
   };
 }
 
@@ -95,6 +101,8 @@ function shotToForm(shot: Shot): ShotFormState {
     slopeFb: shot.slope_fb,
     slopeLr: shot.slope_lr,
     landing: shot.landing,
+    shotType: shot.shot_type,
+    remainingDistance: shot.remaining_distance,
   };
 }
 
@@ -108,7 +116,9 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.lie !== shot.lie ||
     form.slopeFb !== shot.slope_fb ||
     form.slopeLr !== shot.slope_lr ||
-    form.landing !== shot.landing
+    form.landing !== shot.landing ||
+    form.shotType !== shot.shot_type ||
+    form.remainingDistance !== shot.remaining_distance
   );
 }
 
@@ -247,6 +257,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         slopeFb: currentForm.slopeFb,
         slopeLr: currentForm.slopeLr,
         landing: currentForm.landing,
+        shotType: currentForm.shotType,
+        remainingDistance: currentForm.remainingDistance,
       });
       if (result.error) {
         setError(result.error);
@@ -275,6 +287,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         slopeFb: currentForm.slopeFb,
         slopeLr: currentForm.slopeLr,
         landing: currentForm.landing,
+        shotType: currentForm.shotType,
+        remainingDistance: currentForm.remainingDistance,
       });
       if (result.error) {
         setError(result.error);
@@ -354,6 +368,51 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
               </select>
             </div>
           )}
+
+          {/* Shot type */}
+          <div className="space-y-1">
+            <label className="block text-xs text-gray-500">ショット</label>
+            <div className="grid grid-cols-4 gap-1">
+              {SHOT_TYPE_OPTIONS.map(st => (
+                <button
+                  key={st.value}
+                  onClick={() => dispatch({
+                    type: 'UPDATE_FIELD',
+                    index: currentShotIndex,
+                    updater: f => ({ ...f, shotType: f.shotType === st.value ? null : st.value }),
+                  })}
+                  className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                    currentForm.shotType === st.value
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Remaining distance */}
+          <div className="space-y-1">
+            <label className="block text-xs text-gray-500">残り距離 (yd)</label>
+            <input
+              type="number"
+              min={0}
+              max={700}
+              placeholder="残り距離"
+              value={currentForm.remainingDistance ?? ''}
+              onChange={e => {
+                const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                dispatch({
+                  type: 'UPDATE_FIELD',
+                  index: currentShotIndex,
+                  updater: f => ({ ...f, remainingDistance: val }),
+                });
+              }}
+              className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-green-600"
+            />
+          </div>
 
           {/* Lie */}
           <div className="space-y-1">
@@ -561,21 +620,86 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           <div className="grid grid-cols-2 gap-2">
             {onRequestAdvice && (
               <button
-                onClick={() => {
+                disabled={isPending}
+                onClick={async () => {
                   // state.forms から直接取得（stale closure 解消）
                   const latestForm = state.forms.get(currentShotIndex)
                     ?? (currentShotIndex < state.shots.length ? shotToForm(state.shots[currentShotIndex]) : emptyShotForm());
-                  onRequestAdvice({
-                    lie: latestForm.lie ?? 'fairway',
-                    slopeFB: latestForm.slopeFb,
-                    slopeLR: latestForm.slopeLr,
-                    shotNumber: currentShotNumber,
-                    isNewShot: isNewShotSlot,
-                  });
+                  const latestShowMissType = latestForm.result === 'fair' || latestForm.result === 'poor';
+
+                  if (isNewShotSlot) {
+                    // 新規ショット: recordShot で保存してから遷移
+                    const result = await recordShot({
+                      roundId,
+                      holeNumber,
+                      shotNumber: nextShotNumber,
+                      club: latestForm.club,
+                      result: latestForm.result,
+                      missType: latestShowMissType ? latestForm.missType : null,
+                      directionLr: latestForm.directionLr,
+                      directionFb: latestForm.directionFb,
+                      lie: latestForm.lie,
+                      slopeFb: latestForm.slopeFb,
+                      slopeLr: latestForm.slopeLr,
+                      landing: latestForm.landing,
+                      shotType: latestForm.shotType,
+                      remainingDistance: latestForm.remainingDistance,
+                    });
+                    if (result.shot) {
+                      dispatch({ type: 'INIT', shots: [...shots, result.shot] });
+                      onRequestAdvice({
+                        lie: latestForm.lie ?? 'fairway',
+                        slopeFB: latestForm.slopeFb,
+                        slopeLR: latestForm.slopeLr,
+                        shotNumber: nextShotNumber,
+                        isNewShot: false,
+                        shotType: latestForm.shotType,
+                        remainingDistance: latestForm.remainingDistance,
+                      });
+                    } else if (result.error) {
+                      setError(result.error);
+                    }
+                  } else {
+                    // 既存ショット: 変更があれば updateShot してから遷移
+                    if (currentShot && hasFormChanged(latestForm, currentShot)) {
+                      const result = await updateShot({
+                        shotId: currentShot.id,
+                        roundId,
+                        club: latestForm.club,
+                        result: latestForm.result,
+                        missType: latestShowMissType ? latestForm.missType : null,
+                        directionLr: latestForm.directionLr,
+                        directionFb: latestForm.directionFb,
+                        lie: latestForm.lie,
+                        slopeFb: latestForm.slopeFb,
+                        slopeLr: latestForm.slopeLr,
+                        landing: latestForm.landing,
+                        shotType: latestForm.shotType,
+                        remainingDistance: latestForm.remainingDistance,
+                      });
+                      if (result.error) {
+                        setError(result.error);
+                        return; // 更新失敗時はアドバイス画面に遷移しない
+                      }
+                      if (result.shot) {
+                        const newShots = shots.map(s => s.id === currentShot.id ? result.shot! : s);
+                        dispatch({ type: 'INIT', shots: newShots });
+                      }
+                    }
+                    onRequestAdvice({
+                      lie: latestForm.lie ?? 'fairway',
+                      slopeFB: latestForm.slopeFb,
+                      slopeLR: latestForm.slopeLr,
+                      shotNumber: currentShotNumber,
+                      isNewShot: false,
+                      shotType: latestForm.shotType,
+                      remainingDistance: latestForm.remainingDistance,
+                    });
+                  }
                 }}
-                className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
+                className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                アドバイス
+                {isPending ? '保存中...' : 'アドバイス'}
               </button>
             )}
             {isNewShotSlot ? (

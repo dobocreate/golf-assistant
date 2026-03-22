@@ -10,7 +10,7 @@ export default async function AdvicePage({
   searchParams,
 }: {
   params: Promise<{ roundId: string }>;
-  searchParams: Promise<{ hole?: string; shotNumber?: string; lie?: string; slopeFB?: string; slopeLR?: string }>;
+  searchParams: Promise<{ hole?: string; shotNumber?: string; lie?: string; slopeFB?: string; slopeLR?: string; shotType?: string; distance?: string }>;
 }) {
   const user = await getAuthenticatedUser();
   if (!user) redirect('/auth/login');
@@ -32,6 +32,8 @@ export default async function AdvicePage({
   let initialLie: string | undefined = query.lie || undefined;
   let initialSlopeFB: string | undefined = query.slopeFB || undefined;
   let initialSlopeLR: string | undefined = query.slopeLR || undefined;
+  let initialShotType: string | undefined = query.shotType || undefined;
+  let initialDistance: number | undefined = query.distance ? parseInt(query.distance, 10) : undefined;
 
   if (holeNumber && shotNumber) {
     const shot = await getShot(roundId, holeNumber, shotNumber);
@@ -39,6 +41,8 @@ export default async function AdvicePage({
       initialLie = shot.lie ?? undefined;
       initialSlopeFB = shot.slope_fb ?? undefined;
       initialSlopeLR = shot.slope_lr ?? undefined;
+      if (!initialShotType) initialShotType = shot.shot_type ?? undefined;
+      if (initialDistance == null) initialDistance = shot.remaining_distance ?? undefined;
     }
   }
 
@@ -48,6 +52,8 @@ export default async function AdvicePage({
     slopeFB: initialSlopeFB,
     slopeLR: initialSlopeLR,
     shotNumber,
+    shotType: initialShotType,
+    remainingDistance: initialDistance,
   };
 
   return (
