@@ -23,6 +23,8 @@ export type ShotLie = 'tee' | 'fairway' | 'rough' | 'bunker' | 'woods';
 export type ShotSlopeFB = 'toe_up' | 'toe_down';
 export type ShotSlopeLR = 'left_up' | 'left_down';
 
+export type ShotLanding = 'ob' | 'water' | 'bunker';
+
 export interface Shot {
   id: string;
   round_id: string;
@@ -36,4 +38,5 @@ export interface Shot {
   lie: ShotLie | null;
   slope_fb: ShotSlopeFB | null;
   slope_lr: ShotSlopeLR | null;
+  landing: ShotLanding | null;
 }
