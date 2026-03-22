@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
-import { AdvicePanel } from '@/features/score/components/advice-panel';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, Shot, ShotFormState } from '@/features/score/types';
+import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
   hole_number: number;
@@ -45,12 +44,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRoundRef = useRef(playRound);
   useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
   const [currentHole, setCurrentHole] = useState(1);
-  const [shotFormData, setShotFormData] = useState<{
-    form: ShotFormState;
-    shot: Shot | null;
-    shotNumber: number;
-  } | null>(null);
-
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
   const prevContextHole = useRef(playRound?.currentHole ?? 1);
@@ -349,23 +342,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         roundId={roundId}
         holeNumber={currentHole}
         clubs={clubs}
-        onFormChange={(form, shot, shotNumber) => setShotFormData({ form, shot, shotNumber })}
       />
-
-      {/* AIアドバイス */}
-      {shotFormData && (
-        <AdvicePanel
-          roundId={roundId}
-          holeNumber={currentHole}
-          shotNumber={shotFormData.shotNumber}
-          currentShot={shotFormData.shot}
-          lie={shotFormData.form.lie}
-          slopeFb={shotFormData.form.slopeFb}
-          slopeLr={shotFormData.form.slopeLr}
-          shotType={shotFormData.form.shotType}
-          remainingDistance={shotFormData.form.remainingDistance}
-        />
-      )}
 
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">

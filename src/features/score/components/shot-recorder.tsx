@@ -1,9 +1,11 @@
 'use client';
 
-import { useReducer, useState, useEffect, useTransition, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useReducer, useState, useEffect, useTransition, useCallback } from 'react';
+import { Plus } from 'lucide-react';
 import { recordShot, getShots, updateShot } from '@/actions/shot';
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS } from '@/lib/golf-constants';
+import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
+import { AdvicePanel } from '@/features/score/components/advice-panel';
 import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotType, ShotFormState } from '@/features/score/types';
 
 interface ClubOption {
@@ -14,7 +16,6 @@ interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
   clubs: ClubOption[];
-  onFormChange?: (form: ShotFormState, shot: Shot | null, shotNumber: number) => void;
 }
 
 const RESULT_OPTIONS: { value: ShotResult; label: string; color: string; activeColor: string }[] = [
@@ -137,26 +138,27 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
   }
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotRecorderProps) {
+// --- Slot type for accordion list ---
+
+interface ShotSlot {
+  index: number;
+  shotNumber: number;
+  isNew: boolean;
+  shot: Shot | null;
+  club: string | null;
+  shotTypeLabel: string | null;
+  distance: number | null;
+  lieLabel: string | null;
+  hasAdvice: boolean;
+}
+
+export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) {
   const [state, dispatch] = useReducer(formsReducer, { forms: new Map(), shots: [] });
-  const [currentShotIndex, setCurrentShotIndex] = useState(0);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // Touch swipe refs
-  const touchStartX = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-
   const { shots } = state;
-
-  // Total slots = existing shots + 1 new shot slot
-  const totalSlots = shots.length + 1;
-  const isNewShotSlot = currentShotIndex === shots.length;
-  const currentShot = isNewShotSlot ? null : shots[currentShotIndex];
-
-  // Compute current form from reducer state
-  const currentForm = state.forms.get(currentShotIndex)
-    ?? (currentShotIndex < shots.length ? shotToForm(shots[currentShotIndex]) : emptyShotForm());
 
   // Fetch shots on hole change
   useEffect(() => {
@@ -165,7 +167,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotR
     getShots(roundId, holeNumber).then(data => {
       if (!cancelled) {
         dispatch({ type: 'INIT', shots: data });
-        setCurrentShotIndex(0);
+        // Default expand: new shot slot (index = data.length)
+        setExpandedIndex(data.length);
       }
     }).catch(() => {
       if (!cancelled) setError('ショット記録の取得に失敗しました。');
@@ -177,451 +180,456 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotR
     ? Math.max(...shots.map(s => s.shot_number)) + 1
     : 1;
 
-  const showMissType = currentForm.result === 'fair' || currentForm.result === 'poor';
+  // Build allSlots: existing shots + new shot slot
+  const allSlots: ShotSlot[] = [
+    ...shots.map((shot, i) => ({
+      index: i,
+      shotNumber: shot.shot_number,
+      isNew: false,
+      shot,
+      club: shot.club,
+      shotTypeLabel: shot.shot_type ? (SHOT_TYPE_DB_TO_LABEL[shot.shot_type] ?? null) : null,
+      distance: shot.remaining_distance,
+      lieLabel: shot.lie ? (LIE_DB_TO_LABEL[shot.lie] ?? null) : null,
+      hasAdvice: !!shot.advice_text,
+    })),
+    {
+      index: shots.length,
+      shotNumber: nextShotNumber,
+      isNew: true,
+      shot: null,
+      club: null,
+      shotTypeLabel: null,
+      distance: null,
+      lieLabel: null,
+      hasAdvice: false,
+    },
+  ];
 
-  // Navigate carousel
-  const goToSlot = useCallback((index: number) => {
-    if (index >= 0 && index < totalSlots) {
-      setCurrentShotIndex(index);
-    }
-  }, [totalSlots]);
+  // Display in reverse order (newest first)
+  const displaySlots = [...allSlots].reverse();
 
-  // Touch swipe handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  }, []);
+  // Get form for a given slot index
+  const getForm = useCallback((index: number): ShotFormState => {
+    return state.forms.get(index)
+      ?? (index < shots.length ? shotToForm(shots[index]) : emptyShotForm());
+  }, [state.forms, shots]);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) {
-        // Swipe left -> next
-        goToSlot(Math.min(currentShotIndex + 1, totalSlots - 1));
-      } else {
-        // Swipe right -> prev
-        goToSlot(Math.max(currentShotIndex - 1, 0));
-      }
-    }
-  }, [currentShotIndex, totalSlots, goToSlot]);
+  // Add shot handler: expand new slot
+  const handleAddShot = useCallback(() => {
+    setExpandedIndex(shots.length);
+  }, [shots.length]);
 
   // Record new shot
-  const handleRecordShot = useCallback(() => {
-    if (currentForm.result === null) return;
+  const handleRecordShot = useCallback((slotIndex: number, shotNumber: number) => {
+    const form = getForm(slotIndex);
+    if (form.result === null) return;
+    const showMiss = form.result === 'fair' || form.result === 'poor';
 
     startTransition(async () => {
       const result = await recordShot({
         roundId,
         holeNumber,
-        shotNumber: nextShotNumber,
-        club: currentForm.club,
-        result: currentForm.result,
-        missType: showMissType ? currentForm.missType : null,
-        directionLr: currentForm.directionLr,
-        directionFb: currentForm.directionFb,
-        lie: currentForm.lie,
-        slopeFb: currentForm.slopeFb,
-        slopeLr: currentForm.slopeLr,
-        landing: currentForm.landing,
-        shotType: currentForm.shotType,
-        remainingDistance: currentForm.remainingDistance,
+        shotNumber,
+        club: form.club,
+        result: form.result,
+        missType: showMiss ? form.missType : null,
+        directionLr: form.directionLr,
+        directionFb: form.directionFb,
+        lie: form.lie,
+        slopeFb: form.slopeFb,
+        slopeLr: form.slopeLr,
+        landing: form.landing,
+        shotType: form.shotType,
+        remainingDistance: form.remainingDistance,
       });
       if (result.error) {
         setError(result.error);
       } else if (result.shot) {
         setError(null);
         dispatch({ type: 'INIT', shots: [...shots, result.shot] });
-        setCurrentShotIndex(prev => prev + 1);
+        // Expand the new empty slot
+        setExpandedIndex(shots.length + 1);
       }
     });
-  }, [roundId, holeNumber, nextShotNumber, currentForm, showMissType, currentShotIndex, shots]);
+  }, [roundId, holeNumber, shots, getForm]);
 
   // Update existing shot
-  const handleUpdateShot = useCallback(() => {
-    if (!currentShot) return;
+  const handleUpdateShot = useCallback((slotIndex: number, shot: Shot) => {
+    const form = getForm(slotIndex);
+    const showMiss = form.result === 'fair' || form.result === 'poor';
 
     startTransition(async () => {
       const result = await updateShot({
-        shotId: currentShot.id,
+        shotId: shot.id,
         roundId,
-        club: currentForm.club,
-        result: currentForm.result,
-        missType: showMissType ? currentForm.missType : null,
-        directionLr: currentForm.directionLr,
-        directionFb: currentForm.directionFb,
-        lie: currentForm.lie,
-        slopeFb: currentForm.slopeFb,
-        slopeLr: currentForm.slopeLr,
-        landing: currentForm.landing,
-        shotType: currentForm.shotType,
-        remainingDistance: currentForm.remainingDistance,
+        club: form.club,
+        result: form.result,
+        missType: showMiss ? form.missType : null,
+        directionLr: form.directionLr,
+        directionFb: form.directionFb,
+        lie: form.lie,
+        slopeFb: form.slopeFb,
+        slopeLr: form.slopeLr,
+        landing: form.landing,
+        shotType: form.shotType,
+        remainingDistance: form.remainingDistance,
       });
       if (result.error) {
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        const newShots = shots.map(s => s.id === currentShot.id ? result.shot! : s);
+        const newShots = shots.map(s => s.id === shot.id ? result.shot! : s);
         dispatch({ type: 'INIT', shots: newShots });
       }
     });
-  }, [currentShot, roundId, currentForm, showMissType, currentShotIndex, shots]);
-
-  const currentShotNumber = isNewShotSlot ? nextShotNumber : (currentShot?.shot_number ?? 1);
-  const isChanged = currentShot ? hasFormChanged(currentForm, currentShot) : false;
-
-  // Notify parent of form state changes
-  useEffect(() => {
-    onFormChange?.(currentForm, currentShot, currentShotNumber);
-  }, [currentForm, currentShot, currentShotNumber, onFormChange]);
+  }, [roundId, shots, getForm]);
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-bold text-gray-300">ショット記録</label>
+      {/* Header + Add button */}
+      <div className="flex items-center justify-between">
+        <label className="block text-sm font-bold text-gray-200">ショット記録</label>
+        <button
+          onClick={handleAddShot}
+          className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-gray-800 text-green-400 hover:bg-gray-700 transition-colors"
+          aria-label="ショットを追加"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      </div>
 
-      {/* Carousel container */}
-      <div
-        ref={containerRef}
-        className="overflow-hidden"
-      >
-        <div className="bg-gray-900 rounded-lg p-3 space-y-3">
-          {/* Header: shot number + delete (swipeable) */}
-          <div
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            className="flex items-center justify-between"
-          >
-            <p className="text-sm text-gray-200">
-              {isNewShotSlot
-                ? `新規ショット（第${nextShotNumber}打）`
-                : `ショット ${currentShotIndex + 1} / ${shots.length}打`}
-            </p>
-          </div>
+      {/* Shot list (newest first) */}
+      {displaySlots.map((slot) => {
+        const isExpanded = expandedIndex === slot.index;
+        const form = getForm(slot.index);
+        const showMissType = form.result === 'fair' || form.result === 'poor';
+        const isChanged = slot.shot ? hasFormChanged(form, slot.shot) : false;
 
-          {/* Club selection */}
-          {clubs.length > 0 && (
-            <div className="space-y-1">
-              <label className="block text-xs text-gray-400">クラブ</label>
-              <select
-                value={currentForm.club ?? ''}
-                onChange={e => dispatch({ type: 'UPDATE_FIELD', index: currentShotIndex, updater: f => ({ ...f, club: e.target.value || null }) })}
-                className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-green-600"
-              >
-                <option value="">選択なし</option>
-                {clubs.map(c => (
-                  <option key={c.name} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        return (
+          <div key={slot.index} className="rounded-lg border border-gray-700 overflow-hidden">
+            {/* Summary header (tap to expand/collapse) */}
+            <button
+              onClick={() => setExpandedIndex(isExpanded ? null : slot.index)}
+              className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
+            >
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-bold text-gray-200">
+                  {slot.isNew ? `新規（第${slot.shotNumber}打）` : `第${slot.shotNumber}打`}
+                </span>
+                {slot.club && <span className="text-gray-400">{slot.club}</span>}
+                {slot.shotTypeLabel && <span className="text-gray-400">{slot.shotTypeLabel}</span>}
+                {slot.distance != null && <span className="text-gray-400">{slot.distance}y</span>}
+                {slot.lieLabel && <span className="text-gray-400">{slot.lieLabel}</span>}
+                {slot.hasAdvice && <span className="text-blue-400 text-xs">AI</span>}
+              </div>
+              <span className="text-gray-500">{isExpanded ? '\u25B2' : '\u25BC'}</span>
+            </button>
 
-          {/* Shot type */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-400">ショット</label>
-            <div className="grid grid-cols-4 gap-1">
-              {SHOT_TYPE_OPTIONS.map(st => (
-                <button
-                  key={st.value}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: currentShotIndex,
-                    updater: f => ({ ...f, shotType: f.shotType === st.value ? null : st.value }),
-                  })}
-                  className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                    currentForm.shotType === st.value
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Remaining distance */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-400">残り距離 (yd)</label>
-            <input
-              type="number"
-              min={0}
-              max={700}
-              placeholder="残り距離"
-              value={currentForm.remainingDistance ?? ''}
-              onChange={e => {
-                const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
-                dispatch({
-                  type: 'UPDATE_FIELD',
-                  index: currentShotIndex,
-                  updater: f => ({ ...f, remainingDistance: val }),
-                });
-              }}
-              className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-green-600"
-            />
-          </div>
-
-          {/* Lie */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-400">ライ</label>
-            <div className="grid grid-cols-5 gap-1">
-              {LIE_OPTIONS.map(l => (
-                <button
-                  key={l.value}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: currentShotIndex,
-                    updater: f => ({ ...f, lie: f.lie === l.value ? null : l.value }),
-                  })}
-                  className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                    currentForm.lie === l.value
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {l.shortLabel}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Slope (optional) */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-400">傾斜（任意）</label>
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-1">
-                <p className="text-xs text-gray-400">前後</p>
-                <div className="grid grid-cols-2 gap-1">
-                  {SLOPE_FB_OPTIONS.map(s => (
-                    <button
-                      key={s.value}
-                      onClick={() => dispatch({
-                        type: 'UPDATE_FIELD',
-                        index: currentShotIndex,
-                        updater: f => ({
-                          ...f,
-                          slopeFb: f.slopeFb === s.value ? null : s.value,
-                        }),
-                      })}
-                      className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                        currentForm.slopeFb === s.value
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                      }`}
+            {/* Expanded form */}
+            {isExpanded && (
+              <div className="p-3 space-y-3 bg-gray-900">
+                {/* Club selection */}
+                {clubs.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="block text-xs text-gray-400">クラブ</label>
+                    <select
+                      value={form.club ?? ''}
+                      onChange={e => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, club: e.target.value || null }) })}
+                      className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-green-600"
                     >
-                      {s.shortLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-xs text-gray-400">左右</p>
-                <div className="grid grid-cols-2 gap-1">
-                  {SLOPE_LR_OPTIONS.map(s => (
-                    <button
-                      key={s.value}
-                      onClick={() => dispatch({
-                        type: 'UPDATE_FIELD',
-                        index: currentShotIndex,
-                        updater: f => ({
-                          ...f,
-                          slopeLr: f.slopeLr === s.value ? null : s.value,
-                        }),
-                      })}
-                      className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                        currentForm.slopeLr === s.value
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                      }`}
-                    >
-                      {s.shortLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+                      <option value="">選択なし</option>
+                      {clubs.map(c => (
+                        <option key={c.name} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-          {/* Result */}
-          <div className="space-y-1">
-            <label className="block text-xs text-gray-400">結果</label>
-            <div className="grid grid-cols-4 gap-2">
-              {RESULT_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    dispatch({
-                      type: 'UPDATE_FIELD',
-                      index: currentShotIndex,
-                      updater: f => {
-                        const newResult = opt.value;
-                        const newMissType = (newResult !== 'fair' && newResult !== 'poor') ? null : f.missType;
-                        return { ...f, result: newResult, missType: newMissType };
-                      },
-                    });
-                  }}
-                  className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                    currentForm.result === opt.value ? opt.activeColor : opt.color
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Miss type (only when fair/poor) */}
-          {showMissType && (
-            <div className="space-y-1">
-              <label className="block text-xs text-gray-400">ミスタイプ</label>
-              <div className="grid grid-cols-3 gap-2">
-                {MISS_TYPES.map(mt => (
-                  <button
-                    key={mt}
-                    onClick={() => dispatch({
-                      type: 'UPDATE_FIELD',
-                      index: currentShotIndex,
-                      updater: f => ({ ...f, missType: f.missType === mt ? null : mt }),
-                    })}
-                    className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-                      currentForm.missType === mt
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    {mt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Direction 3x3 grid + Landing buttons */}
-          <div className="space-y-2">
-            <div className="flex gap-3">
-              {/* 方向 3x3 */}
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">方向</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {DIRECTION_GRID.map(({ lr, fb, label }) => {
-                    const isSelected = currentForm.directionLr === lr && currentForm.directionFb === fb;
-                    return (
+                {/* Shot type */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">ショット</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {SHOT_TYPE_OPTIONS.map(st => (
                       <button
-                        key={`${lr}-${fb}`}
+                        key={st.value}
                         onClick={() => dispatch({
                           type: 'UPDATE_FIELD',
-                          index: currentShotIndex,
-                          updater: f => {
-                            if (f.directionLr === lr && f.directionFb === fb) {
-                              return { ...f, directionLr: null, directionFb: null };
-                            }
-                            return { ...f, directionLr: lr, directionFb: fb };
-                          },
+                          index: slot.index,
+                          updater: f => ({ ...f, shotType: f.shotType === st.value ? null : st.value }),
                         })}
-                        className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                          isSelected
+                        className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                          form.shotType === st.value
                             ? 'bg-green-600 text-white'
                             : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                         }`}
                       >
-                        {label}
+                        {st.label}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* 区切り線 */}
-              <div className="w-px bg-gray-700 self-stretch mt-5" />
+                {/* Remaining distance */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">残り距離 (yd)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={700}
+                    placeholder="残り距離"
+                    value={form.remainingDistance ?? ''}
+                    onChange={e => {
+                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                      dispatch({
+                        type: 'UPDATE_FIELD',
+                        index: slot.index,
+                        updater: f => ({ ...f, remainingDistance: val }),
+                      });
+                    }}
+                    className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-green-600"
+                  />
+                </div>
 
-              {/* 着地状況 */}
-              <div className="w-20">
-                <label className="block text-xs text-gray-500 mb-1">着地</label>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {LANDINGS.map(({ value, label }) => {
-                    const isSelected = currentForm.landing === value;
-                    return (
+                {/* Lie */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">ライ</label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {LIE_OPTIONS.map(l => (
                       <button
-                        key={value}
+                        key={l.value}
                         onClick={() => dispatch({
                           type: 'UPDATE_FIELD',
-                          index: currentShotIndex,
-                          updater: prev => ({
-                            ...prev, landing: prev.landing === value ? null : value
-                          }),
+                          index: slot.index,
+                          updater: f => ({ ...f, lie: f.lie === l.value ? null : l.value }),
                         })}
                         className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                          isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                          form.lie === l.value
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                         }`}
                       >
-                        {label}
+                        {l.shortLabel}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </div>
+
+                {/* Slope */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">傾斜（任意）</label>
+                  <div className="flex gap-4">
+                    <div className="flex-1 space-y-1">
+                      <p className="text-xs text-gray-400">前後</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {SLOPE_FB_OPTIONS.map(s => (
+                          <button
+                            key={s.value}
+                            onClick={() => dispatch({
+                              type: 'UPDATE_FIELD',
+                              index: slot.index,
+                              updater: f => ({
+                                ...f,
+                                slopeFb: f.slopeFb === s.value ? null : s.value,
+                              }),
+                            })}
+                            className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                              form.slopeFb === s.value
+                                ? 'bg-green-600 text-white'
+                                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                            }`}
+                          >
+                            {s.shortLabel}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-xs text-gray-400">左右</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {SLOPE_LR_OPTIONS.map(s => (
+                          <button
+                            key={s.value}
+                            onClick={() => dispatch({
+                              type: 'UPDATE_FIELD',
+                              index: slot.index,
+                              updater: f => ({
+                                ...f,
+                                slopeLr: f.slopeLr === s.value ? null : s.value,
+                              }),
+                            })}
+                            className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                              form.slopeLr === s.value
+                                ? 'bg-green-600 text-white'
+                                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                            }`}
+                          >
+                            {s.shortLabel}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Result */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">結果</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {RESULT_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          dispatch({
+                            type: 'UPDATE_FIELD',
+                            index: slot.index,
+                            updater: f => {
+                              const newResult = opt.value;
+                              const newMissType = (newResult !== 'fair' && newResult !== 'poor') ? null : f.missType;
+                              return { ...f, result: newResult, missType: newMissType };
+                            },
+                          });
+                        }}
+                        className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                          form.result === opt.value ? opt.activeColor : opt.color
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Miss type */}
+                {showMissType && (
+                  <div className="space-y-1">
+                    <label className="block text-xs text-gray-400">ミスタイプ</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {MISS_TYPES.map(mt => (
+                        <button
+                          key={mt}
+                          onClick={() => dispatch({
+                            type: 'UPDATE_FIELD',
+                            index: slot.index,
+                            updater: f => ({ ...f, missType: f.missType === mt ? null : mt }),
+                          })}
+                          className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                            form.missType === mt
+                              ? 'bg-orange-600 text-white'
+                              : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                          }`}
+                        >
+                          {mt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Direction 3x3 grid + Landing */}
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1">方向</label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {DIRECTION_GRID.map(({ lr, fb, label }) => {
+                          const isSelected = form.directionLr === lr && form.directionFb === fb;
+                          return (
+                            <button
+                              key={`${lr}-${fb}`}
+                              onClick={() => dispatch({
+                                type: 'UPDATE_FIELD',
+                                index: slot.index,
+                                updater: f => {
+                                  if (f.directionLr === lr && f.directionFb === fb) {
+                                    return { ...f, directionLr: null, directionFb: null };
+                                  }
+                                  return { ...f, directionLr: lr, directionFb: fb };
+                                },
+                              })}
+                              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                                isSelected
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="w-px bg-gray-700 self-stretch mt-5" />
+
+                    <div className="w-20">
+                      <label className="block text-xs text-gray-500 mb-1">着地</label>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {LANDINGS.map(({ value, label }) => {
+                          const isSelected = form.landing === value;
+                          return (
+                            <button
+                              key={value}
+                              onClick={() => dispatch({
+                                type: 'UPDATE_FIELD',
+                                index: slot.index,
+                                updater: prev => ({
+                                  ...prev, landing: prev.landing === value ? null : value
+                                }),
+                              })}
+                              className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                                isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AdvicePanel */}
+                <AdvicePanel
+                  roundId={roundId}
+                  holeNumber={holeNumber}
+                  shotNumber={slot.shotNumber}
+                  currentShot={slot.shot}
+                  lie={form.lie}
+                  slopeFb={form.slopeFb}
+                  slopeLr={form.slopeLr}
+                  shotType={form.shotType}
+                  remainingDistance={form.remainingDistance}
+                />
+
+                {/* Record/Update button */}
+                <div>
+                  {slot.isNew ? (
+                    <button
+                      onClick={() => handleRecordShot(slot.index, slot.shotNumber)}
+                      disabled={form.result === null || isPending}
+                      className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isPending ? '記録中...' : '記録'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleUpdateShot(slot.index, slot.shot!)}
+                      disabled={!isChanged || isPending}
+                      className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isPending ? '更新中...' : '更新'}
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Record/Update button */}
-          <div>
-            {isNewShotSlot ? (
-              <button
-                onClick={handleRecordShot}
-                disabled={currentForm.result === null || isPending}
-                className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isPending ? '記録中...' : '記録'}
-              </button>
-            ) : (
-              <button
-                onClick={handleUpdateShot}
-                disabled={!isChanged || isPending}
-                className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isPending ? '更新中...' : '更新'}
-              </button>
             )}
           </div>
-        </div>
-      </div>
+        );
+      })}
 
-      {/* Navigation: left/right buttons + dot indicators (swipeable) */}
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className="flex items-center justify-center gap-4"
-      >
-        <button
-          onClick={() => goToSlot(currentShotIndex - 1)}
-          disabled={currentShotIndex <= 0}
-          className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-          aria-label="前のショット"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-
-        <div className="flex items-center gap-1">
-          {Array.from({ length: totalSlots }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => goToSlot(i)}
-              className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                i === currentShotIndex ? 'bg-green-500' : 'bg-gray-600'
-              }`}
-              aria-label={`ショット${i + 1}に移動`}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={() => goToSlot(currentShotIndex + 1)}
-          disabled={currentShotIndex >= totalSlots - 1}
-          className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-          aria-label="次のショット"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* エラー表示 */}
+      {/* Error */}
       {error && (
         <p className="text-center text-sm text-red-400">{error}</p>
       )}

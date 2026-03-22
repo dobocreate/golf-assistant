@@ -54,7 +54,6 @@ export const SHOT_TYPE_OPTIONS: readonly { value: ShotType; label: string }[] = 
   { value: 'tee_shot', label: 'ティーショット' },
   { value: 'second', label: 'セカンド' },
   { value: 'approach', label: 'アプローチ' },
-  { value: 'putt', label: 'パット' },
 ];
 
 export const VALID_SHOT_TYPES: ShotType[] = SHOT_TYPE_OPTIONS.map(s => s.value);
