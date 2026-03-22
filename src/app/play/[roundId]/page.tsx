@@ -2,7 +2,7 @@ import { getRoundWithCourse } from '@/actions/round';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, MessageSquare, CheckCircle } from 'lucide-react';
+import { Pencil, CheckCircle } from 'lucide-react';
 
 export default async function PlayMainPage({
   params,
@@ -43,14 +43,6 @@ export default async function PlayMainPage({
         >
           <Pencil className="h-6 w-6" />
           スコア入力
-        </Link>
-
-        <Link
-          href={`/play/${roundId}/advice`}
-          className="min-h-[56px] w-full flex items-center justify-center gap-3 rounded-lg bg-blue-600 px-6 py-4 text-xl font-bold text-white hover:bg-blue-500 transition-colors"
-        >
-          <MessageSquare className="h-6 w-6" />
-          AIアドバイス
         </Link>
 
         <Link
