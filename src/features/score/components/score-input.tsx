@@ -333,11 +333,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
       </div>
 
-      {/* フローティング保存ボタン用のスペーサー */}
-      <div className="h-20" />
+      {/* フローティング保存ボタン + ナビバー分のスペーサー */}
+      <div className="h-40" />
 
-      {/* フローティング保存ボタン */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur-sm border-t border-gray-800 px-4 py-3">
+      {/* フローティング保存ボタン（ナビバーの上に配置） */}
+      <div className="fixed bottom-[var(--play-nav-height)] left-0 right-0 z-40 bg-gray-950/90 backdrop-blur-sm border-t border-gray-800 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <button
             onClick={handleSave}
