@@ -325,7 +325,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotR
                 ? `新規ショット（第${nextShotNumber}打）`
                 : `ショット ${currentShotIndex + 1} / ${shots.length}打`}
             </p>
-            {currentShot && (
+            {currentShot && currentShotNumber > 1 && (
               <button
                 onClick={handleDelete}
                 disabled={isPending}
