@@ -2,11 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Pencil } from 'lucide-react';
 import { upsertClub, deleteClub } from '@/actions/club';
 import { CLUB_PRESETS, type Club } from '@/features/profile/types';
 
-function ClubRow({ club, onDelete }: { club: Club; onDelete: (id: string) => void }) {
+function ClubRow({
+  club,
+  onEdit,
+  onDelete,
+}: {
+  club: Club;
+  onEdit: (club: Club) => void;
+  onDelete: (id: string) => void;
+}) {
   return (
     <div className="flex items-center gap-3 py-2 border-b border-gray-200 dark:border-gray-800 last:border-0">
       <span className="font-medium w-12 text-center">{club.name}</span>
@@ -24,8 +32,16 @@ function ClubRow({ club, onDelete }: { club: Club; onDelete: (id: string) => voi
       <span className="flex-1" />
       <button
         type="button"
+        onClick={() => onEdit(club)}
+        className="p-2 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-primary transition-colors"
+        aria-label={`${club.name}を編集`}
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => onDelete(club.id)}
-        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+        className="p-2 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
         aria-label={`${club.name}を削除`}
       >
         <Trash2 className="h-4 w-4" />
@@ -34,25 +50,144 @@ function ClubRow({ club, onDelete }: { club: Club; onDelete: (id: string) => voi
   );
 }
 
+function ClubForm({
+  editingClub,
+  loading,
+  onSubmit,
+  onCancel,
+}: {
+  editingClub: Club | null;
+  loading: boolean;
+  onSubmit: (formData: FormData) => void;
+  onCancel: () => void;
+}) {
+  const isPreset = editingClub
+    ? (CLUB_PRESETS as readonly string[]).includes(editingClub.name)
+    : true;
+  const [isCustom, setIsCustom] = useState(editingClub ? !isPreset : false);
+  const isEdit = !!editingClub;
+
+  return (
+    <form action={onSubmit} className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+      {editingClub && <input type="hidden" name="id" value={editingClub.id} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="club-name" className="block text-sm font-medium mb-1">クラブ名</label>
+          <select
+            id="club-name"
+            name="name"
+            required
+            defaultValue={editingClub ? (isPreset ? editingClub.name : '__custom__') : ''}
+            onChange={(e) => setIsCustom(e.target.value === '__custom__')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">選択</option>
+            {CLUB_PRESETS.map((preset) => (
+              <option key={preset} value={preset}>{preset}</option>
+            ))}
+            <option value="__custom__">カスタム</option>
+          </select>
+          {isCustom && (
+            <input
+              id="club-custom-name"
+              name="custom_name"
+              type="text"
+              required
+              defaultValue={editingClub && !isPreset ? editingClub.name : ''}
+              placeholder="クラブ名を入力"
+              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            />
+          )}
+        </div>
+        <div>
+          <label htmlFor="club-distance" className="block text-sm font-medium mb-1">飛距離(yd)</label>
+          <input
+            id="club-distance"
+            name="distance"
+            type="number"
+            min="0"
+            max="400"
+            defaultValue={editingClub?.distance ?? ''}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="club-confidence" className="block text-sm font-medium mb-1">自信度(1-5)</label>
+          <input
+            id="club-confidence"
+            name="confidence"
+            type="number"
+            min="1"
+            max="5"
+            defaultValue={editingClub?.confidence ?? 3}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          />
+        </div>
+        <div className="flex items-end gap-2 pb-1">
+          <label htmlFor="club-is-weak" className="flex items-center gap-2 text-sm">
+            <input
+              id="club-is-weak"
+              name="is_weak"
+              type="checkbox"
+              value="true"
+              defaultChecked={editingClub?.is_weak ?? false}
+              className="h-4 w-4"
+            />
+            苦手クラブ
+          </label>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          {loading ? (isEdit ? '更新中...' : '追加中...') : (isEdit ? '更新' : '追加')}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExists: boolean }) {
   const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
-  const [isCustom, setIsCustom] = useState(false);
+  const [formState, setFormState] = useState<Club | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleAdd(formData: FormData) {
+  const editingClub = typeof formState === 'object' ? formState : null;
+
+  async function handleSubmit(formData: FormData) {
     setLoading(true);
     setError(null);
     const result = await upsertClub(formData);
     if (result.error) {
       setError(result.error);
     } else {
-      setShowForm(false);
-      setIsCustom(false);
+      setFormState(null);
       router.refresh();
     }
     setLoading(false);
+  }
+
+  function handleEdit(club: Club) {
+    setFormState(club);
+    setError(null);
+  }
+
+  function handleCancelForm() {
+    setFormState(null);
+    setError(null);
   }
 
   async function handleDelete(clubId: string) {
@@ -72,12 +207,14 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
     );
   }
 
+  const formVisible = formState !== null;
+
   return (
     <div className="space-y-4">
       {clubs.length > 0 ? (
         <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4">
           {clubs.map((club) => (
-            <ClubRow key={club.id} club={club} onDelete={handleDelete} />
+            <ClubRow key={club.id} club={club} onEdit={handleEdit} onDelete={handleDelete} />
           ))}
         </div>
       ) : (
@@ -90,88 +227,18 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
 
-      {showForm ? (
-        <form action={handleAdd} className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="club-name" className="block text-sm font-medium mb-1">クラブ名</label>
-              <select
-                id="club-name"
-                name="name"
-                required
-                onChange={(e) => setIsCustom(e.target.value === '__custom__')}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-              >
-                <option value="">選択</option>
-                {CLUB_PRESETS.map((preset) => (
-                  <option key={preset} value={preset}>{preset}</option>
-                ))}
-                <option value="__custom__">カスタム</option>
-              </select>
-              {isCustom && (
-                <input
-                  id="club-custom-name"
-                  name="custom_name"
-                  type="text"
-                  required
-                  placeholder="クラブ名を入力"
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-                />
-              )}
-            </div>
-            <div>
-              <label htmlFor="club-distance" className="block text-sm font-medium mb-1">飛距離(yd)</label>
-              <input
-                id="club-distance"
-                name="distance"
-                type="number"
-                min="0"
-                max="400"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-              />
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="club-confidence" className="block text-sm font-medium mb-1">自信度(1-5)</label>
-              <input
-                id="club-confidence"
-                name="confidence"
-                type="number"
-                min="1"
-                max="5"
-                defaultValue="3"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-              />
-            </div>
-            <div className="flex items-end gap-2 pb-1">
-              <label htmlFor="club-is-weak" className="flex items-center gap-2 text-sm">
-                <input id="club-is-weak" name="is_weak" type="checkbox" value="true" className="h-4 w-4" />
-                苦手クラブ
-              </label>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? '追加中...' : '追加'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); setIsCustom(false); }}
-              className="rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              キャンセル
-            </button>
-          </div>
-        </form>
+      {formVisible ? (
+        <ClubForm
+          key={editingClub?.id ?? 'new'}
+          editingClub={editingClub}
+          loading={loading}
+          onSubmit={handleSubmit}
+          onCancel={handleCancelForm}
+        />
       ) : (
         <button
           type="button"
-          onClick={() => setShowForm(true)}
+          onClick={() => { setFormState('new'); setError(null); }}
           className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary transition-colors"
         >
           <Plus className="h-4 w-4" />
