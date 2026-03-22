@@ -3,9 +3,24 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, AdviceHistoryItem } from '@/features/score/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 認証 + ラウンド所有権確認の共通ヘルパー */
+async function verifyRoundOwnership(roundId: string, statusFilter?: string) {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' as const, supabase: null, user: null };
+  if (!UUID_RE.test(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null, user: null };
+
+  const supabase = await createClient();
+  let query = supabase.from('rounds').select('id').eq('id', roundId).eq('user_id', user.id);
+  if (statusFilter) query = query.eq('status', statusFilter);
+  const { data: round } = await query.single();
+  if (!round) return { error: 'ラウンドが見つかりません。' as const, supabase: null, user: null };
+
+  return { error: null, supabase, user };
+}
 
 const VALID_RESULTS: ShotResult[] = ['excellent', 'good', 'fair', 'poor'];
 const VALID_MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
@@ -206,6 +221,46 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
     .order('shot_number');
 
   return (data as Shot[]) ?? [];
+}
+
+export async function updateShotAdvice(data: {
+  roundId: string;
+  holeNumber: number;
+  shotNumber: number;
+  adviceText: string;
+}): Promise<{ error?: string }> {
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) return { error: 'ホール番号が不正です。' };
+  if (!Number.isInteger(data.shotNumber) || data.shotNumber < 1 || data.shotNumber > 20) return { error: 'ショット番号が不正です。' };
+  if (!data.adviceText.trim()) return { error: 'アドバイスが空です。' };
+  if (data.adviceText.length > 5000) return { error: 'アドバイスが長すぎます。' };
+
+  const { error: authError, supabase } = await verifyRoundOwnership(data.roundId);
+  if (authError || !supabase) return { error: authError ?? 'エラーが発生しました。' };
+
+  const { error } = await supabase
+    .from('shots')
+    .update({ advice_text: data.adviceText })
+    .eq('round_id', data.roundId)
+    .eq('hole_number', data.holeNumber)
+    .eq('shot_number', data.shotNumber);
+
+  if (error) return { error: 'アドバイスの保存に失敗しました。' };
+  return {};
+}
+
+export async function getAdviceHistory(roundId: string): Promise<AdviceHistoryItem[]> {
+  const { error, supabase } = await verifyRoundOwnership(roundId);
+  if (error || !supabase) return [];
+
+  const { data } = await supabase
+    .from('shots')
+    .select('hole_number, shot_number, advice_text, club')
+    .eq('round_id', roundId)
+    .not('advice_text', 'is', null)
+    .order('hole_number')
+    .order('shot_number');
+
+  return (data ?? []) as AdviceHistoryItem[];
 }
 
 export async function deleteShot(shotId: string, roundId: string): Promise<{ error?: string }> {

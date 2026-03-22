@@ -9,7 +9,7 @@ export default async function AdvicePage({
   searchParams,
 }: {
   params: Promise<{ roundId: string }>;
-  searchParams: Promise<{ hole?: string; lie?: string; slopeFB?: string; slopeLR?: string }>;
+  searchParams: Promise<{ hole?: string; lie?: string; slopeFB?: string; slopeLR?: string; shotNumber?: string }>;
 }) {
   const user = await getAuthenticatedUser();
   if (!user) redirect('/auth/login');
@@ -30,6 +30,7 @@ export default async function AdvicePage({
     lie: query.lie || undefined,
     slopeFB: query.slopeFB || undefined,
     slopeLR: query.slopeLR || undefined,
+    shotNumber: query.shotNumber ? parseInt(query.shotNumber, 10) : undefined,
   };
 
   return (
