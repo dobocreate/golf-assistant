@@ -26,9 +26,7 @@ const VALID_RESULTS: ShotResult[] = ['excellent', 'good', 'fair', 'poor'];
 const VALID_MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
 const VALID_DIRECTION_LR: DirectionLR[] = ['left', 'center', 'right'];
 const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
-const VALID_LIES: ShotLie[] = ['tee', 'fairway', 'rough', 'bunker', 'woods'];
-const VALID_SLOPE_FB: ShotSlopeFB[] = ['toe_up', 'toe_down'];
-const VALID_SLOPE_LR: ShotSlopeLR[] = ['left_up', 'left_down'];
+import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR } from '@/lib/golf-constants';
 const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
 
 function validateShotFields(data: {
@@ -195,6 +193,23 @@ export async function updateShot(data: {
 
   revalidatePath(`/play/${data.roundId}/score`);
   return { shot: shot as Shot };
+}
+
+export async function getShot(roundId: string, holeNumber: number, shotNumber: number): Promise<Shot | null> {
+  const { error, supabase } = await verifyRoundOwnership(roundId);
+  if (error || !supabase) return null;
+  const { data, error: queryError } = await supabase
+    .from('shots')
+    .select('*')
+    .eq('round_id', roundId)
+    .eq('hole_number', holeNumber)
+    .eq('shot_number', shotNumber)
+    .single();
+  if (queryError) {
+    console.error('Error fetching shot:', queryError);
+    return null;
+  }
+  return (data as Shot) ?? null;
 }
 
 export async function getShots(roundId: string, holeNumber: number): Promise<Shot[]> {

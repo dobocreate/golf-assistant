@@ -349,11 +349,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           // TODO: 将来的にインラインアドバイス表示。現在はアドバイスページに遷移
           const params = new URLSearchParams({
             hole: String(currentHole),
-            lie: situation.lie,
             shotNumber: String(situation.shotNumber),
-            ...(situation.slopeFB && { slopeFB: situation.slopeFB }),
-            ...(situation.slopeLR && { slopeLR: situation.slopeLR }),
           });
+          // 新規ショット（未保存）の場合はフォールバック値をURLに含める
+          if (situation.isNewShot) {
+            params.set('lie', situation.lie);
+            if (situation.slopeFB) params.set('slopeFB', situation.slopeFB);
+            if (situation.slopeLR) params.set('slopeLR', situation.slopeLR);
+          }
           router.push(`/play/${roundId}/advice?${params}`);
         }}
       />

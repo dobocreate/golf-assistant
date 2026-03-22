@@ -1,3 +1,5 @@
+import { LIE_DB_TO_LABEL, SLOPE_FB_DB_TO_LABEL, SLOPE_LR_DB_TO_LABEL } from '@/lib/golf-constants';
+
 const SYSTEM_PROMPT = `あなたはプロゴルファーの経験を持つAIキャディーです。
 プレーヤーの特性、コース情報、過去の傾向を踏まえて、具体的で実用的なアドバイスを提供します。
 
@@ -27,18 +29,24 @@ export function createUserPrompt(situation: {
   slopeLR?: string | null;
   notes?: string;
 }): string {
+  const lieLabel = LIE_DB_TO_LABEL[situation.lie] ?? situation.lie;
+
   const parts = [
     `Hole ${situation.holeNumber}`,
     `ショット: ${situation.shotType}`,
     `残り距離: ${situation.remainingDistance}`,
-    `ライ: ${situation.lie}`,
+    `ライ: ${lieLabel}`,
   ];
 
   const slopes: string[] = [];
-  if (situation.slopeFB === 'toe_up') slopes.push('つま先上がり');
-  if (situation.slopeFB === 'toe_down') slopes.push('つま先下がり');
-  if (situation.slopeLR === 'left_up') slopes.push('左足上がり');
-  if (situation.slopeLR === 'left_down') slopes.push('左足下がり');
+  if (situation.slopeFB) {
+    const label = SLOPE_FB_DB_TO_LABEL[situation.slopeFB];
+    if (label) slopes.push(label);
+  }
+  if (situation.slopeLR) {
+    const label = SLOPE_LR_DB_TO_LABEL[situation.slopeLR];
+    if (label) slopes.push(label);
+  }
   if (slopes.length > 0) parts.push(`傾斜: ${slopes.join('・')}`);
 
   if (situation.notes) {

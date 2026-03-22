@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
+import { useReducer, useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { recordShot, getShots, deleteShot, updateShot } from '@/actions/shot';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
+import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS } from '@/lib/golf-constants';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -13,7 +14,13 @@ interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
   clubs: ClubOption[];
-  onRequestAdvice?: (situation: { lie: string; slopeFB: string | null; slopeLR: string | null; shotNumber: number }) => void;
+  onRequestAdvice?: (situation: {
+    lie: string;
+    slopeFB: string | null;
+    slopeLR: string | null;
+    shotNumber: number;
+    isNewShot: boolean;
+  }) => void;
 }
 
 const RESULT_OPTIONS: { value: ShotResult; label: string; color: string; activeColor: string }[] = [
@@ -24,14 +31,6 @@ const RESULT_OPTIONS: { value: ShotResult; label: string; color: string; activeC
 ];
 
 const MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
-
-const LIES: { value: ShotLie; label: string }[] = [
-  { value: 'tee', label: 'ティー' },
-  { value: 'fairway', label: 'FW' },
-  { value: 'rough', label: 'ラフ' },
-  { value: 'bunker', label: 'バンカー' },
-  { value: 'woods', label: '林' },
-];
 
 const LANDINGS: { value: ShotLanding; label: string }[] = [
   { value: 'ob', label: 'OB' },
@@ -65,7 +64,7 @@ interface ShotFormState {
   missType: string | null;
   directionLr: DirectionLR | null;
   directionFb: DirectionFB | null;
-  lie: ShotLie | null;
+  lie: import('@/features/score/types').ShotLie | null;
   slopeFb: ShotSlopeFB | null;
   slopeLr: ShotSlopeLR | null;
   landing: ShotLanding | null;
@@ -113,19 +112,59 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
   );
 }
 
+// --- useReducer ---
+
+type FormsAction =
+  | { type: 'INIT'; shots: Shot[] }
+  | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
+  | { type: 'CLEAR_INDEX'; index: number }
+  | { type: 'SHIFT_AFTER_DELETE'; deletedIndex: number }
+  | { type: 'CLEAR_ALL' };
+
+interface FormsState {
+  forms: Map<number, ShotFormState>;
+  shots: Shot[];
+}
+
+function formsReducer(state: FormsState, action: FormsAction): FormsState {
+  switch (action.type) {
+    case 'INIT':
+      return { forms: new Map(), shots: action.shots };
+
+    case 'UPDATE_FIELD': {
+      const next = new Map(state.forms);
+      const current = state.forms.get(action.index)
+        ?? (action.index < state.shots.length ? shotToForm(state.shots[action.index]) : emptyShotForm());
+      next.set(action.index, action.updater(current));
+      return { ...state, forms: next };
+    }
+
+    case 'CLEAR_INDEX': {
+      const next = new Map(state.forms);
+      next.delete(action.index);
+      return { ...state, forms: next };
+    }
+
+    case 'SHIFT_AFTER_DELETE': {
+      const next = new Map<number, ShotFormState>();
+      for (const [index, formState] of state.forms.entries()) {
+        if (index < action.deletedIndex) {
+          next.set(index, formState);
+        } else if (index > action.deletedIndex) {
+          next.set(index - 1, formState);
+        }
+      }
+      return { ...state, forms: next };
+    }
+
+    case 'CLEAR_ALL':
+      return { forms: new Map(), shots: state.shots };
+  }
+}
+
 export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: ShotRecorderProps) {
-  const [shots, setShots] = useState<Shot[]>([]);
+  const [state, dispatch] = useReducer(formsReducer, { forms: new Map(), shots: [] });
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
-  const [forms, setFormsRaw] = useState<Map<number, ShotFormState>>(new Map());
-  const formsRef = useRef(forms);
-  // setForms ラッパー: state と ref を同時に更新
-  const setForms = useCallback((updater: Map<number, ShotFormState> | ((prev: Map<number, ShotFormState>) => Map<number, ShotFormState>)) => {
-    setFormsRaw(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      formsRef.current = next;
-      return next;
-    });
-  }, []);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -133,35 +172,16 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
   const touchStartX = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const { shots } = state;
+
   // Total slots = existing shots + 1 new shot slot
   const totalSlots = shots.length + 1;
   const isNewShotSlot = currentShotIndex === shots.length;
   const currentShot = isNewShotSlot ? null : shots[currentShotIndex];
 
-  // Get or initialize form state for current index
-  const getForm = useCallback((index: number, shotsList: Shot[]): ShotFormState => {
-    const existing = forms.get(index);
-    if (existing) return existing;
-    if (index < shotsList.length) {
-      return shotToForm(shotsList[index]);
-    }
-    return emptyShotForm();
-  }, [forms]);
-
-  const currentForm = getForm(currentShotIndex, shots);
-
-  const shotsRef = useRef(shots);
-  useEffect(() => { shotsRef.current = shots; }, [shots]);
-
-  const updateForm = useCallback((index: number, updater: (prev: ShotFormState) => ShotFormState) => {
-    setForms(prev => {
-      const next = new Map(prev);
-      const s = shotsRef.current;
-      const current = prev.get(index) ?? (index < s.length ? shotToForm(s[index]) : emptyShotForm());
-      next.set(index, updater(current));
-      return next;
-    });
-  }, []);
+  // Compute current form from reducer state
+  const currentForm = state.forms.get(currentShotIndex)
+    ?? (currentShotIndex < shots.length ? shotToForm(shots[currentShotIndex]) : emptyShotForm());
 
   // Fetch shots on hole change
   useEffect(() => {
@@ -169,9 +189,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
     setError(null);
     getShots(roundId, holeNumber).then(data => {
       if (!cancelled) {
-        setShots(data);
+        dispatch({ type: 'INIT', shots: data });
         setCurrentShotIndex(0);
-        setForms(new Map());
       }
     }).catch(() => {
       if (!cancelled) setError('ショット記録の取得に失敗しました。');
@@ -233,16 +252,11 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        setShots(prev => [...prev, result.shot!]);
-        setForms(prev => {
-          const next = new Map(prev);
-          next.delete(currentShotIndex);
-          return next;
-        });
+        dispatch({ type: 'INIT', shots: [...shots, result.shot] });
         setCurrentShotIndex(prev => prev + 1);
       }
     });
-  }, [roundId, holeNumber, nextShotNumber, currentForm, showMissType, currentShotIndex]);
+  }, [roundId, holeNumber, nextShotNumber, currentForm, showMissType, currentShotIndex, shots]);
 
   // Update existing shot
   const handleUpdateShot = useCallback(() => {
@@ -266,15 +280,11 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        setShots(prev => prev.map(s => s.id === currentShot.id ? result.shot! : s));
-        setForms(prev => {
-          const next = new Map(prev);
-          next.delete(currentShotIndex);
-          return next;
-        });
+        const newShots = shots.map(s => s.id === currentShot.id ? result.shot! : s);
+        dispatch({ type: 'INIT', shots: newShots });
       }
     });
-  }, [currentShot, roundId, currentForm, showMissType, currentShotIndex]);
+  }, [currentShot, roundId, currentForm, showMissType, currentShotIndex, shots]);
 
   // Delete shot
   const handleDelete = useCallback(() => {
@@ -286,23 +296,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         setError(result.error);
       } else {
         setError(null);
-        setShots(prev => prev.filter(s => s.id !== currentShot.id));
-        // 削除インデックスより後のフォームキーを1つずらし、他の編集内容を保持
-        setForms(prev => {
-          const next = new Map<number, ShotFormState>();
-          for (const [index, formState] of prev.entries()) {
-            if (index < deletedIndex) {
-              next.set(index, formState);
-            } else if (index > deletedIndex) {
-              next.set(index - 1, formState);
-            }
-          }
-          return next;
-        });
+        const newShots = shots.filter(s => s.id !== currentShot.id);
+        dispatch({ type: 'INIT', shots: newShots });
+        dispatch({ type: 'SHIFT_AFTER_DELETE', deletedIndex });
         setCurrentShotIndex(prev => Math.max(0, prev - 1));
       }
     });
-  }, [currentShot, roundId, currentShotIndex]);
+  }, [currentShot, roundId, currentShotIndex, shots]);
 
   const currentShotNumber = isNewShotSlot ? nextShotNumber : (currentShot?.shot_number ?? 1);
   const isChanged = currentShot ? hasFormChanged(currentForm, currentShot) : false;
@@ -344,7 +344,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
               <label className="block text-xs text-gray-500">クラブ</label>
               <select
                 value={currentForm.club ?? ''}
-                onChange={e => updateForm(currentShotIndex, f => ({ ...f, club: e.target.value || null }))}
+                onChange={e => dispatch({ type: 'UPDATE_FIELD', index: currentShotIndex, updater: f => ({ ...f, club: e.target.value || null }) })}
                 className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-green-600"
               >
                 <option value="">選択なし</option>
@@ -359,20 +359,21 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           <div className="space-y-1">
             <label className="block text-xs text-gray-500">ライ</label>
             <div className="grid grid-cols-5 gap-1">
-              {LIES.map(l => (
+              {LIE_OPTIONS.map(l => (
                 <button
                   key={l.value}
-                  onClick={() => updateForm(currentShotIndex, f => ({
-                    ...f,
-                    lie: f.lie === l.value ? null : l.value,
-                  }))}
+                  onClick={() => dispatch({
+                    type: 'UPDATE_FIELD',
+                    index: currentShotIndex,
+                    updater: f => ({ ...f, lie: f.lie === l.value ? null : l.value }),
+                  })}
                   className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
                     currentForm.lie === l.value
                       ? 'bg-green-600 text-white'
                       : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                   }`}
                 >
-                  {l.label}
+                  {l.shortLabel}
                 </button>
               ))}
             </div>
@@ -385,63 +386,51 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
               <div className="flex-1 space-y-1">
                 <p className="text-xs text-gray-600">前後</p>
                 <div className="grid grid-cols-2 gap-1">
-                  <button
-                    onClick={() => updateForm(currentShotIndex, f => ({
-                      ...f,
-                      slopeFb: f.slopeFb === 'toe_up' ? null : 'toe_up' as ShotSlopeFB,
-                    }))}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      currentForm.slopeFb === 'toe_up'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    つま先↑
-                  </button>
-                  <button
-                    onClick={() => updateForm(currentShotIndex, f => ({
-                      ...f,
-                      slopeFb: f.slopeFb === 'toe_down' ? null : 'toe_down' as ShotSlopeFB,
-                    }))}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      currentForm.slopeFb === 'toe_down'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    つま先↓
-                  </button>
+                  {SLOPE_FB_OPTIONS.map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => dispatch({
+                        type: 'UPDATE_FIELD',
+                        index: currentShotIndex,
+                        updater: f => ({
+                          ...f,
+                          slopeFb: f.slopeFb === s.value ? null : s.value,
+                        }),
+                      })}
+                      className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                        currentForm.slopeFb === s.value
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      }`}
+                    >
+                      {s.shortLabel}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="flex-1 space-y-1">
                 <p className="text-xs text-gray-600">左右</p>
                 <div className="grid grid-cols-2 gap-1">
-                  <button
-                    onClick={() => updateForm(currentShotIndex, f => ({
-                      ...f,
-                      slopeLr: f.slopeLr === 'left_up' ? null : 'left_up' as ShotSlopeLR,
-                    }))}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      currentForm.slopeLr === 'left_up'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    左足↑
-                  </button>
-                  <button
-                    onClick={() => updateForm(currentShotIndex, f => ({
-                      ...f,
-                      slopeLr: f.slopeLr === 'left_down' ? null : 'left_down' as ShotSlopeLR,
-                    }))}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      currentForm.slopeLr === 'left_down'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    左足↓
-                  </button>
+                  {SLOPE_LR_OPTIONS.map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => dispatch({
+                        type: 'UPDATE_FIELD',
+                        index: currentShotIndex,
+                        updater: f => ({
+                          ...f,
+                          slopeLr: f.slopeLr === s.value ? null : s.value,
+                        }),
+                      })}
+                      className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                        currentForm.slopeLr === s.value
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      }`}
+                    >
+                      {s.shortLabel}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -455,10 +444,14 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                 <button
                   key={opt.value}
                   onClick={() => {
-                    updateForm(currentShotIndex, f => {
-                      const newResult = opt.value;
-                      const newMissType = (newResult !== 'fair' && newResult !== 'poor') ? null : f.missType;
-                      return { ...f, result: newResult, missType: newMissType };
+                    dispatch({
+                      type: 'UPDATE_FIELD',
+                      index: currentShotIndex,
+                      updater: f => {
+                        const newResult = opt.value;
+                        const newMissType = (newResult !== 'fair' && newResult !== 'poor') ? null : f.missType;
+                        return { ...f, result: newResult, missType: newMissType };
+                      },
                     });
                   }}
                   className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
@@ -479,10 +472,11 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                 {MISS_TYPES.map(mt => (
                   <button
                     key={mt}
-                    onClick={() => updateForm(currentShotIndex, f => ({
-                      ...f,
-                      missType: f.missType === mt ? null : mt,
-                    }))}
+                    onClick={() => dispatch({
+                      type: 'UPDATE_FIELD',
+                      index: currentShotIndex,
+                      updater: f => ({ ...f, missType: f.missType === mt ? null : mt }),
+                    })}
                     className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
                       currentForm.missType === mt
                         ? 'bg-orange-600 text-white'
@@ -499,7 +493,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           {/* Direction 3x3 grid + Landing buttons */}
           <div className="space-y-2">
             <div className="flex gap-3">
-              {/* 方向 3×3 */}
+              {/* 方向 3x3 */}
               <div className="flex-1">
                 <label className="block text-xs text-gray-500 mb-1">方向</label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -508,11 +502,15 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                     return (
                       <button
                         key={`${lr}-${fb}`}
-                        onClick={() => updateForm(currentShotIndex, f => {
-                          if (f.directionLr === lr && f.directionFb === fb) {
-                            return { ...f, directionLr: null, directionFb: null };
-                          }
-                          return { ...f, directionLr: lr, directionFb: fb };
+                        onClick={() => dispatch({
+                          type: 'UPDATE_FIELD',
+                          index: currentShotIndex,
+                          updater: f => {
+                            if (f.directionLr === lr && f.directionFb === fb) {
+                              return { ...f, directionLr: null, directionFb: null };
+                            }
+                            return { ...f, directionLr: lr, directionFb: fb };
+                          },
                         })}
                         className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
                           isSelected
@@ -539,9 +537,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                     return (
                       <button
                         key={value}
-                        onClick={() => updateForm(currentShotIndex, prev => ({
-                          ...prev, landing: prev.landing === value ? null : value
-                        }))}
+                        onClick={() => dispatch({
+                          type: 'UPDATE_FIELD',
+                          index: currentShotIndex,
+                          updater: prev => ({
+                            ...prev, landing: prev.landing === value ? null : value
+                          }),
+                        })}
                         className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
                           isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                         }`}
@@ -560,14 +562,15 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
             {onRequestAdvice && (
               <button
                 onClick={() => {
-                  // formsRef から最新値を直接取得（stale closure回避）
-                  const latestForm = formsRef.current.get(currentShotIndex)
-                    ?? (currentShotIndex < shotsRef.current.length ? shotToForm(shotsRef.current[currentShotIndex]) : emptyShotForm());
+                  // state.forms から直接取得（stale closure 解消）
+                  const latestForm = state.forms.get(currentShotIndex)
+                    ?? (currentShotIndex < state.shots.length ? shotToForm(state.shots[currentShotIndex]) : emptyShotForm());
                   onRequestAdvice({
                     lie: latestForm.lie ?? 'fairway',
                     slopeFB: latestForm.slopeFb,
                     slopeLR: latestForm.slopeLr,
                     shotNumber: currentShotNumber,
+                    isNewShot: isNewShotSlot,
                   });
                 }}
                 className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
