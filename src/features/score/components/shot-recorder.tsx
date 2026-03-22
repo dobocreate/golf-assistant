@@ -140,6 +140,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
   }, [forms]);
 
   const currentForm = getForm(currentShotIndex, shots);
+  const currentFormRef = useRef(currentForm);
+  useEffect(() => { currentFormRef.current = currentForm; }, [currentForm]);
 
   const shotsRef = useRef(shots);
   useEffect(() => { shotsRef.current = shots; }, [shots]);
@@ -550,12 +552,15 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           <div className="grid grid-cols-2 gap-2">
             {onRequestAdvice && (
               <button
-                onClick={() => onRequestAdvice({
-                  lie: currentForm.lie ?? 'fairway',
-                  slopeFB: currentForm.slopeFb,
-                  slopeLR: currentForm.slopeLr,
-                  shotNumber: currentShotNumber,
-                })}
+                onClick={() => {
+                  const form = currentFormRef.current;
+                  onRequestAdvice({
+                    lie: form.lie ?? 'fairway',
+                    slopeFB: form.slopeFb,
+                    slopeLR: form.slopeLr,
+                    shotNumber: currentShotNumber,
+                  });
+                }}
                 className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
               >
                 アドバイス
