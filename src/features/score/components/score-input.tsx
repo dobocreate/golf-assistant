@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
+import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
@@ -41,7 +42,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const router = useRouter();
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
+  const playRound = usePlayRoundOptional();
+  const playRoundRef = useRef(playRound);
+  useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
   const [currentHole, setCurrentHole] = useState(1);
+
+  // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
+  const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
+  const prevContextHole = useRef(playRound?.currentHole ?? 1);
+  useEffect(() => {
+    const ctxHole = playRound?.currentHole;
+    if (ctxHole && ctxHole !== prevContextHole.current && ctxHole !== currentHole) {
+      prevContextHole.current = ctxHole;
+      switchHoleRef.current(ctxHole);
+    }
+  }, [playRound?.currentHole, currentHole]);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
     const map = new Map<number, Score>();
     for (const s of initialScores) {
@@ -148,12 +163,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
+    playRoundRef.current?.setCurrentHole(holeNum);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     // ホール切替完了
   }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole]);
+
+  // switchHole ref を最新に保持（Context同期用）
+  useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -319,6 +338,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           const params = new URLSearchParams({
             hole: String(currentHole),
             lie: situation.lie,
+            shotNumber: String(situation.shotNumber),
             ...(situation.slopeFB && { slopeFB: situation.slopeFB }),
             ...(situation.slopeLR && { slopeLR: situation.slopeLR }),
           });

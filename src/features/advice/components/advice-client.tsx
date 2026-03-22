@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { SituationInput } from './situation-input';
 import { AdviceDisplay } from './advice-display';
 import { useSpeechSynthesis } from '@/features/voice/hooks/use-speech-synthesis';
+import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
+import { updateShotAdvice, getAdviceHistory } from '@/actions/shot';
 import type { Situation } from '../types';
 
 interface AdviceInitialValues {
@@ -11,6 +13,7 @@ interface AdviceInitialValues {
   lie?: string;
   slopeFB?: string;
   slopeLR?: string;
+  shotNumber?: number;
 }
 
 interface AdviceClientProps {
@@ -20,17 +23,38 @@ interface AdviceClientProps {
 }
 
 export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClientProps) {
-  const nextHole = (() => {
+  const playRound = usePlayRoundOptional();
+  const playRoundRef = useRef(playRound);
+  useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
+
+  const initialHole = (() => {
     if (initialValues?.hole && initialValues.hole >= 1 && initialValues.hole <= 18) return initialValues.hole;
+    if (playRound?.currentHole) return playRound.currentHole;
     const scored = new Set(scoredHoles);
     return Array.from({ length: 18 }, (_, i) => i + 1).find(h => !scored.has(h)) ?? 18;
   })();
-  const [currentHole, setCurrentHole] = useState(nextHole);
+  const [currentHole, setCurrentHoleLocal] = useState(initialHole);
   const [adviceText, setAdviceText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { speak, stop, isSpeaking, isSupported, rate, setRate } = useSpeechSynthesis();
+  const [adviceHistory, setAdviceHistory] = useState<{ hole_number: number; shot_number: number; advice_text: string; club: string | null }[]>([]);
+  const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
+
+  // mount時に Context を初期化 & 履歴を取得
+  useEffect(() => {
+    playRound?.setCurrentHole(initialHole);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    getAdviceHistory(roundId).then(setAdviceHistory).catch(console.error);
+  }, [roundId]);
+
+  const changeHole = useCallback((hole: number) => {
+    setCurrentHoleLocal(hole);
+    playRoundRef.current?.setCurrentHole(hole);
+  }, []);
 
   const handleSubmit = useCallback(async (situation: Situation) => {
     // 前回のリクエストをキャンセル
@@ -89,6 +113,18 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
         setAdviceText(text);
       }
 
+      // アドバイスをショットに保存
+      if (initialValues?.shotNumber && text) {
+        updateShotAdvice({
+          roundId,
+          holeNumber: situation.holeNumber,
+          shotNumber: initialValues.shotNumber,
+          adviceText: text,
+        })
+          .then(() => getAdviceHistory(roundId).then(setAdviceHistory).catch(console.error))
+          .catch(console.error);
+      }
+
       setIsLoading(false);
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
@@ -105,7 +141,7 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
         <label className="block text-sm font-bold text-gray-300">ホール</label>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setCurrentHole(h => Math.max(1, h - 1))}
+            onClick={() => changeHole(Math.max(1, currentHole - 1))}
             disabled={currentHole <= 1}
             className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white text-xl font-bold disabled:opacity-30"
           >
@@ -115,7 +151,7 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
             Hole {currentHole}
           </span>
           <button
-            onClick={() => setCurrentHole(h => Math.min(18, h + 1))}
+            onClick={() => changeHole(Math.min(18, currentHole + 1))}
             disabled={currentHole >= 18}
             className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white text-xl font-bold disabled:opacity-30"
           >
@@ -169,6 +205,30 @@ export function AdviceClient({ roundId, scoredHoles, initialValues }: AdviceClie
           <span className="text-xs text-gray-400 min-w-[32px] text-right">
             {rate.toFixed(1)}x
           </span>
+        </div>
+      )}
+
+      {/* アドバイス履歴 */}
+      {adviceHistory.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-gray-300">アドバイス履歴</label>
+          {adviceHistory.map((h, i) => (
+            <button
+              key={i}
+              onClick={() => setExpandedHistory(expandedHistory === i ? null : i)}
+              className="w-full text-left rounded-lg bg-gray-800 border border-gray-700 p-3 text-sm"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold">Hole {h.hole_number} - 第{h.shot_number}打</span>
+                {h.club && <span className="text-xs text-gray-400">{h.club}</span>}
+              </div>
+              {expandedHistory === i ? (
+                <p className="mt-2 text-gray-300 whitespace-pre-wrap">{h.advice_text}</p>
+              ) : (
+                <p className="mt-1 text-gray-500 truncate">{h.advice_text}</p>
+              )}
+            </button>
+          ))}
         </div>
       )}
     </div>

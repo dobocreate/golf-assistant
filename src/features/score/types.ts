@@ -39,4 +39,5 @@ export interface Shot {
   slope_fb: ShotSlopeFB | null;
   slope_lr: ShotSlopeLR | null;
   landing: ShotLanding | null;
+  advice_text: string | null;
 }

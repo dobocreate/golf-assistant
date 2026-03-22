@@ -208,6 +208,75 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
   return (data as Shot[]) ?? [];
 }
 
+export async function updateShotAdvice(data: {
+  roundId: string;
+  holeNumber: number;
+  shotNumber: number;
+  adviceText: string;
+}): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!UUID_RE.test(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) return { error: 'ホール番号が不正です。' };
+  if (!Number.isInteger(data.shotNumber) || data.shotNumber < 1 || data.shotNumber > 20) return { error: 'ショット番号が不正です。' };
+  if (!data.adviceText.trim()) return { error: 'アドバイスが空です。' };
+  if (data.adviceText.length > 5000) return { error: 'アドバイスが長すぎます。' };
+
+  const supabase = await createClient();
+
+  // ラウンド所有確認
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('id', data.roundId)
+    .eq('user_id', user.id)
+    .single();
+  if (!round) return { error: 'ラウンドが見つかりません。' };
+
+  // 該当ショットの advice_text を更新
+  const { error } = await supabase
+    .from('shots')
+    .update({ advice_text: data.adviceText })
+    .eq('round_id', data.roundId)
+    .eq('hole_number', data.holeNumber)
+    .eq('shot_number', data.shotNumber);
+
+  if (error) return { error: 'アドバイスの保存に失敗しました。' };
+  return {};
+}
+
+export async function getAdviceHistory(roundId: string): Promise<{
+  hole_number: number;
+  shot_number: number;
+  advice_text: string;
+  club: string | null;
+}[]> {
+  const user = await getAuthenticatedUser();
+  if (!user) return [];
+  if (!UUID_RE.test(roundId)) return [];
+
+  const supabase = await createClient();
+
+  // ラウンド所有確認
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .single();
+  if (!round) return [];
+
+  const { data } = await supabase
+    .from('shots')
+    .select('hole_number, shot_number, advice_text, club')
+    .eq('round_id', roundId)
+    .not('advice_text', 'is', null)
+    .order('hole_number')
+    .order('shot_number');
+
+  return (data ?? []) as { hole_number: number; shot_number: number; advice_text: string; club: string | null }[];
+}
+
 export async function deleteShot(shotId: string, roundId: string): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
