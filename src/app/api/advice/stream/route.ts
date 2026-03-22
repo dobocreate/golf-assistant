@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createClient } from '@/lib/supabase/server';
 import { buildAdviceContext, formatContextForPrompt, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
-import { SHOT_TYPES, DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
+import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     if (!Number.isInteger(body.holeNumber) || body.holeNumber < 1 || body.holeNumber > 18) {
       return jsonError('ホール番号が不正です。', 400);
     }
-    if (!(SHOT_TYPES as readonly string[]).includes(body.shotType) && !(VALID_SHOT_TYPES as readonly string[]).includes(body.shotType)) {
+    if (!(VALID_SHOT_TYPES as readonly string[]).includes(body.shotType)) {
       return jsonError('ショット種別が不正です。', 400);
     }
     // 既存のボタン選択値 or 数値+y パターン（例: '150y'）を許可

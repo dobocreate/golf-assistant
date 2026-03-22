@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Flag, MessageSquare, Pencil, Home } from 'lucide-react';
+import { Flag, Pencil, Home } from 'lucide-react';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 
 export function PlayBottomNav() {
@@ -20,7 +20,6 @@ export function PlayBottomNav() {
     ? [
         { href: `/play/${roundId}`, label: 'プレー', icon: Flag, exact: true },
         { href: `/play/${roundId}/score${holeParam}`, label: 'スコア', icon: Pencil, exact: false },
-        { href: `/play/${roundId}/advice${holeParam}`, label: 'アドバイス', icon: MessageSquare, exact: false },
         { href: '/', label: '戻る', icon: Home, exact: true },
       ]
     : [

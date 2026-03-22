@@ -45,9 +45,28 @@ export interface Shot {
   advice_text: string | null;
 }
 
+export interface ShotFormState {
+  club: string | null;
+  result: ShotResult | null;
+  missType: string | null;
+  directionLr: DirectionLR | null;
+  directionFb: DirectionFB | null;
+  lie: ShotLie | null;
+  slopeFb: ShotSlopeFB | null;
+  slopeLr: ShotSlopeLR | null;
+  landing: ShotLanding | null;
+  shotType: ShotType | null;
+  remainingDistance: number | null;
+}
+
 export interface AdviceHistoryItem {
   hole_number: number;
   shot_number: number;
   advice_text: string;
   club: string | null;
+  lie: ShotLie | null;
+  remaining_distance: number | null;
+  shot_type: ShotType | null;
+  slope_fb: ShotSlopeFB | null;
+  slope_lr: ShotSlopeLR | null;
 }

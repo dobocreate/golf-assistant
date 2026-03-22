@@ -2,13 +2,13 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
+import { AdvicePanel } from '@/features/score/components/advice-panel';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score } from '@/features/score/types';
+import type { Score, Shot, ShotFormState } from '@/features/score/types';
 
 interface HoleInfo {
   hole_number: number;
@@ -39,13 +39,17 @@ function getDefaultHoles(): HoleInfo[] {
 }
 
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
-  const router = useRouter();
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const playRound = usePlayRoundOptional();
   const playRoundRef = useRef(playRound);
   useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
   const [currentHole, setCurrentHole] = useState(1);
+  const [shotFormData, setShotFormData] = useState<{
+    form: ShotFormState;
+    shot: Shot | null;
+    shotNumber: number;
+  } | null>(null);
 
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
@@ -345,23 +349,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         roundId={roundId}
         holeNumber={currentHole}
         clubs={clubs}
-        onRequestAdvice={(situation) => {
-          const params = new URLSearchParams({
-            hole: String(currentHole),
-            shotNumber: String(situation.shotNumber),
-          });
-          // 新規ショット（未保存）の場合はフォールバック値をURLに含める
-          if (situation.isNewShot) {
-            if (situation.lie) params.set('lie', situation.lie);
-            if (situation.slopeFB) params.set('slopeFB', situation.slopeFB);
-            if (situation.slopeLR) params.set('slopeLR', situation.slopeLR);
-          }
-          // shotType と remainingDistance は常にURLに含める（アドバイス画面のプリセット用）
-          if (situation.shotType) params.set('shotType', situation.shotType);
-          if (situation.remainingDistance != null) params.set('distance', String(situation.remainingDistance));
-          router.push(`/play/${roundId}/advice?${params}`);
-        }}
+        onFormChange={(form, shot, shotNumber) => setShotFormData({ form, shot, shotNumber })}
       />
+
+      {/* AIアドバイス */}
+      {shotFormData && (
+        <AdvicePanel
+          roundId={roundId}
+          holeNumber={currentHole}
+          shotNumber={shotFormData.shotNumber}
+          currentShot={shotFormData.shot}
+          lie={shotFormData.form.lie}
+          slopeFb={shotFormData.form.slopeFb}
+          slopeLr={shotFormData.form.slopeLr}
+          shotType={shotFormData.form.shotType}
+          remainingDistance={shotFormData.form.remainingDistance}
+        />
+      )}
 
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">
