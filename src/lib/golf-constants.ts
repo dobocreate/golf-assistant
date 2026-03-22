@@ -4,7 +4,7 @@
  * DB値・日本語ラベル・バリデーション値をすべてここで定義
  */
 
-import type { ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
+import type { ShotLie, ShotSlopeFB, ShotSlopeLR, ShotType } from '@/features/score/types';
 
 // --- ライ ---
 
@@ -50,7 +50,21 @@ export const SLOPE_LR_DB_TO_LABEL: Record<string, string> = Object.fromEntries(
 
 // --- ショット種別（アドバイス用） ---
 
-export const SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 'パット'] as const;
+export const SHOT_TYPE_OPTIONS: readonly { value: ShotType; label: string }[] = [
+  { value: 'tee_shot', label: 'ティーショット' },
+  { value: 'second', label: 'セカンド' },
+  { value: 'approach', label: 'アプローチ' },
+  { value: 'putt', label: 'パット' },
+];
+
+export const VALID_SHOT_TYPES: ShotType[] = SHOT_TYPE_OPTIONS.map(s => s.value);
+
+export const SHOT_TYPE_DB_TO_LABEL: Record<string, string> = Object.fromEntries(
+  SHOT_TYPE_OPTIONS.map(s => [s.value, s.label])
+);
+
+// アドバイス画面用（日本語ラベル配列）— 後方互換
+export const SHOT_TYPES = SHOT_TYPE_OPTIONS.map(s => s.label);
 
 // --- 残り距離（アドバイス用） ---
 

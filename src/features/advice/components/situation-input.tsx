@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { SHOT_TYPES, DISTANCES, LIE_OPTIONS, VALID_LIES } from '@/lib/golf-constants';
+import { SHOT_TYPE_OPTIONS, DISTANCES, LIE_OPTIONS, VALID_LIES, SHOT_TYPE_DB_TO_LABEL, VALID_SHOT_TYPES } from '@/lib/golf-constants';
 import type { ShotLie } from '@/features/score/types';
 import type { Situation, SlopeFB, SlopeLR } from '../types';
 
@@ -13,6 +13,8 @@ interface SituationInputProps {
   initialLie?: ShotLie | string;
   initialSlopeFB?: string;
   initialSlopeLR?: string;
+  initialShotType?: string;
+  initialDistance?: number;
 }
 
 function parseLie(value: string | undefined): ShotLie | null {
@@ -20,9 +22,19 @@ function parseLie(value: string | undefined): ShotLie | null {
   return (VALID_LIES as readonly string[]).includes(value) ? (value as ShotLie) : null;
 }
 
-export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, initialSlopeFB, initialSlopeLR }: SituationInputProps) {
-  const [shotType, setShotType] = useState<string | null>(null);
+function parseShotType(value: string | undefined): string | null {
+  if (!value) return null;
+  // DB値（tee_shot等）ならそのまま返す
+  if ((VALID_SHOT_TYPES as readonly string[]).includes(value)) return value;
+  // 日本語ラベル（ティーショット等）ならDB値に変換
+  const found = SHOT_TYPE_OPTIONS.find(s => s.label === value);
+  return found ? found.value : null;
+}
+
+export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, initialSlopeFB, initialSlopeLR, initialShotType, initialDistance }: SituationInputProps) {
+  const [shotType, setShotType] = useState<string | null>(() => parseShotType(initialShotType));
   const [distance, setDistance] = useState<string | null>(null);
+  const [distanceNum, setDistanceNum] = useState<number | null>(() => initialDistance ?? null);
   const [lie, setLie] = useState<ShotLie | null>(() => parseLie(initialLie));
   const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(() => {
     return (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') ? initialSlopeFB : null;
@@ -46,19 +58,36 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
     else setSlopeLR(null);
   }, [initialSlopeLR]);
 
+  // initialShotType が変化した場合に state を同期
+  useEffect(() => {
+    setShotType(parseShotType(initialShotType));
+  }, [initialShotType]);
+
+  // initialDistance が変化した場合に state を同期
+  useEffect(() => {
+    if (initialDistance != null) {
+      setDistanceNum(initialDistance);
+      setDistance(null); // 数値入力が優先
+    }
+  }, [initialDistance]);
+
   const handleSubmit = useCallback(() => {
-    if (!shotType || !distance || !lie) return;
+    // 数値入力があればそれを距離文字列として使用
+    const effectiveDistance = distanceNum != null ? `${distanceNum}y` : distance;
+    const shotTypeLabel = shotType ? (SHOT_TYPE_DB_TO_LABEL[shotType] ?? shotType) : null;
+    if (!shotTypeLabel || !effectiveDistance || !lie) return;
     onSubmit({
       holeNumber,
-      shotType,
-      remainingDistance: distance,
+      shotType: shotTypeLabel,
+      remainingDistance: effectiveDistance,
       lie,
       slopeFB,
       slopeLR,
     });
-  }, [holeNumber, shotType, distance, lie, slopeFB, slopeLR, onSubmit]);
+  }, [holeNumber, shotType, distance, distanceNum, lie, slopeFB, slopeLR, onSubmit]);
 
-  const canSubmit = shotType && distance && lie && !isLoading;
+  const hasDistance = distanceNum != null || distance != null;
+  const canSubmit = shotType && hasDistance && lie && !isLoading;
 
   return (
     <div className="space-y-4">
@@ -66,17 +95,17 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
       <div className="space-y-2">
         <label className="block text-sm font-bold text-gray-300">ショット</label>
         <div className="grid grid-cols-2 gap-2">
-          {SHOT_TYPES.map(t => (
+          {SHOT_TYPE_OPTIONS.map(st => (
             <button
-              key={t}
-              onClick={() => setShotType(t)}
+              key={st.value}
+              onClick={() => setShotType(st.value)}
               className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-                shotType === t
+                shotType === st.value
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
               }`}
             >
-              {t}
+              {st.label}
             </button>
           ))}
         </div>
@@ -89,9 +118,9 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
           {DISTANCES.map(d => (
             <button
               key={d}
-              onClick={() => setDistance(d)}
+              onClick={() => { setDistance(d); setDistanceNum(null); }}
               className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-                distance === d
+                distance === d && distanceNum == null
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
               }`}
@@ -100,6 +129,19 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
             </button>
           ))}
         </div>
+        <input
+          type="number"
+          min={0}
+          max={700}
+          placeholder="数値で入力 (yd)"
+          value={distanceNum ?? ''}
+          onChange={e => {
+            const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+            setDistanceNum(val);
+            if (val != null) setDistance(null);
+          }}
+          className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-blue-600"
+        />
       </div>
 
       {/* ライ・状況 */}

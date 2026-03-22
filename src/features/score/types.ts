@@ -24,6 +24,7 @@ export type ShotSlopeFB = 'toe_up' | 'toe_down';
 export type ShotSlopeLR = 'left_up' | 'left_down';
 
 export type ShotLanding = 'ob' | 'water' | 'bunker';
+export type ShotType = 'tee_shot' | 'second' | 'approach' | 'putt';
 
 export interface Shot {
   id: string;
@@ -39,6 +40,8 @@ export interface Shot {
   slope_fb: ShotSlopeFB | null;
   slope_lr: ShotSlopeLR | null;
   landing: ShotLanding | null;
+  shot_type: ShotType | null;
+  remaining_distance: number | null;
   advice_text: string | null;
 }
 
