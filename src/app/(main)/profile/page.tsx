@@ -13,10 +13,7 @@ export default async function ProfilePage() {
         <ProfileForm profile={profile} />
       </div>
 
-      <div>
-        <h2 className="text-xl font-bold mb-4">クラブ一覧</h2>
-        <ClubList clubs={clubs} profileExists={!!profile} />
-      </div>
+      <ClubList clubs={clubs} profileExists={!!profile} />
     </div>
   );
 }

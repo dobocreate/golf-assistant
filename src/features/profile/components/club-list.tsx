@@ -161,6 +161,7 @@ function ClubForm({
 
 export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExists: boolean }) {
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
   const [formState, setFormState] = useState<Club | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,40 +211,61 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
   const formVisible = formState !== null;
 
   return (
-    <div className="space-y-4">
-      {clubs.length > 0 ? (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4">
-          {clubs.map((club) => (
-            <ClubRow key={club.id} club={club} onEdit={handleEdit} onDelete={handleDelete} />
-          ))}
+    <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+      {/* Accordion header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 text-left"
+      >
+        <span className="text-lg font-bold">
+          クラブ一覧
+          {clubs.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+              ({clubs.length})
+            </span>
+          )}
+        </span>
+        <span className="text-gray-500">{expanded ? '\u25B2' : '\u25BC'}</span>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="space-y-4 p-4 pt-0">
+          {clubs.length > 0 ? (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4">
+              {clubs.map((club) => (
+                <ClubRow key={club.id} club={club} onEdit={handleEdit} onDelete={handleDelete} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400 pt-4">
+              クラブが登録されていません。
+            </p>
+          )}
+
+          {error && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+
+          {formVisible ? (
+            <ClubForm
+              key={editingClub?.id ?? 'new'}
+              editingClub={editingClub}
+              loading={loading}
+              onSubmit={handleSubmit}
+              onCancel={handleCancelForm}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setFormState('new'); setError(null); }}
+              className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              クラブを追加
+            </button>
+          )}
         </div>
-      ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          クラブが登録されていません。
-        </p>
-      )}
-
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
-      )}
-
-      {formVisible ? (
-        <ClubForm
-          key={editingClub?.id ?? 'new'}
-          editingClub={editingClub}
-          loading={loading}
-          onSubmit={handleSubmit}
-          onCancel={handleCancelForm}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => { setFormState('new'); setError(null); }}
-          className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          クラブを追加
-        </button>
       )}
     </div>
   );
