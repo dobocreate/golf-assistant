@@ -16,7 +16,7 @@ export function AdviceDisplay({ text, isStreaming, onSpeak, onStopSpeak, isSpeak
   return (
     <div className="space-y-3 rounded-lg bg-gray-800 border border-gray-700 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-400">AIアドバイス</h3>
+        <h3 className="text-sm font-bold text-gray-200">AIアドバイス</h3>
         {text && !isStreaming && onSpeak && (
           <button
             onClick={isSpeaking ? onStopSpeak : onSpeak}

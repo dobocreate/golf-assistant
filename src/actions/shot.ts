@@ -286,11 +286,12 @@ export async function getAdviceHistory(roundId: string): Promise<AdviceHistoryIt
 
   const { data } = await supabase
     .from('shots')
-    .select('hole_number, shot_number, advice_text, club')
+    .select('hole_number, shot_number, advice_text, club, lie, remaining_distance, shot_type, slope_fb, slope_lr')
     .eq('round_id', roundId)
     .not('advice_text', 'is', null)
-    .order('hole_number')
-    .order('shot_number');
+    .order('hole_number', { ascending: false })
+    .order('shot_number', { ascending: false })
+    .limit(20);
 
   return (data ?? []) as AdviceHistoryItem[];
 }

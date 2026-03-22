@@ -4,7 +4,7 @@ import { useReducer, useState, useEffect, useTransition, useCallback, useRef } f
 import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { recordShot, getShots, deleteShot, updateShot } from '@/actions/shot';
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS } from '@/lib/golf-constants';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotType } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotType, ShotFormState } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -14,15 +14,7 @@ interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
   clubs: ClubOption[];
-  onRequestAdvice?: (situation: {
-    lie: string;
-    slopeFB: string | null;
-    slopeLR: string | null;
-    shotNumber: number;
-    isNewShot: boolean;
-    shotType: string | null;
-    remainingDistance: number | null;
-  }) => void;
+  onFormChange?: (form: ShotFormState, shot: Shot | null, shotNumber: number) => void;
 }
 
 const RESULT_OPTIONS: { value: ShotResult; label: string; color: string; activeColor: string }[] = [
@@ -59,20 +51,6 @@ const DIRECTION_GRID: { lr: DirectionLR; fb: DirectionFB; label: string }[] = [
   { lr: 'center', fb: 'short', label: '↓' },
   { lr: 'right', fb: 'short', label: '↘' },
 ];
-
-interface ShotFormState {
-  club: string | null;
-  result: ShotResult | null;
-  missType: string | null;
-  directionLr: DirectionLR | null;
-  directionFb: DirectionFB | null;
-  lie: import('@/features/score/types').ShotLie | null;
-  slopeFb: ShotSlopeFB | null;
-  slopeLr: ShotSlopeLR | null;
-  landing: ShotLanding | null;
-  shotType: ShotType | null;
-  remainingDistance: number | null;
-}
 
 function emptyShotForm(): ShotFormState {
   return {
@@ -172,7 +150,7 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
   }
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotRecorderProps) {
   const [state, dispatch] = useReducer(formsReducer, { forms: new Map(), shots: [] });
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
   const [isPending, startTransition] = useTransition();
@@ -321,6 +299,11 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
   const currentShotNumber = isNewShotSlot ? nextShotNumber : (currentShot?.shot_number ?? 1);
   const isChanged = currentShot ? hasFormChanged(currentForm, currentShot) : false;
 
+  // Notify parent of form state changes
+  useEffect(() => {
+    onFormChange?.(currentForm, currentShot, currentShotNumber);
+  }, [currentForm, currentShot, currentShotNumber, onFormChange]);
+
   return (
     <div className="space-y-3">
       <label className="block text-sm font-bold text-gray-300">ショット記録</label>
@@ -328,14 +311,16 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
       {/* Carousel container */}
       <div
         ref={containerRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
         className="overflow-hidden"
       >
         <div className="bg-gray-900 rounded-lg p-3 space-y-3">
-          {/* Header: shot number + delete */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">
+          {/* Header: shot number + delete (swipeable) */}
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="flex items-center justify-between"
+          >
+            <p className="text-sm text-gray-200">
               {isNewShotSlot
                 ? `新規ショット（第${nextShotNumber}打）`
                 : `ショット ${currentShotIndex + 1} / ${shots.length}打`}
@@ -355,7 +340,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           {/* Club selection */}
           {clubs.length > 0 && (
             <div className="space-y-1">
-              <label className="block text-xs text-gray-500">クラブ</label>
+              <label className="block text-xs text-gray-400">クラブ</label>
               <select
                 value={currentForm.club ?? ''}
                 onChange={e => dispatch({ type: 'UPDATE_FIELD', index: currentShotIndex, updater: f => ({ ...f, club: e.target.value || null }) })}
@@ -371,7 +356,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Shot type */}
           <div className="space-y-1">
-            <label className="block text-xs text-gray-500">ショット</label>
+            <label className="block text-xs text-gray-400">ショット</label>
             <div className="grid grid-cols-4 gap-1">
               {SHOT_TYPE_OPTIONS.map(st => (
                 <button
@@ -395,7 +380,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Remaining distance */}
           <div className="space-y-1">
-            <label className="block text-xs text-gray-500">残り距離 (yd)</label>
+            <label className="block text-xs text-gray-400">残り距離 (yd)</label>
             <input
               type="number"
               min={0}
@@ -416,7 +401,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Lie */}
           <div className="space-y-1">
-            <label className="block text-xs text-gray-500">ライ</label>
+            <label className="block text-xs text-gray-400">ライ</label>
             <div className="grid grid-cols-5 gap-1">
               {LIE_OPTIONS.map(l => (
                 <button
@@ -440,10 +425,10 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Slope (optional) */}
           <div className="space-y-1">
-            <label className="block text-xs text-gray-500">傾斜（任意）</label>
+            <label className="block text-xs text-gray-400">傾斜（任意）</label>
             <div className="flex gap-4">
               <div className="flex-1 space-y-1">
-                <p className="text-xs text-gray-600">前後</p>
+                <p className="text-xs text-gray-400">前後</p>
                 <div className="grid grid-cols-2 gap-1">
                   {SLOPE_FB_OPTIONS.map(s => (
                     <button
@@ -468,7 +453,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                 </div>
               </div>
               <div className="flex-1 space-y-1">
-                <p className="text-xs text-gray-600">左右</p>
+                <p className="text-xs text-gray-400">左右</p>
                 <div className="grid grid-cols-2 gap-1">
                   {SLOPE_LR_OPTIONS.map(s => (
                     <button
@@ -497,7 +482,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Result */}
           <div className="space-y-1">
-            <label className="block text-xs text-gray-500">結果</label>
+            <label className="block text-xs text-gray-400">結果</label>
             <div className="grid grid-cols-4 gap-2">
               {RESULT_OPTIONS.map(opt => (
                 <button
@@ -526,7 +511,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
           {/* Miss type (only when fair/poor) */}
           {showMissType && (
             <div className="space-y-1">
-              <label className="block text-xs text-gray-500">ミスタイプ</label>
+              <label className="block text-xs text-gray-400">ミスタイプ</label>
               <div className="grid grid-cols-3 gap-2">
                 {MISS_TYPES.map(mt => (
                   <button
@@ -616,97 +601,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
             </div>
           </div>
 
-          {/* Advice + Record/Update buttons (横並び) */}
-          <div className="grid grid-cols-2 gap-2">
-            {onRequestAdvice && (
-              <button
-                disabled={isPending}
-                onClick={async () => {
-                  // state.forms から直接取得（stale closure 解消）
-                  const latestForm = state.forms.get(currentShotIndex)
-                    ?? (currentShotIndex < state.shots.length ? shotToForm(state.shots[currentShotIndex]) : emptyShotForm());
-                  const latestShowMissType = latestForm.result === 'fair' || latestForm.result === 'poor';
-
-                  if (isNewShotSlot) {
-                    // 新規ショット: recordShot で保存してから遷移
-                    const result = await recordShot({
-                      roundId,
-                      holeNumber,
-                      shotNumber: nextShotNumber,
-                      club: latestForm.club,
-                      result: latestForm.result,
-                      missType: latestShowMissType ? latestForm.missType : null,
-                      directionLr: latestForm.directionLr,
-                      directionFb: latestForm.directionFb,
-                      lie: latestForm.lie,
-                      slopeFb: latestForm.slopeFb,
-                      slopeLr: latestForm.slopeLr,
-                      landing: latestForm.landing,
-                      shotType: latestForm.shotType,
-                      remainingDistance: latestForm.remainingDistance,
-                    });
-                    if (result.shot) {
-                      dispatch({ type: 'INIT', shots: [...shots, result.shot] });
-                      onRequestAdvice({
-                        lie: latestForm.lie ?? 'fairway',
-                        slopeFB: latestForm.slopeFb,
-                        slopeLR: latestForm.slopeLr,
-                        shotNumber: nextShotNumber,
-                        isNewShot: false,
-                        shotType: latestForm.shotType,
-                        remainingDistance: latestForm.remainingDistance,
-                      });
-                    } else if (result.error) {
-                      setError(result.error);
-                    }
-                  } else {
-                    // 既存ショット: 変更があれば updateShot してから遷移
-                    if (currentShot && hasFormChanged(latestForm, currentShot)) {
-                      const result = await updateShot({
-                        shotId: currentShot.id,
-                        roundId,
-                        club: latestForm.club,
-                        result: latestForm.result,
-                        missType: latestShowMissType ? latestForm.missType : null,
-                        directionLr: latestForm.directionLr,
-                        directionFb: latestForm.directionFb,
-                        lie: latestForm.lie,
-                        slopeFb: latestForm.slopeFb,
-                        slopeLr: latestForm.slopeLr,
-                        landing: latestForm.landing,
-                        shotType: latestForm.shotType,
-                        remainingDistance: latestForm.remainingDistance,
-                      });
-                      if (result.error) {
-                        setError(result.error);
-                        return; // 更新失敗時はアドバイス画面に遷移しない
-                      }
-                      if (result.shot) {
-                        const newShots = shots.map(s => s.id === currentShot.id ? result.shot! : s);
-                        dispatch({ type: 'INIT', shots: newShots });
-                      }
-                    }
-                    onRequestAdvice({
-                      lie: latestForm.lie ?? 'fairway',
-                      slopeFB: latestForm.slopeFb,
-                      slopeLR: latestForm.slopeLr,
-                      shotNumber: currentShotNumber,
-                      isNewShot: false,
-                      shotType: latestForm.shotType,
-                      remainingDistance: latestForm.remainingDistance,
-                    });
-                  }
-                }}
-                className="min-h-[48px] flex items-center justify-center rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isPending ? '保存中...' : 'アドバイス'}
-              </button>
-            )}
+          {/* Record/Update button */}
+          <div>
             {isNewShotSlot ? (
               <button
                 onClick={handleRecordShot}
                 disabled={currentForm.result === null || isPending}
-                className={`min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${!onRequestAdvice ? 'col-span-2' : ''}`}
+                className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isPending ? '記録中...' : '記録'}
               </button>
@@ -714,7 +615,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
               <button
                 onClick={handleUpdateShot}
                 disabled={!isChanged || isPending}
-                className={`min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${!onRequestAdvice ? 'col-span-2' : ''}`}
+                className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isPending ? '更新中...' : '更新'}
               </button>
@@ -723,8 +624,12 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
         </div>
       </div>
 
-      {/* Navigation: left/right buttons + dot indicators */}
-      <div className="flex items-center justify-center gap-4">
+      {/* Navigation: left/right buttons + dot indicators (swipeable) */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="flex items-center justify-center gap-4"
+      >
         <button
           onClick={() => goToSlot(currentShotIndex - 1)}
           disabled={currentShotIndex <= 0}
