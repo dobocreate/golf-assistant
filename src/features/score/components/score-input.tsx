@@ -258,8 +258,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       )}
 
-      {/* 総打数 + パット数 ステッパー（横並び） */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* 総打数 + パット数 ステッパー（縦並び） */}
+      <div className="space-y-3">
         {/* 総打数 */}
         <div className="space-y-1">
           <label className="block text-sm font-bold text-gray-300 text-center">総打数</label>
