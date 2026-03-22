@@ -36,12 +36,12 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
     const mapped = LIE_DB_TO_LABEL[initialLie];
     return mapped && LIES.includes(mapped) ? mapped : null;
   });
-  const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(
-    (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') ? initialSlopeFB : null
-  );
-  const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(
-    (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') ? initialSlopeLR : null
-  );
+  const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(() => {
+    return (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') ? initialSlopeFB : null;
+  });
+  const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(() => {
+    return (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') ? initialSlopeLR : null;
+  });
 
   const handleSubmit = useCallback(() => {
     if (!shotType || !distance || !lie) return;
