@@ -117,6 +117,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
   const [shots, setShots] = useState<Shot[]>([]);
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
   const [forms, setForms] = useState<Map<number, ShotFormState>>(new Map());
+  const formsRef = useRef(forms);
+  useEffect(() => { formsRef.current = forms; }, [forms]);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -551,11 +553,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
             {onRequestAdvice && (
               <button
                 onClick={() => {
-                  console.log('[advice-btn] currentForm:', JSON.stringify({ lie: currentForm.lie, slopeFb: currentForm.slopeFb, slopeLr: currentForm.slopeLr }));
+                  // formsRef から最新値を直接取得（stale closure回避）
+                  const latestForm = formsRef.current.get(currentShotIndex)
+                    ?? (currentShotIndex < shotsRef.current.length ? shotToForm(shotsRef.current[currentShotIndex]) : emptyShotForm());
                   onRequestAdvice({
-                    lie: currentForm.lie ?? 'fairway',
-                    slopeFB: currentForm.slopeFb,
-                    slopeLR: currentForm.slopeLr,
+                    lie: latestForm.lie ?? 'fairway',
+                    slopeFB: latestForm.slopeFb,
+                    slopeLR: latestForm.slopeLr,
                     shotNumber: currentShotNumber,
                   });
                 }}
