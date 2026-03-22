@@ -116,9 +116,16 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
 export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: ShotRecorderProps) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
-  const [forms, setForms] = useState<Map<number, ShotFormState>>(new Map());
+  const [forms, setFormsRaw] = useState<Map<number, ShotFormState>>(new Map());
   const formsRef = useRef(forms);
-  useEffect(() => { formsRef.current = forms; }, [forms]);
+  // setForms ラッパー: state と ref を同時に更新
+  const setForms = useCallback((updater: Map<number, ShotFormState> | ((prev: Map<number, ShotFormState>) => Map<number, ShotFormState>)) => {
+    setFormsRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      formsRef.current = next;
+      return next;
+    });
+  }, []);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
