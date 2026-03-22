@@ -58,7 +58,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
   const [obCount, setObCount] = useState(score?.ob_count ?? 0);
   const [bunkerCount, setBunkerCount] = useState(score?.bunker_count ?? 0);
-  const [penaltyCount, setPenaltyCount] = useState(score?.penalty_count ?? 0);
+  // penaltyCount は廃止（OB・ペナルティに統合）。DB互換のため 0 固定で送信
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
@@ -81,7 +81,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     gir: boolean | null,
     ob: number,
     bunker: number,
-    penalty: number,
     existingId?: string,
   ) => {
     const newScore: Score = {
@@ -96,7 +95,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       tee_shot_fb: null,
       ob_count: ob,
       bunker_count: bunker,
-      penalty_count: penalty,
+      penalty_count: 0,
     };
 
     // 楽観的更新
@@ -118,7 +117,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         teeShotFb: null,
         obCount: ob,
         bunkerCount: bunker,
-        penaltyCount: penalty,
+        penaltyCount: 0,
       });
       if (result.error) {
         // 楽観的更新をロールバック
@@ -137,8 +136,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id);
-  }, [currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id, saveHole]);
+    saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id);
+  }, [currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id, saveHole]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -149,7 +148,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
     if (strokes !== null) {
-      saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id);
+      saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, score?.id);
     }
     setCurrentHole(holeNum);
     const s = scoresRef.current.get(holeNum);
@@ -158,9 +157,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setGreenInReg(s?.green_in_reg ?? null);
     setObCount(s?.ob_count ?? 0);
     setBunkerCount(s?.bunker_count ?? 0);
-    setPenaltyCount(s?.penalty_count ?? 0);
     setSaveStatus('idle');
-  }, [strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, greenInReg, obCount, bunkerCount, currentHole, score?.id, saveHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -320,12 +318,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       </div>
 
-      {/* OB / バンカー / ペナルティ カウンター */}
+      {/* OB・ペナルティ / バンカー カウンター */}
       <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-4">
-          <CounterGroup label="OB" value={obCount} onChange={setObCount} />
+        <div className="grid grid-cols-2 gap-4">
+          <CounterGroup label="OB・ペナ" value={obCount} onChange={setObCount} />
           <CounterGroup label="バンカー" value={bunkerCount} onChange={setBunkerCount} />
-          <CounterGroup label="ペナルティ" value={penaltyCount} onChange={setPenaltyCount} />
         </div>
       </div>
 
