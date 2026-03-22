@@ -2,10 +2,11 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
-import type { Score, TeeShotLR, TeeShotFB } from '@/features/score/types';
+import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
   hole_number: number;
@@ -35,20 +36,8 @@ function getDefaultHoles(): HoleInfo[] {
   }));
 }
 
-// ティーショット3×3グリッドの定義
-const TEE_SHOT_GRID: { lr: TeeShotLR; fb: TeeShotFB; label: string }[] = [
-  { lr: 'left', fb: 'long', label: '↖' },
-  { lr: 'center', fb: 'long', label: '↑' },
-  { lr: 'right', fb: 'long', label: '↗' },
-  { lr: 'left', fb: 'center', label: '←' },
-  { lr: 'center', fb: 'center', label: '○' },
-  { lr: 'right', fb: 'center', label: '→' },
-  { lr: 'left', fb: 'short', label: '↙' },
-  { lr: 'center', fb: 'short', label: '↓' },
-  { lr: 'right', fb: 'short', label: '↘' },
-];
-
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
+  const router = useRouter();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const [currentHole, setCurrentHole] = useState(1);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
@@ -66,26 +55,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
-  const [fairwayHit, setFairwayHit] = useState<boolean | null>(score?.fairway_hit ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
-  const [teeShotLr, setTeeShotLr] = useState<TeeShotLR | null>(score?.tee_shot_lr ?? null);
-  const [teeShotFb, setTeeShotFb] = useState<TeeShotFB | null>(score?.tee_shot_fb ?? null);
   const [obCount, setObCount] = useState(score?.ob_count ?? 0);
   const [bunkerCount, setBunkerCount] = useState(score?.bunker_count ?? 0);
   const [penaltyCount, setPenaltyCount] = useState(score?.penalty_count ?? 0);
 
-  // greenInReg の手動上書きフラグ
-  const [girManualOverride, setGirManualOverride] = useState(false);
-
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
-
-  // fairway_hit 自動判定（ティーショットグリッド選択時）
-  const computeFairwayHit = useCallback((par: number, lr: TeeShotLR | null, fb: TeeShotFB | null): boolean | null => {
-    if (par === 3) return null;
-    if (lr === null || fb === null) return null;
-    return lr === 'center';
-  }, []);
 
   // greenInReg 自動判定
   const computeGreenInReg = useCallback((s: number | null, p: number | null, par: number): boolean | null => {
@@ -93,21 +69,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return (s - p) <= (par - 2);
   }, []);
 
-  // strokes/putts 変更時に greenInReg を自動計算（手動上書きされていない場合）
+  // strokes/putts 変更時に greenInReg を自動計算
   useEffect(() => {
-    if (!girManualOverride) {
-      setGreenInReg(computeGreenInReg(strokes, putts, hole.par));
-    }
-  }, [strokes, putts, hole.par, girManualOverride, computeGreenInReg]);
+    setGreenInReg(computeGreenInReg(strokes, putts, hole.par));
+  }, [strokes, putts, hole.par, computeGreenInReg]);
 
   const saveHole = useCallback((
     holeNum: number,
     s: number,
     p: number | null,
-    fw: boolean | null,
     gir: boolean | null,
-    tsLr: TeeShotLR | null,
-    tsFb: TeeShotFB | null,
     ob: number,
     bunker: number,
     penalty: number,
@@ -119,10 +90,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       hole_number: holeNum,
       strokes: s,
       putts: p,
-      fairway_hit: fw,
+      fairway_hit: null,
       green_in_reg: gir,
-      tee_shot_lr: tsLr,
-      tee_shot_fb: tsFb,
+      tee_shot_lr: null,
+      tee_shot_fb: null,
       ob_count: ob,
       bunker_count: bunker,
       penalty_count: penalty,
@@ -141,10 +112,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         holeNumber: holeNum,
         strokes: s,
         putts: p,
-        fairwayHit: fw,
+        fairwayHit: null,
         greenInReg: gir,
-        teeShotLr: tsLr,
-        teeShotFb: tsFb,
+        teeShotLr: null,
+        teeShotFb: null,
         obCount: ob,
         bunkerCount: bunker,
         penaltyCount: penalty,
@@ -166,8 +137,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id);
-  }, [currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id, saveHole]);
+    saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id);
+  }, [currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id, saveHole]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -178,22 +149,18 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
     if (strokes !== null) {
-      saveHole(currentHole, strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, score?.id);
+      saveHole(currentHole, strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, score?.id);
     }
     setCurrentHole(holeNum);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
-    setFairwayHit(s?.fairway_hit ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
-    setTeeShotLr(s?.tee_shot_lr ?? null);
-    setTeeShotFb(s?.tee_shot_fb ?? null);
     setObCount(s?.ob_count ?? 0);
     setBunkerCount(s?.bunker_count ?? 0);
     setPenaltyCount(s?.penalty_count ?? 0);
-    setGirManualOverride(false);
     setSaveStatus('idle');
-  }, [strokes, putts, fairwayHit, greenInReg, teeShotLr, teeShotFb, obCount, bunkerCount, penaltyCount, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, greenInReg, obCount, bunkerCount, penaltyCount, currentHole, score?.id, saveHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
@@ -223,23 +190,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     .reduce((sum, h) => sum + h.par, 0);
   const completedHoles = scores.size;
 
+  // 合計パット数
+  const totalPutts = Array.from(scores.values()).reduce((sum, s) => sum + (s.putts ?? 0), 0);
+
   // 総打数ボタンの値を計算（末尾は N+ で増加可能）
   const strokeButtons = Array.from({ length: 7 }, (_, i) => hole.par - 2 + i).filter(v => v >= 1);
   const maxFixedStroke = strokeButtons[strokeButtons.length - 1];
-
-  // ティーショットグリッド選択ハンドラ
-  const handleTeeShotSelect = (lr: TeeShotLR, fb: TeeShotFB) => {
-    // 同じ選択をタップした場合は解除
-    if (teeShotLr === lr && teeShotFb === fb) {
-      setTeeShotLr(null);
-      setTeeShotFb(null);
-      setFairwayHit(computeFairwayHit(hole.par, null, null));
-    } else {
-      setTeeShotLr(lr);
-      setTeeShotFb(fb);
-      setFairwayHit(computeFairwayHit(hole.par, lr, fb));
-    }
-  };
 
   return (
     <div className="max-w-md mx-auto space-y-4">
@@ -253,15 +209,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </Link>
       )}
 
-      {/* ヘッダー: コース名 + 合計 */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-400 truncate">{courseName}</p>
-        {completedHoles > 0 && (
-          <p className="text-sm text-gray-400">
-            {totalStrokes} ({totalStrokes - totalPar >= 0 ? '+' : ''}{totalStrokes - totalPar}) / {completedHoles}H
-          </p>
-        )}
-      </div>
+      {/* ヘッダー: コース名 */}
+      <p className="text-sm text-gray-400 truncate">{courseName}</p>
 
       {/* ホールナビゲーション */}
       <div className="flex items-center justify-between">
@@ -291,6 +240,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <ChevronRight className="h-6 w-6" />
         </button>
       </div>
+
+      {/* スコアサマリー */}
+      {completedHoles > 0 && (
+        <div className="flex items-center justify-center gap-6 rounded-lg bg-gray-800 border border-gray-700 py-3">
+          <div className="text-center">
+            <p className="text-3xl font-bold">{totalStrokes}</p>
+            <p className={`text-sm font-bold ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
+              {totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar}
+            </p>
+          </div>
+          <div className="h-8 w-px bg-gray-700" />
+          <div className="text-center">
+            <p className="text-xl font-bold text-gray-300">{totalPutts}</p>
+            <p className="text-xs text-gray-500">パット</p>
+          </div>
+        </div>
+      )}
 
       {/* 総打数入力 */}
       <div className="space-y-2">
@@ -354,73 +320,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       </div>
 
-      {/* ティーショット 3×3 グリッド（Par3以外） */}
-      {hole.par !== 3 && (
-        <div className="space-y-2">
-          <label className="block text-sm font-bold text-gray-300">ティーショット</label>
-          <div className="grid grid-cols-3 gap-2">
-            {TEE_SHOT_GRID.map(({ lr, fb, label }) => {
-              const isSelected = teeShotLr === lr && teeShotFb === fb;
-              return (
-                <button
-                  key={`${lr}-${fb}`}
-                  onClick={() => handleTeeShotSelect(lr, fb)}
-                  className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                    isSelected
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {/* FWキープ 自動判定表示 */}
-          {fairwayHit !== null && (
-            <p className={`text-center text-xs ${fairwayHit ? 'text-green-400' : 'text-red-400'}`}>
-              FWキープ: {fairwayHit ? '○' : '✕'}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* パーオン */}
-      <div className="space-y-2">
-        <label className="block text-sm font-bold text-gray-300">パーオン</label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              setGirManualOverride(true);
-              setGreenInReg(true);
-            }}
-            className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-              greenInReg === true
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-            }`}
-          >
-            ○
-          </button>
-          <button
-            onClick={() => {
-              setGirManualOverride(true);
-              setGreenInReg(false);
-            }}
-            className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-              greenInReg === false
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-            }`}
-          >
-            ✕
-          </button>
-        </div>
-        {greenInReg !== null && !girManualOverride && (
-          <p className="text-center text-xs text-gray-500">自動判定</p>
-        )}
-      </div>
-
       {/* OB / バンカー / ペナルティ カウンター */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-4">
@@ -435,6 +334,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         roundId={roundId}
         holeNumber={currentHole}
         clubs={clubs}
+        onRequestAdvice={(situation) => {
+          // TODO: 将来的にインラインアドバイス表示。現在はアドバイスページに遷移
+          const params = new URLSearchParams({
+            hole: String(currentHole),
+            lie: situation.lie,
+            ...(situation.slopeFB && { slopeFB: situation.slopeFB }),
+            ...(situation.slopeLR && { slopeLR: situation.slopeLR }),
+          });
+          router.push(`/play/${roundId}/advice?${params}`);
+        }}
       />
 
       {/* 保存ボタン */}
