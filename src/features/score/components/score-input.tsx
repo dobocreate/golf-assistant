@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
+import { useToast } from '@/components/ui/toast';
 import type { Score } from '@/features/score/types';
 
 interface HoleInfo {
@@ -38,6 +39,7 @@ function getDefaultHoles(): HoleInfo[] {
 
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const [currentHole, setCurrentHole] = useState(1);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
@@ -48,7 +50,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return map;
   });
   const [isPending, startTransition] = useTransition();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const hole = holes.find(h => h.hole_number === currentHole) ?? { hole_number: currentHole, par: 4, distance: null };
   const score = scores.get(currentHole);
@@ -99,7 +100,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       previousScoreRef.current = prev.get(holeNum);
       return new Map(prev).set(holeNum, newScore);
     });
-    setSaveStatus('saving');
+    // 保存開始
 
     startTransition(async () => {
       const result = await upsertScore({
@@ -123,9 +124,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         } else {
           setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
         }
-        setSaveStatus('error');
+        showToast('保存に失敗しました', 'error');
       } else {
-        setSaveStatus('saved');
+        showToast('保存しました');
       }
     });
   }, [roundId]);
@@ -151,7 +152,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
-    setSaveStatus('idle');
+    // ホール切替完了
   }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole]);
 
   // スコアラベル
@@ -346,12 +347,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             <Save className="h-5 w-5" />
             {isPending ? '保存中...' : '保存'}
           </button>
-          {saveStatus === 'saved' && (
-            <span className="text-sm text-green-400 shrink-0">保存済</span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="text-sm text-red-400 shrink-0">エラー</span>
-          )}
         </div>
       </div>
     </div>
