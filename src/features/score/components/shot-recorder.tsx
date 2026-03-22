@@ -489,46 +489,60 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
 
           {/* Direction 3x3 grid + Landing buttons */}
           <div className="space-y-2">
-            <label className="block text-xs text-gray-500">方向・着地</label>
-            <div className="grid grid-cols-4 gap-2">
-              {DIRECTION_GRID.map(({ lr, fb, label }) => {
-                const isSelected = currentForm.directionLr === lr && currentForm.directionFb === fb;
-                return (
-                  <button
-                    key={`${lr}-${fb}`}
-                    onClick={() => updateForm(currentShotIndex, f => {
-                      if (f.directionLr === lr && f.directionFb === fb) {
-                        return { ...f, directionLr: null, directionFb: null };
-                      }
-                      return { ...f, directionLr: lr, directionFb: fb };
-                    })}
-                    className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              {/* 右列: 着地状況（OB/池/バンカー） */}
-              {LANDINGS.map(({ value, label }) => {
-                const isSelected = currentForm.landing === value;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => updateForm(currentShotIndex, prev => ({
-                      ...prev, landing: prev.landing === value ? null : value
-                    }))}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+            <div className="flex gap-3">
+              {/* 方向 3×3 */}
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">方向</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {DIRECTION_GRID.map(({ lr, fb, label }) => {
+                    const isSelected = currentForm.directionLr === lr && currentForm.directionFb === fb;
+                    return (
+                      <button
+                        key={`${lr}-${fb}`}
+                        onClick={() => updateForm(currentShotIndex, f => {
+                          if (f.directionLr === lr && f.directionFb === fb) {
+                            return { ...f, directionLr: null, directionFb: null };
+                          }
+                          return { ...f, directionLr: lr, directionFb: fb };
+                        })}
+                        className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                          isSelected
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 区切り線 */}
+              <div className="w-px bg-gray-700 self-stretch mt-5" />
+
+              {/* 着地状況 */}
+              <div className="w-20">
+                <label className="block text-xs text-gray-500 mb-1">着地</label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {LANDINGS.map(({ value, label }) => {
+                    const isSelected = currentForm.landing === value;
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => updateForm(currentShotIndex, prev => ({
+                          ...prev, landing: prev.landing === value ? null : value
+                        }))}
+                        className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
+                          isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
