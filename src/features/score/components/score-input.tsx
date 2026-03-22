@@ -146,10 +146,22 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     });
   }, [roundId]);
 
+  // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
+  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null): boolean => {
+    if (s === null) return false; // 打数未入力なら保存対象外
+    const saved = scoresRef.current.get(holeNum);
+    if (!saved) return true; // 新規入力
+    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir;
+  }, []);
+
   const handleSave = useCallback(() => {
     if (strokes === null) return;
+    if (!hasChanges(currentHole, strokes, putts, greenInReg)) {
+      showToast('変更なし', 'info');
+      return;
+    }
     saveHole(currentHole, strokes, putts, greenInReg, score?.id);
-  }, [currentHole, strokes, putts, greenInReg, score?.id, saveHole]);
+  }, [currentHole, strokes, putts, greenInReg, score?.id, saveHole, hasChanges, showToast]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -159,7 +171,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // ホール切り替え時に未保存データがあれば自動保存
   const switchHole = useCallback((holeNum: number) => {
-    if (strokes !== null) {
+    if (strokes !== null && hasChanges(currentHole, strokes, putts, greenInReg)) {
       saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
@@ -169,7 +181,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     // ホール切替完了
-  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole]);
+  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges]);
 
   // switchHole ref を最新に保持（Context同期用）
   useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
