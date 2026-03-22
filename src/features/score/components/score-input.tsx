@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
@@ -36,6 +37,7 @@ function getDefaultHoles(): HoleInfo[] {
 }
 
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
+  const router = useRouter();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const [currentHole, setCurrentHole] = useState(1);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
@@ -340,7 +342,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             ...(situation.slopeFB && { slopeFB: situation.slopeFB }),
             ...(situation.slopeLR && { slopeLR: situation.slopeLR }),
           });
-          window.location.href = `/play/${roundId}/advice?${params}`;
+          router.push(`/play/${roundId}/advice?${params}`);
         }}
       />
 

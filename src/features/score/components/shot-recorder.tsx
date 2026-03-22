@@ -250,15 +250,30 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
   // Delete shot
   const handleDelete = useCallback(() => {
     if (!currentShot) return;
+    const deletedIndex = currentShotIndex;
     startTransition(async () => {
       const result = await deleteShot(currentShot.id, roundId);
-      if (!result.error) {
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setError(null);
         setShots(prev => prev.filter(s => s.id !== currentShot.id));
-        setForms(new Map());
+        // 削除インデックスより後のフォームキーを1つずらし、他の編集内容を保持
+        setForms(prev => {
+          const next = new Map<number, ShotFormState>();
+          for (const [index, formState] of prev.entries()) {
+            if (index < deletedIndex) {
+              next.set(index, formState);
+            } else if (index > deletedIndex) {
+              next.set(index - 1, formState);
+            }
+          }
+          return next;
+        });
         setCurrentShotIndex(prev => Math.max(0, prev - 1));
       }
     });
-  }, [currentShot, roundId]);
+  }, [currentShot, roundId, currentShotIndex]);
 
   const currentShotNumber = isNewShotSlot ? nextShotNumber : (currentShot?.shot_number ?? 1);
   const isChanged = currentShot ? hasFormChanged(currentForm, currentShot) : false;
