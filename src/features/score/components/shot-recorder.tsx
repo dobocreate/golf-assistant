@@ -662,7 +662,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                   } else {
                     // 既存ショット: 変更があれば updateShot してから遷移
                     if (currentShot && hasFormChanged(latestForm, currentShot)) {
-                      await updateShot({
+                      const result = await updateShot({
                         shotId: currentShot.id,
                         roundId,
                         club: latestForm.club,
@@ -677,6 +677,14 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onRequestAdvice }: Sh
                         shotType: latestForm.shotType,
                         remainingDistance: latestForm.remainingDistance,
                       });
+                      if (result.error) {
+                        setError(result.error);
+                        return; // 更新失敗時はアドバイス画面に遷移しない
+                      }
+                      if (result.shot) {
+                        const newShots = shots.map(s => s.id === currentShot.id ? result.shot! : s);
+                        dispatch({ type: 'INIT', shots: newShots });
+                      }
                     }
                     onRequestAdvice({
                       lie: latestForm.lie ?? 'fairway',
