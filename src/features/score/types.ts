@@ -17,6 +17,11 @@ export interface Score {
 }
 
 export type ShotResult = 'excellent' | 'good' | 'fair' | 'poor';
+export type DirectionLR = 'left' | 'center' | 'right';
+export type DirectionFB = 'short' | 'center' | 'long';
+export type ShotLie = 'tee' | 'fairway' | 'rough' | 'bunker' | 'woods';
+export type ShotSlopeFB = 'toe_up' | 'toe_down';
+export type ShotSlopeLR = 'left_up' | 'left_down';
 
 export interface Shot {
   id: string;
@@ -26,4 +31,9 @@ export interface Shot {
   club: string | null;
   result: ShotResult | null;
   miss_type: string | null;
+  direction_lr: DirectionLR | null;
+  direction_fb: DirectionFB | null;
+  lie: ShotLie | null;
+  slope_fb: ShotSlopeFB | null;
+  slope_lr: ShotSlopeLR | null;
 }
