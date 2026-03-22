@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
 import type { Situation, SlopeFB, SlopeLR } from '../types';
 
@@ -42,6 +42,26 @@ export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, in
   const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(() => {
     return (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') ? initialSlopeLR : null;
   });
+
+  // props の初期値が変化した場合に state を同期（ページ遷移でコンポーネントが再利用されるケース）
+  useEffect(() => {
+    if (!initialLie) return;
+    if (LIES.includes(initialLie)) { setLie(initialLie); return; }
+    const mapped = LIE_DB_TO_LABEL[initialLie];
+    if (mapped && LIES.includes(mapped)) setLie(mapped);
+  }, [initialLie]);
+
+  useEffect(() => {
+    if (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') setSlopeFB(initialSlopeFB);
+    else if (initialSlopeFB === undefined) { /* 初期値なし: 変更しない */ }
+    else setSlopeFB(null);
+  }, [initialSlopeFB]);
+
+  useEffect(() => {
+    if (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') setSlopeLR(initialSlopeLR);
+    else if (initialSlopeLR === undefined) { /* 初期値なし: 変更しない */ }
+    else setSlopeLR(null);
+  }, [initialSlopeLR]);
 
   const handleSubmit = useCallback(() => {
     if (!shotType || !distance || !lie) return;
