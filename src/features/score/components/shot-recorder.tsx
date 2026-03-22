@@ -1,8 +1,8 @@
 'use client';
 
 import { useReducer, useState, useEffect, useTransition, useCallback, useRef } from 'react';
-import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { recordShot, getShots, deleteShot, updateShot } from '@/actions/shot';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { recordShot, getShots, updateShot } from '@/actions/shot';
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS } from '@/lib/golf-constants';
 import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotType, ShotFormState } from '@/features/score/types';
 
@@ -106,7 +106,6 @@ type FormsAction =
   | { type: 'INIT'; shots: Shot[] }
   | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
   | { type: 'CLEAR_INDEX'; index: number }
-  | { type: 'SHIFT_AFTER_DELETE'; deletedIndex: number }
   | { type: 'CLEAR_ALL' };
 
 interface FormsState {
@@ -130,18 +129,6 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
     case 'CLEAR_INDEX': {
       const next = new Map(state.forms);
       next.delete(action.index);
-      return { ...state, forms: next };
-    }
-
-    case 'SHIFT_AFTER_DELETE': {
-      const next = new Map<number, ShotFormState>();
-      for (const [index, formState] of state.forms.entries()) {
-        if (index < action.deletedIndex) {
-          next.set(index, formState);
-        } else if (index > action.deletedIndex) {
-          next.set(index - 1, formState);
-        }
-      }
       return { ...state, forms: next };
     }
 
@@ -278,24 +265,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotR
     });
   }, [currentShot, roundId, currentForm, showMissType, currentShotIndex, shots]);
 
-  // Delete shot
-  const handleDelete = useCallback(() => {
-    if (!currentShot) return;
-    const deletedIndex = currentShotIndex;
-    startTransition(async () => {
-      const result = await deleteShot(currentShot.id, roundId);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setError(null);
-        const newShots = shots.filter(s => s.id !== currentShot.id);
-        dispatch({ type: 'INIT', shots: newShots });
-        dispatch({ type: 'SHIFT_AFTER_DELETE', deletedIndex });
-        setCurrentShotIndex(prev => Math.max(0, prev - 1));
-      }
-    });
-  }, [currentShot, roundId, currentShotIndex, shots]);
-
   const currentShotNumber = isNewShotSlot ? nextShotNumber : (currentShot?.shot_number ?? 1);
   const isChanged = currentShot ? hasFormChanged(currentForm, currentShot) : false;
 
@@ -325,16 +294,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, onFormChange }: ShotR
                 ? `新規ショット（第${nextShotNumber}打）`
                 : `ショット ${currentShotIndex + 1} / ${shots.length}打`}
             </p>
-            {currentShot && currentShotNumber > 1 && (
-              <button
-                onClick={handleDelete}
-                disabled={isPending}
-                className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors"
-                aria-label={`ショット${currentShotNumber}を削除`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
           </div>
 
           {/* Club selection */}
