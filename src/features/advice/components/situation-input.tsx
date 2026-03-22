@@ -8,18 +8,40 @@ const SHOT_TYPES = ['ティーショット', 'セカンド', 'アプローチ', 
 const DISTANCES = ['〜100y', '100〜150y', '150〜200y', '200y+'];
 const LIES = ['ティーアップ', 'フェアウェイ', 'ラフ', 'バンカー', '林'];
 
+// ショット記録のDB値 → アドバイス画面の日本語ラベル変換
+const LIE_DB_TO_LABEL: Record<string, string> = {
+  tee: 'ティーアップ',
+  fairway: 'フェアウェイ',
+  rough: 'ラフ',
+  bunker: 'バンカー',
+  woods: '林',
+};
+
 interface SituationInputProps {
   holeNumber: number;
   onSubmit: (situation: Situation) => void;
   isLoading: boolean;
+  initialLie?: string;
+  initialSlopeFB?: string;
+  initialSlopeLR?: string;
 }
 
-export function SituationInput({ holeNumber, onSubmit, isLoading }: SituationInputProps) {
+export function SituationInput({ holeNumber, onSubmit, isLoading, initialLie, initialSlopeFB, initialSlopeLR }: SituationInputProps) {
   const [shotType, setShotType] = useState<string | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
-  const [lie, setLie] = useState<string | null>(null);
-  const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(null);
-  const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(null);
+  const [lie, setLie] = useState<string | null>(() => {
+    if (!initialLie) return null;
+    // 日本語ラベルならそのまま、DB値なら変換
+    if (LIES.includes(initialLie)) return initialLie;
+    const mapped = LIE_DB_TO_LABEL[initialLie];
+    return mapped && LIES.includes(mapped) ? mapped : null;
+  });
+  const [slopeFB, setSlopeFB] = useState<SlopeFB | null>(
+    (initialSlopeFB === 'toe_up' || initialSlopeFB === 'toe_down') ? initialSlopeFB : null
+  );
+  const [slopeLR, setSlopeLR] = useState<SlopeLR | null>(
+    (initialSlopeLR === 'left_up' || initialSlopeLR === 'left_down') ? initialSlopeLR : null
+  );
 
   const handleSubmit = useCallback(() => {
     if (!shotType || !distance || !lie) return;
