@@ -161,10 +161,11 @@ function ClubForm({
 
 export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExists: boolean }) {
   const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
-  const [editingClub, setEditingClub] = useState<Club | null>(null);
+  const [formState, setFormState] = useState<Club | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const editingClub = typeof formState === 'object' ? formState : null;
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
@@ -173,22 +174,19 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
     if (result.error) {
       setError(result.error);
     } else {
-      setShowForm(false);
-      setEditingClub(null);
+      setFormState(null);
       router.refresh();
     }
     setLoading(false);
   }
 
   function handleEdit(club: Club) {
-    setShowForm(false);
-    setEditingClub(club);
+    setFormState(club);
     setError(null);
   }
 
   function handleCancelForm() {
-    setShowForm(false);
-    setEditingClub(null);
+    setFormState(null);
     setError(null);
   }
 
@@ -209,7 +207,7 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
     );
   }
 
-  const formVisible = showForm || editingClub !== null;
+  const formVisible = formState !== null;
 
   return (
     <div className="space-y-4">
@@ -240,7 +238,7 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
       ) : (
         <button
           type="button"
-          onClick={() => { setShowForm(true); setError(null); }}
+          onClick={() => { setFormState('new'); setError(null); }}
           className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary transition-colors"
         >
           <Plus className="h-4 w-4" />
