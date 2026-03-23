@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
 import { upsertCompanionScore } from '@/actions/companion';
 import type { Companion, CompanionScore } from '@/features/score/types';
 
@@ -30,12 +30,23 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
     return map;
   });
   const [isPending, startTransition] = useTransition();
+  const debounceTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const localScoresRef = useRef(localScores);
+  useEffect(() => { localScoresRef.current = localScores; }, [localScores]);
+
+  // アンマウント時にデバウンスタイマーをクリーンアップ
+  useEffect(() => {
+    return () => {
+      for (const timer of debounceTimersRef.current.values()) clearTimeout(timer);
+    };
+  }, []);
 
   const getScore = useCallback((companionId: string, holeNumber: number) => {
     return localScores.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
   }, [localScores]);
 
   const updateScore = useCallback((companionId: string, holeNumber: number, field: 'strokes' | 'putts', value: number | null) => {
+    // ローカル状態は即時更新
     setLocalScores(prev => {
       const next = new Map(prev);
       const holeMap = new Map(next.get(companionId) ?? new Map());
@@ -45,19 +56,25 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
       return next;
     });
 
-    const current = localScores.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
-    const updated = { ...current, [field]: value };
+    // サーバー保存はデバウンス（500ms）— ref で最新のlocalScoresを参照
+    const timerKey = `${companionId}-${holeNumber}`;
+    const existing = debounceTimersRef.current.get(timerKey);
+    if (existing) clearTimeout(existing);
 
-    startTransition(async () => {
-      await upsertCompanionScore({
-        companionId,
-        roundId,
-        holeNumber,
-        strokes: updated.strokes,
-        putts: updated.putts,
+    debounceTimersRef.current.set(timerKey, setTimeout(() => {
+      debounceTimersRef.current.delete(timerKey);
+      const current = localScoresRef.current.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
+      startTransition(async () => {
+        await upsertCompanionScore({
+          companionId,
+          roundId,
+          holeNumber,
+          strokes: current.strokes,
+          putts: current.putts,
+        });
       });
-    });
-  }, [roundId, localScores]);
+    }, 500));
+  }, [roundId]);
 
   if (companions.length === 0) return null;
 
@@ -84,7 +101,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
         <span className="text-sm font-bold text-gray-200">
           同伴者スコア
         </span>
-        <span className="text-gray-500">{expanded ? '\u25B2' : '\u25BC'}</span>
+        <span className="text-gray-400">{expanded ? '\u25B2' : '\u25BC'}</span>
       </button>
 
       {expanded && (
@@ -95,7 +112,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
               <div key={companion.id} className="flex items-center gap-3">
                 <span className="text-sm font-bold text-gray-300 w-16 truncate">{companion.name}</span>
                 <div className="flex items-center gap-1">
-                  <label className="text-xs text-gray-500">打数</label>
+                  <label className="text-xs text-gray-400">打数</label>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -112,7 +129,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <label className="text-xs text-gray-500">パット</label>
+                  <label className="text-xs text-gray-400">パット</label>
                   <input
                     type="number"
                     inputMode="numeric"

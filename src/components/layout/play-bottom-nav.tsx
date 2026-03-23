@@ -29,7 +29,7 @@ export function PlayBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 bg-gray-900 border-t border-gray-700 z-50"
+      className="fixed bottom-0 inset-x-0 bg-gray-900 border-t border-gray-700 z-50 pb-[env(safe-area-inset-bottom)]"
       aria-label="プレー中ナビゲーション"
     >
       <div className="flex justify-around">

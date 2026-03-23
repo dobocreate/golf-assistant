@@ -38,7 +38,7 @@ export async function upsertScore(data: {
   const validationError =
     validateIntRange(data.holeNumber, 1, 18, 'ホール番号') ??
     validateIntRange(data.strokes, 1, 20, '打数') ??
-    (data.putts !== null ? validateIntRange(data.putts, 0, 10, 'パット数') : null) ??
+    (data.putts !== null ? validateIntRange(data.putts, 0, data.strokes, 'パット数') : null) ??
     validateEnum(data.teeShotLr, ['left', 'center', 'right'], 'ティーショット方向') ??
     validateEnum(data.teeShotFb, ['short', 'center', 'long'], 'ティーショット距離') ??
     validateIntRange(data.obCount, 0, 10, 'OB数') ??
