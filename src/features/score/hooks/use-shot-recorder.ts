@@ -69,6 +69,8 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
   // アンマウント時にタイマークリーンアップ + 未保存データの保存
   const holeNumberRef = useRef(holeNumber);
   useEffect(() => { holeNumberRef.current = holeNumber; }, [holeNumber]);
+  const roundIdRef = useRef(roundId);
+  useEffect(() => { roundIdRef.current = roundId; }, [roundId]);
 
   useEffect(() => {
     return () => {
@@ -77,13 +79,13 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
       const snapshot = stateRef.current;
       const adviceSnapshot = adviceMapRef.current;
       const hole = holeNumberRef.current;
-      // collectPendingShots は同期処理なのでクリーンアップ内で安全に呼べる
-      const payload = collectPendingShotsSync(snapshot, adviceSnapshot, roundId, hole);
+      const rid = roundIdRef.current;
+      const payload = collectPendingShotsSync(snapshot, adviceSnapshot, rid, hole);
       if (payload.shots.length > 0) {
         saveShotsForHole(payload).catch(() => {});
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const collectPendingShots = useCallback((
     snapshotState: FormsState,

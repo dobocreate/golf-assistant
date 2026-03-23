@@ -387,61 +387,32 @@ export async function saveShotsForHole(data: {
     if (validationError) return { error: `第${shot.shotNumber}打: ${validationError}` };
   }
 
-  const newShots = data.shots.filter(s => !s.id);
-  const existingShots = data.shots.filter(s => s.id);
+  // 全ショットを1回のupsertでアトミックに保存（INSERT+UPDATE）
+  const upsertRows = data.shots.map(s => ({
+    ...(s.id ? { id: s.id } : {}),
+    round_id: data.roundId,
+    hole_number: data.holeNumber,
+    shot_number: s.shotNumber,
+    club: s.club,
+    result: s.result,
+    miss_type: s.missType,
+    direction_lr: s.directionLr,
+    direction_fb: s.directionFb,
+    lie: s.lie,
+    slope_fb: s.slopeFb,
+    slope_lr: s.slopeLr,
+    landing: s.landing,
+    shot_type: s.shotType,
+    remaining_distance: s.remainingDistance,
+    note: s.note,
+    advice_text: s.adviceText,
+  }));
 
-  // 新規ショットを一括INSERT
-  if (newShots.length > 0) {
-    const { error: insertErr } = await supabase
-      .from('shots')
-      .insert(newShots.map(s => ({
-        round_id: data.roundId,
-        hole_number: data.holeNumber,
-        shot_number: s.shotNumber,
-        club: s.club,
-        result: s.result,
-        miss_type: s.missType,
-        direction_lr: s.directionLr,
-        direction_fb: s.directionFb,
-        lie: s.lie,
-        slope_fb: s.slopeFb,
-        slope_lr: s.slopeLr,
-        landing: s.landing,
-        shot_type: s.shotType,
-        remaining_distance: s.remainingDistance,
-        note: s.note,
-        advice_text: s.adviceText,
-      })));
-    if (insertErr) return { error: 'ショットの保存に失敗しました。' };
-  }
+  const { error: upsertErr } = await supabase
+    .from('shots')
+    .upsert(upsertRows, { onConflict: 'id' });
 
-  // 既存ショットを個別UPDATE（並列実行）
-  if (existingShots.length > 0) {
-    const updates = existingShots.map(s =>
-      supabase
-        .from('shots')
-        .update({
-          club: s.club,
-          result: s.result,
-          miss_type: s.missType,
-          direction_lr: s.directionLr,
-          direction_fb: s.directionFb,
-          lie: s.lie,
-          slope_fb: s.slopeFb,
-          slope_lr: s.slopeLr,
-          landing: s.landing,
-          shot_type: s.shotType,
-          remaining_distance: s.remainingDistance,
-          note: s.note,
-          advice_text: s.adviceText,
-        })
-        .eq('id', s.id!)
-        .eq('round_id', data.roundId)
-        .eq('hole_number', data.holeNumber)
-    );
-    const results = await Promise.all(updates);
-    if (results.some(r => r.error)) return { error: 'ショットの更新に失敗しました。' };
-  }
+  if (upsertErr) return { error: 'ショットの保存に失敗しました。' };
 
   // 保存後の全ショットを返却（revalidatePathは呼ばない）
   const { data: savedShots } = await supabase
