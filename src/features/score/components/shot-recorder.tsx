@@ -53,6 +53,21 @@ const DIRECTION_GRID: { lr: DirectionLR; fb: DirectionFB; label: string }[] = [
   { lr: 'right', fb: 'short', label: '↘' },
 ];
 
+const SKIPPED_SHOT_PAYLOAD = {
+  club: null,
+  result: null,
+  missType: null,
+  directionLr: null,
+  directionFb: null,
+  lie: null,
+  slopeFb: null,
+  slopeLr: null,
+  landing: null,
+  shotType: null,
+  remainingDistance: null,
+  note: null,
+} as const;
+
 function emptyShotForm(): ShotFormState {
   return {
     club: null,
@@ -108,6 +123,7 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
 
 type FormsAction =
   | { type: 'INIT'; shots: Shot[] }
+  | { type: 'ADD_SHOT'; shot: Shot }
   | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
   | { type: 'CLEAR_INDEX'; index: number }
   | { type: 'CLEAR_ALL' };
@@ -121,6 +137,9 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
   switch (action.type) {
     case 'INIT':
       return { forms: new Map(), shots: action.shots };
+
+    case 'ADD_SHOT':
+      return { ...state, shots: [...state.shots, action.shot] };
 
     case 'UPDATE_FIELD': {
       const next = new Map(state.forms);
@@ -153,6 +172,7 @@ interface ShotSlot {
   distance: number | null;
   lieLabel: string | null;
   hasAdvice: boolean;
+  isSkipped: boolean;
 }
 
 export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) {
@@ -195,6 +215,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
       distance: shot.remaining_distance,
       lieLabel: shot.lie ? (LIE_DB_TO_LABEL[shot.lie] ?? null) : null,
       hasAdvice: !!shot.advice_text,
+      isSkipped: shot.result === null && shot.club === null,
     })),
     {
       index: shots.length,
@@ -206,6 +227,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
       distance: null,
       lieLabel: null,
       hasAdvice: false,
+      isSkipped: false,
     },
   ];
 
@@ -251,12 +273,31 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        dispatch({ type: 'INIT', shots: [...shots, result.shot] });
+        dispatch({ type: 'ADD_SHOT', shot: result.shot });
         // Expand the new empty slot
         setExpandedIndex(shots.length + 1);
       }
     });
   }, [roundId, holeNumber, shots, getForm]);
+
+  // Skip shot (record with all fields null)
+  const handleSkipShot = useCallback((shotNumber: number) => {
+    startTransition(async () => {
+      const result = await recordShot({
+        roundId,
+        holeNumber,
+        shotNumber,
+        ...SKIPPED_SHOT_PAYLOAD,
+      });
+      if (result.error) {
+        setError(result.error);
+      } else if (result.shot) {
+        setError(null);
+        dispatch({ type: 'ADD_SHOT', shot: result.shot });
+        setExpandedIndex(shots.length + 1);
+      }
+    });
+  }, [roundId, holeNumber, shots]);
 
   // Update existing shot
   const handleUpdateShot = useCallback((slotIndex: number, shot: Shot) => {
@@ -326,6 +367,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
                 {slot.shotTypeLabel && <span className="text-gray-400">{slot.shotTypeLabel}</span>}
                 {slot.distance != null && <span className="text-gray-400">{slot.distance}y</span>}
                 {slot.lieLabel && <span className="text-gray-400">{slot.lieLabel}</span>}
+                {slot.isSkipped && <span className="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">スキップ</span>}
                 {slot.hasAdvice && <span className="text-blue-400 text-xs">AI</span>}
               </div>
               <span className="text-gray-500">{isExpanded ? '\u25B2' : '\u25BC'}</span>
@@ -334,6 +376,12 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
             {/* Expanded form */}
             {isExpanded && (
               <div className="p-3 space-y-3 bg-gray-900">
+                {/* Skipped shot hint */}
+                {slot.isSkipped && (
+                  <p className="text-xs text-gray-500 bg-gray-800 rounded px-3 py-2">
+                    このショットはスキップされました。入力して更新すると記録できます。
+                  </p>
+                )}
                 {/* Club selection */}
                 {clubs.length > 0 && (
                   <div className="space-y-1">
@@ -622,15 +670,24 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
                 </div>
 
                 {/* Record/Update button */}
-                <div>
+                <div className="space-y-2">
                   {slot.isNew ? (
-                    <button
-                      onClick={() => handleRecordShot(slot.index, slot.shotNumber)}
-                      disabled={form.result === null || isPending}
-                      className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isPending ? '記録中...' : '記録'}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleRecordShot(slot.index, slot.shotNumber)}
+                        disabled={form.result === null || isPending}
+                        className="w-full min-h-[48px] flex items-center justify-center rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isPending ? '記録中...' : '記録'}
+                      </button>
+                      <button
+                        onClick={() => handleSkipShot(slot.shotNumber)}
+                        disabled={isPending}
+                        className="w-full min-h-[48px] flex items-center justify-center rounded-lg border border-gray-600 px-3 py-3 text-sm font-bold text-gray-400 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isPending ? 'スキップ中...' : 'スキップ'}
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => handleUpdateShot(slot.index, slot.shot!)}
