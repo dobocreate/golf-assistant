@@ -62,20 +62,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
     return holeOrder[0];
   });
-  // PlayRoundContext の currentHole をローカルステートと同期
+  // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
   }, [playRound, currentHole]);
-  // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
-  const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
-  const prevContextHole = useRef(playRound?.currentHole ?? holeOrder[0]);
-  useEffect(() => {
-    const ctxHole = playRound?.currentHole;
-    if (ctxHole && ctxHole !== prevContextHole.current && ctxHole !== currentHole) {
-      prevContextHole.current = ctxHole;
-      switchHoleRef.current(ctxHole);
-    }
-  }, [playRound?.currentHole, currentHole]);
   const [scores, setScores] = useState<Map<number, Score>>(() => {
     const map = new Map<number, Score>();
     for (const s of initialScores) {
@@ -240,8 +230,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setUserTouched(s !== undefined);
   }, [saveHole, hasChanges, roundId]);
 
-  // switchHole ref を最新に保持（Context同期用）
-  useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
 
   // スコアラベル
   const getScoreLabel = (s: number, par: number) => {
