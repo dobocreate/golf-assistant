@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
+import { CompanionScoresPanel } from '@/features/score/components/companion-scores';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score } from '@/features/score/types';
+import type { Score, Companion, CompanionScore } from '@/features/score/types';
 
 interface HoleInfo {
   hole_number: number;
@@ -19,6 +20,11 @@ interface ClubOption {
   name: string;
 }
 
+interface CompanionWithScores {
+  companion: Companion;
+  scores: CompanionScore[];
+}
+
 interface ScoreInputProps {
   roundId: string;
   holes: HoleInfo[];
@@ -27,6 +33,7 @@ interface ScoreInputProps {
   clubs?: ClubOption[];
   editMode?: boolean;
   startingCourse?: 'out' | 'in';
+  companionData?: CompanionWithScores[];
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -46,7 +53,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out' }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', companionData = [] }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
@@ -366,6 +373,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         holeNumber={currentHole}
         clubs={clubs}
       />
+
+      {/* 同伴者スコア */}
+      {companionData.length > 0 && (
+        <CompanionScoresPanel
+          roundId={roundId}
+          companions={companionData}
+          currentHole={currentHole}
+          prevHole={prevHole}
+        />
+      )}
 
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">

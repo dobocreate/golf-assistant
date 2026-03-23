@@ -1,5 +1,6 @@
 import { getScoresWithHoles } from '@/actions/score';
 import { getClubs } from '@/actions/club';
+import { getCompanionScores } from '@/actions/companion';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import { ScoreInput } from '@/features/score/components/score-input';
@@ -18,9 +19,10 @@ export default async function ScoreInputPage({
   const { edit } = await searchParams;
   const editMode = edit === '1';
 
-  const [data, clubs] = await Promise.all([
+  const [data, clubs, companionData] = await Promise.all([
     getScoresWithHoles(roundId),
     getClubs(),
+    getCompanionScores(roundId),
   ]);
 
   if (!data) notFound();
@@ -34,6 +36,7 @@ export default async function ScoreInputPage({
       clubs={clubs.map(c => ({ name: c.name }))}
       editMode={editMode}
       startingCourse={data.round.startingCourse}
+      companionData={companionData}
     />
   );
 }

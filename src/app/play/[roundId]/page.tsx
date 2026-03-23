@@ -1,8 +1,10 @@
 import { getRoundWithCourse } from '@/actions/round';
+import { getCompanions } from '@/actions/companion';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Pencil, CheckCircle } from 'lucide-react';
+import { CompanionManager } from '@/features/companion/components/companion-manager';
 
 export default async function PlayMainPage({
   params,
@@ -13,7 +15,10 @@ export default async function PlayMainPage({
   if (!user) redirect('/auth/login');
 
   const { roundId } = await params;
-  const round = await getRoundWithCourse(roundId);
+  const [round, companions] = await Promise.all([
+    getRoundWithCourse(roundId),
+    getCompanions(roundId),
+  ]);
 
   if (!round) notFound();
 
@@ -34,6 +39,9 @@ export default async function PlayMainPage({
           </p>
         )}
       </div>
+
+      {/* 同伴者管理 */}
+      <CompanionManager roundId={roundId} initialCompanions={companions} />
 
       {/* アクションボタン */}
       <div className="space-y-3">
