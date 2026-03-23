@@ -226,10 +226,17 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     scoresRef.current = scores;
   }, [scores]);
 
+  // 現在の入力値を ref で保持（switchHole の依存配列を最小化するため）
+  const currentInputRef = useRef({ strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched });
+  useEffect(() => {
+    currentInputRef.current = { strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched };
+  }, [strokes, putts, greenInReg, currentHole, score?.id, userTouched]);
+
   // ホール切り替え時に未保存データがあれば自動保存（ユーザーが操作済みの場合のみ）
   const switchHole = useCallback((holeNum: number) => {
-    if (userTouched && strokes !== null && hasChanges(currentHole, strokes, putts, greenInReg)) {
-      saveHole(currentHole, strokes, putts, greenInReg, score?.id);
+    const { strokes: st, putts: pt, greenInReg: gir, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
+    if (touched && st !== null && hasChanges(ch, st, pt, gir)) {
+      saveHole(ch, st, pt, gir, scoreId);
     }
     setCurrentHole(holeNum);
     // 現在ホールを localStorage に保存（再開時に復元用）
@@ -242,7 +249,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     setUserTouched(s !== undefined);
-  }, [userTouched, strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges, roundId]);
+  }, [saveHole, hasChanges, roundId]);
 
   // switchHole ref を最新に保持（Context同期用）
   useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
