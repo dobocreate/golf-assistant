@@ -26,7 +26,7 @@ const VALID_RESULTS: ShotResult[] = ['excellent', 'good', 'fair', 'poor'];
 const VALID_MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
 const VALID_DIRECTION_LR: DirectionLR[] = ['left', 'center', 'right'];
 const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
-import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
+import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import type { ShotType } from '@/features/score/types';
 const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
 
@@ -94,6 +94,7 @@ export async function recordShot(data: {
   landing: string | null;
   shotType: string | null;
   remainingDistance: number | null;
+  note?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -122,6 +123,9 @@ export async function recordShot(data: {
 
   if (!round) return { error: 'ラウンドが見つかりません。' };
 
+  const note = data.note?.trim() || null;
+  if (note !== null && note.length > SHOT_NOTE_MAX_LENGTH) return { error: `メモは${SHOT_NOTE_MAX_LENGTH}文字以内で入力してください。` };
+
   const { data: shot, error } = await supabase
     .from('shots')
     .insert({
@@ -139,6 +143,7 @@ export async function recordShot(data: {
       landing: data.landing,
       shot_type: data.shotType,
       remaining_distance: data.remainingDistance,
+      note,
     })
     .select('*')
     .single();
@@ -163,6 +168,7 @@ export async function updateShot(data: {
   landing: string | null;
   shotType: string | null;
   remainingDistance: number | null;
+  note?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -186,6 +192,9 @@ export async function updateShot(data: {
 
   if (!round) return { error: 'ラウンドが見つかりません。' };
 
+  const note = data.note?.trim() || null;
+  if (note !== null && note.length > SHOT_NOTE_MAX_LENGTH) return { error: `メモは${SHOT_NOTE_MAX_LENGTH}文字以内で入力してください。` };
+
   const { data: shot, error } = await supabase
     .from('shots')
     .update({
@@ -200,6 +209,7 @@ export async function updateShot(data: {
       landing: data.landing,
       shot_type: data.shotType,
       remaining_distance: data.remainingDistance,
+      note,
     })
     .eq('id', data.shotId)
     .eq('round_id', data.roundId)

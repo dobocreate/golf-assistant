@@ -43,6 +43,7 @@ export interface Shot {
   shot_type: ShotType | null;
   remaining_distance: number | null;
   advice_text: string | null;
+  note: string | null;
 }
 
 export interface ShotFormState {
@@ -57,6 +58,7 @@ export interface ShotFormState {
   landing: ShotLanding | null;
   shotType: ShotType | null;
   remainingDistance: number | null;
+  note: string | null;
 }
 
 export interface AdviceHistoryItem {

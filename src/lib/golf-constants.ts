@@ -58,6 +58,8 @@ export const SHOT_TYPE_OPTIONS: readonly { value: ShotType; label: string }[] = 
 
 export const VALID_SHOT_TYPES: ShotType[] = SHOT_TYPE_OPTIONS.map(s => s.value);
 
+export const SHOT_NOTE_MAX_LENGTH = 500;
+
 export const SHOT_TYPE_DB_TO_LABEL: Record<string, string> = Object.fromEntries(
   SHOT_TYPE_OPTIONS.map(s => [s.value, s.label])
 );
