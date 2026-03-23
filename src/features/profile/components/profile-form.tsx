@@ -4,10 +4,10 @@ import { useActionState } from 'react';
 import { upsertProfile } from '@/actions/profile';
 import { PLAY_STYLES, type Profile } from '@/features/profile/types';
 
-interface FormState {
-  error?: string;
-  success?: boolean;
-}
+type FormState =
+  | { success: true; error?: never }
+  | { error: string; success?: never }
+  | {};
 
 async function profileAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const result = await upsertProfile(formData);
@@ -129,10 +129,10 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
         />
       </div>
 
-      {state.error && (
+      {'error' in state && state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       )}
-      {state.success && !isPending && (
+      {'success' in state && state.success && !isPending && (
         <p role="status" className="text-sm text-green-700 dark:text-green-400">
           プロファイルを保存しました。
         </p>
