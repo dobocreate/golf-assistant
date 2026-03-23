@@ -66,6 +66,7 @@ function emptyShotForm(): ShotFormState {
     landing: null,
     shotType: null,
     remainingDistance: null,
+    note: null,
   };
 }
 
@@ -82,6 +83,7 @@ function shotToForm(shot: Shot): ShotFormState {
     landing: shot.landing,
     shotType: shot.shot_type,
     remainingDistance: shot.remaining_distance,
+    note: shot.note,
   };
 }
 
@@ -97,7 +99,8 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.slopeLr !== shot.slope_lr ||
     form.landing !== shot.landing ||
     form.shotType !== shot.shot_type ||
-    form.remainingDistance !== shot.remaining_distance
+    form.remainingDistance !== shot.remaining_distance ||
+    form.note !== shot.note
   );
 }
 
@@ -242,6 +245,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
         landing: form.landing,
         shotType: form.shotType,
         remainingDistance: form.remainingDistance,
+        note: form.note,
       });
       if (result.error) {
         setError(result.error);
@@ -274,6 +278,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
         landing: form.landing,
         shotType: form.shotType,
         remainingDistance: form.remainingDistance,
+        note: form.note,
       });
       if (result.error) {
         setError(result.error);
@@ -602,6 +607,19 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
                   shotType={form.shotType}
                   remainingDistance={form.remainingDistance}
                 />
+
+                {/* Shot note */}
+                <div className="space-y-1">
+                  <label className="block text-xs text-gray-400">メモ</label>
+                  <textarea
+                    value={form.note ?? ''}
+                    onChange={e => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, note: e.target.value || null }) })}
+                    placeholder="気づき・反省点など"
+                    maxLength={500}
+                    rows={2}
+                    className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-base border-0 focus:ring-2 focus:ring-green-600 resize-none"
+                  />
+                </div>
 
                 {/* Record/Update button */}
                 <div>
