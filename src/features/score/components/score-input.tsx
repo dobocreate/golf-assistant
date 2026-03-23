@@ -59,8 +59,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
-  const playRoundRef = useRef(playRound);
-  useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -75,10 +73,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
     return holeOrder[0];
   });
-  // PlayRoundContext の初期ホールを currentHole に同期
+  // PlayRoundContext の currentHole をローカルステートと同期
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
-  }, [playRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playRound, currentHole]);
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
   const prevContextHole = useRef(playRound?.currentHole ?? holeOrder[0]);
@@ -232,7 +230,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
-    playRoundRef.current?.setCurrentHole(holeNum);
     // 現在ホールを localStorage に保存（再開時に復元用）
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
     // 保存状態をリセット（前ホールの状態を引きずらない）

@@ -21,6 +21,7 @@ export function CourseSearch() {
 
     setLoading(true);
     setError(null);
+    setResults([]);
 
     try {
       const res = await fetch(`/api/courses/search?q=${encodeURIComponent(query.trim())}`);
