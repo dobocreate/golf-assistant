@@ -33,7 +33,7 @@ export default async function ScoreInputPage({
       courseName={data.round.courseName}
       clubs={clubs.map(c => ({ name: c.name }))}
       editMode={editMode}
-      startingCourse={data.round.startingCourse === 'in' ? 'in' : 'out'}
+      startingCourse={data.round.startingCourse}
     />
   );
 }

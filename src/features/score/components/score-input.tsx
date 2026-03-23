@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
+import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
@@ -49,15 +49,15 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out' }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
-  const holeOrder = getHoleOrder(startingCourse);
+  const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
   const playRoundRef = useRef(playRound);
   useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
   const [currentHole, setCurrentHole] = useState(holeOrder[0]);
   // PlayRoundContext の初期ホールをスタートコースに同期
   useEffect(() => {
-    playRoundRef.current?.setCurrentHole(holeOrder[0]);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    playRound?.setCurrentHole(holeOrder[0]);
+  }, [playRound, holeOrder]);
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
   const prevContextHole = useRef(playRound?.currentHole ?? holeOrder[0]);

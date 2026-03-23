@@ -36,7 +36,7 @@ export async function startRound(formData: FormData) {
     return { error: '選択されたコースが見つかりません。' };
   }
 
-  const startingCourse = formData.get('starting_course') as string;
+  const startingCourse = formData.get('starting_course');
   if (startingCourse !== 'out' && startingCourse !== 'in') {
     return { error: 'スタートコースを選択してください。' };
   }

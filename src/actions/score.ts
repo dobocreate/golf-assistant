@@ -162,7 +162,7 @@ export async function getScoresWithHoles(roundId: string) {
       courseId: round.course_id,
       courseName: ((round.courses as unknown) as { name: string } | null)?.name ?? '',
       status: round.status as string,
-      startingCourse: (round.starting_course as string) ?? 'out',
+      startingCourse: (round.starting_course === 'in' ? 'in' : 'out') as 'out' | 'in',
     },
     holes: holesResult.data ?? [],
     scores: (scoresResult.data as Score[]) ?? [],
