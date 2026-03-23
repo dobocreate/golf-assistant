@@ -5,31 +5,30 @@ import { Mic, MicOff } from 'lucide-react';
 import { useAdviceStream } from '@/hooks/use-advice-stream';
 import { useSpeechRecognition } from '@/features/voice/hooks/use-speech-recognition';
 import { AdviceDisplay } from '@/features/advice/components/advice-display';
-import { updateShotAdvice } from '@/actions/shot';
-import type { Shot, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotType } from '@/features/score/types';
+import type { ShotLie, ShotSlopeFB, ShotSlopeLR, ShotType } from '@/features/score/types';
 
 interface AdvicePanelProps {
   roundId: string;
   holeNumber: number;
   shotNumber: number | null;
-  currentShot: Shot | null;
   lie: ShotLie | null;
   slopeFb: ShotSlopeFB | null;
   slopeLr: ShotSlopeLR | null;
   shotType: ShotType | null;
   remainingDistance: number | null;
+  onAdviceReceived?: (text: string) => void;
 }
 
 export function AdvicePanel({
   roundId,
   holeNumber,
   shotNumber,
-  currentShot,
   lie,
   slopeFb,
   slopeLr,
   shotType,
   remainingDistance,
+  onAdviceReceived,
 }: AdvicePanelProps) {
   const { adviceText, isStreaming, error, requestAdvice } = useAdviceStream();
   const {
@@ -74,29 +73,20 @@ export function AdvicePanel({
     });
   }, [isStreaming, requestAdvice, roundId, holeNumber, shotType, remainingDistance, lie, slopeFb, slopeLr, notes]);
 
-  // Save advice to shot after streaming completes
+  // アドバイス取得完了時にコールバックで親に通知（DB保存は親が管理）
   const prevAdviceText = useRef('');
   useEffect(() => {
     if (!isStreaming && adviceText && adviceText !== prevAdviceText.current) {
       prevAdviceText.current = adviceText;
-
-      // Save to DB if shot exists
-      if (currentShot && shotNumber) {
-        updateShotAdvice({
-          roundId,
-          holeNumber,
-          shotNumber,
-          adviceText,
-        }).catch(e => console.error('Advice save error:', e));
-      }
+      onAdviceReceived?.(adviceText);
     }
-  }, [isStreaming, adviceText, currentShot, roundId, holeNumber, shotNumber]);
+  }, [isStreaming, adviceText, onAdviceReceived]);
 
   return (
     <div className="space-y-3">
       <label className="block text-sm font-bold text-gray-200">AIアドバイス</label>
 
-      {/* Supplementary notes input: textarea + mic side by side */}
+      {/* 補足入力: textarea + マイク */}
       <div className="flex items-start gap-2">
         <textarea
           value={notes}
@@ -125,7 +115,7 @@ export function AdvicePanel({
         <span className="text-xs text-red-400 animate-pulse">音声認識中...</span>
       )}
 
-      {/* Advice button */}
+      {/* アドバイスボタン */}
       <button
         onClick={handleRequestAdvice}
         disabled={isStreaming}
@@ -134,7 +124,7 @@ export function AdvicePanel({
         {isStreaming ? 'アドバイス取得中...' : 'アドバイスを聞く'}
       </button>
 
-      {/* Advice display */}
+      {/* アドバイス表示 */}
       <div ref={adviceRef}>
         <AdviceDisplay
           text={adviceText}
@@ -142,14 +132,7 @@ export function AdvicePanel({
         />
       </div>
 
-      {/* Unsaved shot guidance */}
-      {!currentShot && adviceText && !isStreaming && (
-        <p className="text-xs text-gray-400 text-center">
-          ショットを記録するとアドバイスが保存されます
-        </p>
-      )}
-
-      {/* Error display */}
+      {/* エラー */}
       {error && (
         <div className="rounded-lg bg-red-900/50 border border-red-700 p-3 text-sm text-red-200">
           {error}

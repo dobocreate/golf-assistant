@@ -332,3 +332,124 @@ export async function deleteShot(shotId: string, roundId: string): Promise<{ err
   revalidatePath(`/play/${roundId}/score`);
   return {};
 }
+
+/** ホール単位のバッチ保存（ホール切替時に一括保存） */
+export async function saveShotsForHole(data: {
+  roundId: string;
+  holeNumber: number;
+  shots: Array<{
+    id?: string;
+    shotNumber: number;
+    club: string | null;
+    result: string | null;
+    missType: string | null;
+    directionLr: string | null;
+    directionFb: string | null;
+    lie: string | null;
+    slopeFb: string | null;
+    slopeLr: string | null;
+    landing: string | null;
+    shotType: string | null;
+    remainingDistance: number | null;
+    note: string | null;
+    adviceText: string | null;
+  }>;
+}): Promise<{ error?: string; shots?: Shot[] }> {
+  if (data.shots.length === 0) return { shots: [] };
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
+    return { error: 'ホール番号が不正です。' };
+  }
+
+  const { error: authError, supabase } = await verifyRoundOwnership(data.roundId, 'in_progress');
+  if (authError || !supabase) return { error: authError ?? 'エラー' };
+
+  // 全ショットをバリデーション
+  for (const shot of data.shots) {
+    if (!Number.isInteger(shot.shotNumber) || shot.shotNumber < 1 || shot.shotNumber > 20) {
+      return { error: `ショット番号 ${shot.shotNumber} が不正です。` };
+    }
+    if (shot.note && shot.note.length > SHOT_NOTE_MAX_LENGTH) {
+      return { error: `第${shot.shotNumber}打: メモが長すぎます。` };
+    }
+    const validationError = validateShotFields({
+      club: shot.club,
+      result: shot.result as ShotResult | null,
+      missType: shot.missType,
+      directionLr: shot.directionLr,
+      directionFb: shot.directionFb,
+      lie: shot.lie,
+      slopeFb: shot.slopeFb,
+      slopeLr: shot.slopeLr,
+      landing: shot.landing,
+      shotType: shot.shotType,
+      remainingDistance: shot.remainingDistance,
+    });
+    if (validationError) return { error: `第${shot.shotNumber}打: ${validationError}` };
+  }
+
+  const newShots = data.shots.filter(s => !s.id);
+  const existingShots = data.shots.filter(s => s.id);
+
+  // 新規ショットを一括INSERT
+  if (newShots.length > 0) {
+    const { error: insertErr } = await supabase
+      .from('shots')
+      .insert(newShots.map(s => ({
+        round_id: data.roundId,
+        hole_number: data.holeNumber,
+        shot_number: s.shotNumber,
+        club: s.club,
+        result: s.result,
+        miss_type: s.missType,
+        direction_lr: s.directionLr,
+        direction_fb: s.directionFb,
+        lie: s.lie,
+        slope_fb: s.slopeFb,
+        slope_lr: s.slopeLr,
+        landing: s.landing,
+        shot_type: s.shotType,
+        remaining_distance: s.remainingDistance,
+        note: s.note,
+        advice_text: s.adviceText,
+      })));
+    if (insertErr) return { error: 'ショットの保存に失敗しました。' };
+  }
+
+  // 既存ショットを個別UPDATE（並列実行）
+  if (existingShots.length > 0) {
+    const updates = existingShots.map(s =>
+      supabase
+        .from('shots')
+        .update({
+          club: s.club,
+          result: s.result,
+          miss_type: s.missType,
+          direction_lr: s.directionLr,
+          direction_fb: s.directionFb,
+          lie: s.lie,
+          slope_fb: s.slopeFb,
+          slope_lr: s.slopeLr,
+          landing: s.landing,
+          shot_type: s.shotType,
+          remaining_distance: s.remainingDistance,
+          note: s.note,
+          advice_text: s.adviceText,
+        })
+        .eq('id', s.id!)
+        .eq('round_id', data.roundId)
+        .eq('hole_number', data.holeNumber)
+    );
+    const results = await Promise.all(updates);
+    if (results.some(r => r.error)) return { error: 'ショットの更新に失敗しました。' };
+  }
+
+  // 保存後の全ショットを返却（revalidatePathは呼ばない）
+  const { data: savedShots } = await supabase
+    .from('shots')
+    .select('*')
+    .eq('round_id', data.roundId)
+    .eq('hole_number', data.holeNumber)
+    .order('shot_number');
+
+  return { shots: (savedShots as Shot[]) ?? [] };
+}
