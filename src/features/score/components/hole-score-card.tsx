@@ -1,12 +1,6 @@
 'use client';
 
-import type { Score } from '@/features/score/types';
-
-interface HoleInfo {
-  hole_number: number;
-  par: number;
-  distance: number | null;
-}
+import type { Score, HoleInfo } from '@/features/score/types';
 
 interface HoleScoreCardProps {
   holes: HoleInfo[];

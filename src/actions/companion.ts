@@ -4,13 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Companion, CompanionScore } from '@/features/score/types';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 async function verifyRoundOwnership(roundId: string) {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' as const, supabase: null };
-  if (!UUID_RE.test(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null };
 
   const supabase = await createClient();
   const { data: round } = await supabase
@@ -69,7 +68,7 @@ export async function addCompanion(roundId: string, name: string): Promise<{ err
 }
 
 export async function deleteCompanion(roundId: string, companionId: string): Promise<{ error?: string }> {
-  if (!UUID_RE.test(companionId)) return { error: 'IDが不正です。' };
+  if (!isValidUUID(companionId)) return { error: 'IDが不正です。' };
 
   const { error, supabase } = await verifyRoundOwnership(roundId);
   if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
@@ -112,7 +111,7 @@ export async function upsertCompanionScore(data: {
   strokes: number | null;
   putts: number | null;
 }): Promise<{ error?: string }> {
-  if (!UUID_RE.test(data.companionId)) return { error: 'IDが不正です。' };
+  if (!isValidUUID(data.companionId)) return { error: 'IDが不正です。' };
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
   }

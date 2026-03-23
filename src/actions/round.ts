@@ -5,15 +5,14 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Round, RoundWithCourse } from '@/features/round/types';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 export async function startRound(formData: FormData) {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
   const courseId = formData.get('course_id') as string;
-  if (!courseId || !UUID_RE.test(courseId)) {
+  if (!courseId || !isValidUUID(courseId)) {
     return { error: 'コースを選択してください。' };
   }
 
@@ -66,7 +65,7 @@ export async function startRound(formData: FormData) {
 export async function getRound(roundId: string): Promise<Round | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
-  if (!UUID_RE.test(roundId)) return null;
+  if (!isValidUUID(roundId)) return null;
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -82,7 +81,7 @@ export async function getRound(roundId: string): Promise<Round | null> {
 export async function getRoundWithCourse(roundId: string): Promise<RoundWithCourse | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
-  if (!UUID_RE.test(roundId)) return null;
+  if (!isValidUUID(roundId)) return null;
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -120,7 +119,7 @@ export async function completeRound(
   if (!user) return { error: 'ログインが必要です。' };
 
   const roundId = formData.get('roundId') as string;
-  if (!roundId || !UUID_RE.test(roundId)) {
+  if (!roundId || !isValidUUID(roundId)) {
     return { error: 'ラウンドIDが不正です。' };
   }
 

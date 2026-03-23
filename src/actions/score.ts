@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Score } from '@/features/score/types';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 function validateIntRange(value: number, min: number, max: number, label: string): string | null {
   if (!Number.isInteger(value) || value < min || value > max) return `${label}が不正です。`;
@@ -33,7 +32,7 @@ export async function upsertScore(data: {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
 
   const validationError =
     validateIntRange(data.holeNumber, 1, 18, 'ホール番号') ??
@@ -103,7 +102,7 @@ export async function upsertScore(data: {
 export async function getScores(roundId: string): Promise<Score[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
-  if (!UUID_RE.test(roundId)) return [];
+  if (!isValidUUID(roundId)) return [];
 
   const supabase = await createClient();
 
@@ -128,7 +127,7 @@ export async function getScores(roundId: string): Promise<Score[]> {
 export async function getScoresWithHoles(roundId: string) {
   const user = await getAuthenticatedUser();
   if (!user) return null;
-  if (!UUID_RE.test(roundId)) return null;
+  if (!isValidUUID(roundId)) return null;
 
   const supabase = await createClient();
 

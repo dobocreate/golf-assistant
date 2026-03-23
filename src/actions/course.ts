@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Course } from '@/features/course/types';
+import { isValidUUID } from '@/lib/utils';
 
 function parseOptionalInt(raw: string | null | undefined): number | null {
   if (!raw) return null;
@@ -84,12 +85,11 @@ export async function saveCourse(data: SaveCourseData): Promise<{ error?: string
   return { courseId: course.id };
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function getCourseWithHoles(courseId: string) {
   const user = await getAuthenticatedUser();
   if (!user) return { course: null, holes: [], holeNotes: [] };
-  if (!UUID_RE.test(courseId)) return { course: null, holes: [], holeNotes: [] };
+  if (!isValidUUID(courseId)) return { course: null, holes: [], holeNotes: [] };
 
   const supabase = await createClient();
 
@@ -119,7 +119,7 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
   const parRaw = formData.get('par') as string;
   const distanceRaw = formData.get('distance') as string;
 
-  if (!courseId || !UUID_RE.test(courseId)) return { error: 'コースIDが不正です。' };
+  if (!courseId || !isValidUUID(courseId)) return { error: 'コースIDが不正です。' };
 
   const holeNumber = parseInt(holeNumberRaw, 10);
   if (isNaN(holeNumber) || holeNumber < 1 || holeNumber > 18) {
@@ -234,7 +234,7 @@ export async function importHoles(
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(courseId)) return { error: 'コースIDが不正です。' };
+  if (!isValidUUID(courseId)) return { error: 'コースIDが不正です。' };
 
   if (!Array.isArray(holes) || holes.length === 0) {
     return { error: 'ホールデータが必要です。' };

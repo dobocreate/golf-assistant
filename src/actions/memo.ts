@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 export interface Memo {
   id: string;
@@ -24,7 +23,7 @@ export async function saveMemo(data: {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
   }
@@ -67,7 +66,7 @@ export async function saveMemo(data: {
 export async function getMemos(roundId: string, holeNumber?: number): Promise<Memo[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
-  if (!UUID_RE.test(roundId)) return [];
+  if (!isValidUUID(roundId)) return [];
 
   const supabase = await createClient();
 
@@ -98,7 +97,7 @@ export async function deleteMemo(memoId: string): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(memoId)) return { error: 'メモIDが不正です。' };
+  if (!isValidUUID(memoId)) return { error: 'メモIDが不正です。' };
 
   const supabase = await createClient();
 

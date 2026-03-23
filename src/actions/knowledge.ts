@@ -5,8 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Knowledge } from '@/features/knowledge/types';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 function parseKnowledgeForm(formData: FormData): {
   data: { title: string; content: string; category: string | null; tags: string[]; source_url: string | null };
@@ -60,7 +59,7 @@ export async function getKnowledgeList(category?: string | null): Promise<Knowle
 export async function getKnowledge(id: string): Promise<Knowledge | null> {
   const user = await getAuthenticatedUser();
   if (!user) return null;
-  if (!UUID_RE.test(id)) return null;
+  if (!isValidUUID(id)) return null;
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -97,7 +96,7 @@ export async function updateKnowledge(formData: FormData): Promise<{ error?: str
   if (!user) return { error: 'ログインが必要です。' };
 
   const id = formData.get('id') as string;
-  if (!id || !UUID_RE.test(id)) return { error: 'IDが不正です。' };
+  if (!id || !isValidUUID(id)) return { error: 'IDが不正です。' };
 
   const parsed = parseKnowledgeForm(formData);
   if (parsed.error) return { error: parsed.error };
@@ -122,7 +121,7 @@ export async function updateKnowledge(formData: FormData): Promise<{ error?: str
 export async function deleteKnowledge(id: string): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
-  if (!UUID_RE.test(id)) return { error: 'IDが不正です。' };
+  if (!isValidUUID(id)) return { error: 'IDが不正です。' };
 
   const supabase = await createClient();
   const { error } = await supabase

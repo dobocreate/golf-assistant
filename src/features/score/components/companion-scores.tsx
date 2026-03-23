@@ -2,12 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
 import { upsertCompanionScore } from '@/actions/companion';
-import type { Companion, CompanionScore } from '@/features/score/types';
-
-interface CompanionWithScores {
-  companion: Companion;
-  scores: CompanionScore[];
-}
+import type { CompanionWithScores } from '@/features/score/types';
 
 interface CompanionScoresProps {
   roundId: string;
@@ -96,6 +91,8 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
     <div className="rounded-lg border border-gray-700 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="companion-scores-panel"
         className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
       >
         <span className="text-sm font-bold text-gray-200">
@@ -105,7 +102,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
       </button>
 
       {expanded && (
-        <div className="p-3 space-y-4 bg-gray-900">
+        <div id="companion-scores-panel" role="region" className="p-3 space-y-4 bg-gray-900">
           {companions.map(({ companion }) => {
             const score = getScore(companion.id, currentHole);
             return (
