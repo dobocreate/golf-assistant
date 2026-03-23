@@ -1,29 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useActionState } from 'react';
 import { upsertProfile } from '@/actions/profile';
 import { PLAY_STYLES, type Profile } from '@/features/profile/types';
 
-export function ProfileForm({ profile }: { profile: Profile | null }) {
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+interface FormState {
+  error?: string;
+  success?: boolean;
+}
 
-  async function handleSubmit(formData: FormData) {
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-    const result = await upsertProfile(formData);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setSuccess(true);
-    }
-    setLoading(false);
-  }
+async function profileAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const result = await upsertProfile(formData);
+  if (result.error) return { error: result.error };
+  return { success: true };
+}
+
+export function ProfileForm({ profile }: { profile: Profile | null }) {
+  const [state, action, isPending] = useActionState(profileAction, {});
 
   return (
-    <form action={handleSubmit} className="space-y-6">
+    <form action={action} className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="handicap" className="block text-sm font-medium mb-1">
@@ -133,10 +129,10 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
         />
       </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+      {state.error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       )}
-      {success && (
+      {state.success && !isPending && (
         <p role="status" className="text-sm text-green-700 dark:text-green-400">
           プロファイルを保存しました。
         </p>
@@ -144,10 +140,10 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={isPending}
         className="rounded-lg bg-primary px-6 py-2.5 text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {loading ? '保存中...' : '保存'}
+        {isPending ? '保存中...' : '保存'}
       </button>
     </form>
   );

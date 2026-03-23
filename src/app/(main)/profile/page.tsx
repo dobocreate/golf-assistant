@@ -2,6 +2,11 @@ import { getProfile } from '@/actions/profile';
 import { getClubs } from '@/actions/club';
 import { ProfileForm } from '@/features/profile/components/profile-form';
 import { ClubList } from '@/features/profile/components/club-list';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'プロファイル | Golf Assistant',
+};
 
 export default async function ProfilePage() {
   const [profile, clubs] = await Promise.all([getProfile(), getClubs()]);

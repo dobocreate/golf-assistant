@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/actions/profile';
 import { getActiveRound } from '@/actions/round';
 import { Flag, Search, Play, User, ArrowRight } from 'lucide-react';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'ダッシュボード | Golf Assistant',
+};
 
 export default async function Home() {
   const supabase = await createClient();
