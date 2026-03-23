@@ -26,6 +26,7 @@ interface ScoreInputProps {
   courseName: string;
   clubs?: ClubOption[];
   editMode?: boolean;
+  startingCourse?: 'out' | 'in';
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -37,16 +38,29 @@ function getDefaultHoles(): HoleInfo[] {
   }));
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false }: ScoreInputProps) {
+// ホール順序を生成: INスタートなら 10-18, 1-9
+function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
+  if (startingCourse === 'in') {
+    return [...Array.from({ length: 9 }, (_, i) => i + 10), ...Array.from({ length: 9 }, (_, i) => i + 1)];
+  }
+  return Array.from({ length: 18 }, (_, i) => i + 1);
+}
+
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out' }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
+  const holeOrder = getHoleOrder(startingCourse);
   const playRound = usePlayRoundOptional();
   const playRoundRef = useRef(playRound);
   useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
-  const [currentHole, setCurrentHole] = useState(1);
+  const [currentHole, setCurrentHole] = useState(holeOrder[0]);
+  // PlayRoundContext の初期ホールをスタートコースに同期
+  useEffect(() => {
+    playRoundRef.current?.setCurrentHole(holeOrder[0]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
-  const prevContextHole = useRef(playRound?.currentHole ?? 1);
+  const prevContextHole = useRef(playRound?.currentHole ?? holeOrder[0]);
   useEffect(() => {
     const ctxHole = playRound?.currentHole;
     if (ctxHole && ctxHole !== prevContextHole.current && ctxHole !== currentHole) {
@@ -214,6 +228,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // 合計パット数
   const totalPutts = Array.from(scores.values()).reduce((sum, s) => sum + (s.putts ?? 0), 0);
 
+  // ホール順序に基づく前後ホール
+  const currentIndex = holeOrder.indexOf(currentHole);
+  const prevHole = currentIndex > 0 ? holeOrder[currentIndex - 1] : null;
+  const nextHole = currentIndex < holeOrder.length - 1 ? holeOrder[currentIndex + 1] : null;
+
+  // ミニスコアカード用ホール配列
+  const firstNineHoles = holeOrder.slice(0, 9).map(n => holes.find(h => h.hole_number === n) ?? { hole_number: n, par: 4, distance: null });
+  const secondNineHoles = holeOrder.slice(9, 18).map(n => holes.find(h => h.hole_number === n) ?? { hole_number: n, par: 4, distance: null });
+
   // 初回表示時にデフォルト値を設定（strokes=Par, putts=2）
   useEffect(() => {
     if (strokes === null) setStrokes(hole.par);
@@ -238,8 +261,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ホールナビゲーション */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => currentHole > 1 && switchHole(currentHole - 1)}
-          disabled={currentHole <= 1}
+          onClick={() => prevHole !== null && switchHole(prevHole)}
+          disabled={prevHole === null}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
           aria-label="前のホール"
         >
@@ -255,8 +278,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
 
         <button
-          onClick={() => currentHole < 18 && switchHole(currentHole + 1)}
-          disabled={currentHole >= 18}
+          onClick={() => nextHole !== null && switchHole(nextHole)}
+          disabled={nextHole === null}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
           aria-label="次のホール"
         >
@@ -347,8 +370,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ホール一覧（ミニスコアカード） */}
       <div className="space-y-2">
         <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
-        <MiniScorecardRow holes={holes.slice(0, 9)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
-        <MiniScorecardRow holes={holes.slice(9, 18)} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
+        <MiniScorecardRow holes={firstNineHoles} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
+        <MiniScorecardRow holes={secondNineHoles} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
       </div>
 
       {/* ナビバー + フローティングボタン分のスペーサー */}

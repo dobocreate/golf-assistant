@@ -1,4 +1,5 @@
 export type RoundStatus = 'in_progress' | 'completed';
+export type StartingCourse = 'out' | 'in';
 
 export interface Round {
   id: string;
@@ -8,6 +9,7 @@ export interface Round {
   context_snapshot: Record<string, unknown> | null;
   total_score: number | null;
   status: RoundStatus;
+  starting_course: StartingCourse;
 }
 
 export interface RoundCourse {

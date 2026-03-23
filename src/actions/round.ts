@@ -36,6 +36,11 @@ export async function startRound(formData: FormData) {
     return { error: '選択されたコースが見つかりません。' };
   }
 
+  const startingCourse = formData.get('starting_course') as string;
+  if (startingCourse !== 'out' && startingCourse !== 'in') {
+    return { error: 'スタートコースを選択してください。' };
+  }
+
   // ラウンド作成
   const { data: round, error } = await supabase
     .from('rounds')
@@ -43,6 +48,7 @@ export async function startRound(formData: FormData) {
       user_id: user.id,
       course_id: courseId,
       played_at: playedAt,
+      starting_course: startingCourse,
       status: 'in_progress',
     })
     .select('id')
