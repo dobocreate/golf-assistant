@@ -48,6 +48,8 @@ export function CompanionManager({ roundId, initialCompanions }: CompanionManage
     <div className="rounded-lg border border-gray-700 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="companion-manager-panel"
         className="w-full flex items-center justify-between p-4 bg-gray-800 text-left"
       >
         <span className="text-lg font-bold text-white">
@@ -58,11 +60,11 @@ export function CompanionManager({ roundId, initialCompanions }: CompanionManage
             </span>
           )}
         </span>
-        <span className="text-gray-500">{expanded ? '\u25B2' : '\u25BC'}</span>
+        <span className="text-gray-400">{expanded ? '\u25B2' : '\u25BC'}</span>
       </button>
 
       {expanded && (
-        <div className="p-4 space-y-3 bg-gray-900">
+        <div id="companion-manager-panel" role="region" className="p-4 space-y-3 bg-gray-900">
           {companions.length > 0 ? (
             <div className="space-y-2">
               {companions.map(c => (

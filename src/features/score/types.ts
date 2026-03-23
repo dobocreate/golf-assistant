@@ -1,3 +1,9 @@
+export interface HoleInfo {
+  hole_number: number;
+  par: number;
+  distance: number | null;
+}
+
 export type TeeShotLR = 'left' | 'center' | 'right';
 export type TeeShotFB = 'short' | 'center' | 'long';
 
@@ -74,6 +80,11 @@ export interface CompanionScore {
   hole_number: number;
   strokes: number | null;
   putts: number | null;
+}
+
+export interface CompanionWithScores {
+  companion: Companion;
+  scores: CompanionScore[];
 }
 
 export interface AdviceHistoryItem {

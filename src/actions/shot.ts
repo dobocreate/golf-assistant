@@ -4,14 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, AdviceHistoryItem } from '@/features/score/types';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isValidUUID } from '@/lib/utils';
 
 /** 認証 + ラウンド所有権確認の共通ヘルパー */
 async function verifyRoundOwnership(roundId: string, statusFilter?: string) {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' as const, supabase: null, user: null };
-  if (!UUID_RE.test(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null, user: null };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null, user: null };
 
   const supabase = await createClient();
   let query = supabase.from('rounds').select('id').eq('id', roundId).eq('user_id', user.id);
@@ -99,7 +98,7 @@ export async function recordShot(data: {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
   }
@@ -173,8 +172,8 @@ export async function updateShot(data: {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
 
-  if (!UUID_RE.test(data.shotId)) return { error: 'ショットIDが不正です。' };
-  if (!UUID_RE.test(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (!isValidUUID(data.shotId)) return { error: 'ショットIDが不正です。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
 
   const validationError = validateShotFields(data);
   if (validationError) return { error: validationError };
@@ -242,7 +241,7 @@ export async function getShot(roundId: string, holeNumber: number, shotNumber: n
 export async function getShots(roundId: string, holeNumber: number): Promise<Shot[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];
-  if (!UUID_RE.test(roundId)) return [];
+  if (!isValidUUID(roundId)) return [];
 
   const supabase = await createClient();
 
@@ -309,7 +308,7 @@ export async function getAdviceHistory(roundId: string): Promise<AdviceHistoryIt
 export async function deleteShot(shotId: string, roundId: string): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
-  if (!UUID_RE.test(shotId) || !UUID_RE.test(roundId)) return { error: 'IDが不正です。' };
+  if (!isValidUUID(shotId) || !isValidUUID(roundId)) return { error: 'IDが不正です。' };
 
   const supabase = await createClient();
 

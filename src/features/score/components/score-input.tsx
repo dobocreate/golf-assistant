@@ -8,21 +8,10 @@ import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { CompanionScoresPanel } from '@/features/score/components/companion-scores';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, Companion, CompanionScore } from '@/features/score/types';
-
-interface HoleInfo {
-  hole_number: number;
-  par: number;
-  distance: number | null;
-}
+import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
-}
-
-interface CompanionWithScores {
-  companion: Companion;
-  scores: CompanionScore[];
 }
 
 interface ScoreInputProps {
