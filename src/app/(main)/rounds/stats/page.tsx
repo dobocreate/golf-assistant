@@ -3,7 +3,8 @@ import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import type { Score } from '@/features/score/types';
+import type { Score, FirstPuttDistance } from '@/features/score/types';
+import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -194,6 +195,23 @@ export default async function RoundStatsPage() {
     })
     .filter(Boolean) as { playedAt: string; rate: number }[];
 
+  // 6. First putt distance stats
+  const puttDistData: Record<FirstPuttDistance, { count: number; totalPutts: number; threePutts: number }> = {
+    short: { count: 0, totalPutts: 0, threePutts: 0 },
+    mid: { count: 0, totalPutts: 0, threePutts: 0 },
+    long: { count: 0, totalPutts: 0, threePutts: 0 },
+    very_long: { count: 0, totalPutts: 0, threePutts: 0 },
+  };
+  for (const s of scores) {
+    if (s.first_putt_distance && s.putts !== null) {
+      const d = s.first_putt_distance as FirstPuttDistance;
+      puttDistData[d].count++;
+      puttDistData[d].totalPutts += s.putts;
+      if (s.putts >= 3) puttDistData[d].threePutts++;
+    }
+  }
+  const hasPuttDistData = Object.values(puttDistData).some(d => d.count > 0);
+
   const maxScore = Math.max(
     ...scoreProgression.filter((s) => s.totalScore !== null).map((s) => s.totalScore!),
     100,
@@ -353,6 +371,44 @@ export default async function RoundStatsPage() {
                 <span className="text-sm font-bold w-12 text-right">{r.rate}%</span>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* First Putt Distance */}
+      {hasPuttDistData && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold">ファーストパット距離</h2>
+          <div className="space-y-3">
+            {(Object.entries(FIRST_PUTT_DISTANCE_LABELS) as [FirstPuttDistance, string][]).map(([key, label]) => {
+              const d = puttDistData[key];
+              if (d.count === 0) return null;
+              const avgPutts = d.totalPutts / d.count;
+              const threePuttRate = Math.round((d.threePutts / d.count) * 100);
+              return (
+                <div
+                  key={key}
+                  className="rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold">{label}</span>
+                    <div className="text-right">
+                      <span className="text-xl font-bold">{avgPutts.toFixed(1)}</span>
+                      <span className="ml-1 text-xs text-gray-500">パット</span>
+                    </div>
+                  </div>
+                  <CssBar value={avgPutts} max={4} color={avgPutts >= 2.5 ? 'bg-red-500' : avgPutts >= 2 ? 'bg-yellow-500' : 'bg-green-500'} />
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-400">{d.count}ホール</p>
+                    {d.count > 0 && (
+                      <p className={`text-xs font-bold ${threePuttRate > 20 ? 'text-red-500' : 'text-gray-400'}`}>
+                        3パット率: {threePuttRate}%
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

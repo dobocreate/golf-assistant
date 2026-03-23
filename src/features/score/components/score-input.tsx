@@ -8,7 +8,8 @@ import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { CompanionScoresPanel } from '@/features/score/components/companion-scores';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
+import type { Score, HoleInfo, CompanionWithScores, FirstPuttDistance } from '@/features/score/types';
+import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -90,6 +91,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     strokes: number;
     putts: number | null;
     gir: boolean | null;
+    fpd: FirstPuttDistance | null;
     existingId?: string;
   } | null>(null);
 
@@ -98,6 +100,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
+  const [firstPuttDistance, setFirstPuttDistance] = useState<FirstPuttDistance | null>(score?.first_putt_distance ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
   // ユーザーが明示的にスコアを操作したかどうか（デフォルト値の自動保存防止用）
   const [userTouched, setUserTouched] = useState(score !== undefined);
@@ -122,6 +125,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     s: number,
     p: number | null,
     gir: boolean | null,
+    fpd: FirstPuttDistance | null,
     existingId?: string,
   ) => {
     const newScore: Score = {
@@ -130,6 +134,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       hole_number: holeNum,
       strokes: s,
       putts: p,
+      first_putt_distance: fpd,
       fairway_hit: null,
       green_in_reg: gir,
       tee_shot_lr: null,
@@ -162,9 +167,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         obCount: 0,
         bunkerCount: 0,
         penaltyCount: 0,
+        firstPuttDistance: fpd,
       });
       if (result.error) {
-        // 楽観的更新をロールバック
         const prev = previousScoreRef.current;
         if (prev) {
           setScores(m => new Map(m).set(holeNum, prev));
@@ -172,32 +177,33 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
         }
         setSaveStatus('error');
-        setFailedSave({ holeNum, strokes: s, putts: p, gir, existingId });
+        setFailedSave({ holeNum, strokes: s, putts: p, gir, fpd, existingId });
       } else {
         setSaveStatus('saved');
         setFailedSave(null);
-        // 3秒後に idle に戻す
         saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
       }
     });
   }, [roundId]);
 
   // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
-  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null): boolean => {
-    if (s === null) return false; // 打数未入力なら保存対象外
+  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null, fpd: FirstPuttDistance | null): boolean => {
+    if (s === null) return false;
     const saved = scoresRef.current.get(holeNum);
-    if (!saved) return true; // 新規入力
-    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir;
+    if (!saved) return true;
+    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir || saved.first_putt_distance !== fpd;
   }, []);
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    if (!hasChanges(currentHole, strokes, putts, greenInReg)) {
+    // パット0（チップイン）ならパット距離は無効
+    const effectiveFpd = (putts ?? 0) >= 1 ? firstPuttDistance : null;
+    if (!hasChanges(currentHole, strokes, putts, greenInReg, effectiveFpd)) {
       showToast('変更なし', 'info');
       return;
     }
-    saveHole(currentHole, strokes, putts, greenInReg, score?.id);
-  }, [currentHole, strokes, putts, greenInReg, score?.id, saveHole, hasChanges, showToast]);
+    saveHole(currentHole, strokes, putts, greenInReg, effectiveFpd, score?.id);
+  }, [currentHole, strokes, putts, greenInReg, firstPuttDistance, score?.id, saveHole, hasChanges, showToast]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -206,26 +212,26 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [scores]);
 
   // 現在の入力値を ref で保持（switchHole の依存配列を最小化するため）
-  const currentInputRef = useRef({ strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched });
+  const currentInputRef = useRef({ strokes, putts, greenInReg, firstPuttDistance, currentHole, scoreId: score?.id, userTouched });
   useEffect(() => {
-    currentInputRef.current = { strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched };
-  }, [strokes, putts, greenInReg, currentHole, score?.id, userTouched]);
+    currentInputRef.current = { strokes, putts, greenInReg, firstPuttDistance, currentHole, scoreId: score?.id, userTouched };
+  }, [strokes, putts, greenInReg, firstPuttDistance, currentHole, score?.id, userTouched]);
 
   // ホール切り替え時に未保存データがあれば自動保存（ユーザーが操作済みの場合のみ）
   const switchHole = useCallback((holeNum: number) => {
-    const { strokes: st, putts: pt, greenInReg: gir, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
-    if (touched && st !== null && hasChanges(ch, st, pt, gir)) {
-      saveHole(ch, st, pt, gir, scoreId);
+    const { strokes: st, putts: pt, greenInReg: gir, firstPuttDistance: fpd, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
+    const effectiveFpd = (pt ?? 0) >= 1 ? fpd : null;
+    if (touched && st !== null && hasChanges(ch, st, pt, gir, effectiveFpd)) {
+      saveHole(ch, st, pt, gir, effectiveFpd, scoreId);
     }
     setCurrentHole(holeNum);
-    // 現在ホールを localStorage に保存（再開時に復元用）
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
-    // 保存状態をリセット（前ホールの状態を引きずらない）
     setSaveStatus('idle');
     setFailedSave(null);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
+    setFirstPuttDistance(s?.first_putt_distance ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     setUserTouched(s !== undefined);
   }, [saveHole, hasChanges, roundId]);
@@ -309,7 +315,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <button
             onClick={() => {
               if (failedSave) {
-                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.existingId);
+                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.fpd, failedSave.existingId);
               }
             }}
             className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -425,6 +431,28 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             </button>
           </div>
         </div>
+
+        {/* ファーストパット距離（パット1以上の場合のみ） */}
+        {(putts === null || putts >= 1) && (
+          <div className="space-y-1">
+            <label className="block text-sm font-bold text-gray-300 text-center">パット距離</label>
+            <div className="flex items-center justify-center gap-2">
+              {(Object.entries(FIRST_PUTT_DISTANCE_LABELS) as [FirstPuttDistance, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => { setFirstPuttDistance(firstPuttDistance === key ? null : key); setUserTouched(true); }}
+                  className={`min-h-[48px] px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                    firstPuttDistance === key
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ショット記録 */}

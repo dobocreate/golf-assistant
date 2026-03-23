@@ -6,6 +6,8 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
+import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
+import type { FirstPuttDistance } from '@/features/score/types';
 
 export default async function RoundReviewPage({
   params,
@@ -36,6 +38,17 @@ export default async function RoundReviewPage({
   const girTotal = scores.filter(s => s.green_in_reg !== null).length;
   const totalPutts = scores.reduce((sum, s) => sum + (s.putts ?? 0), 0);
   const puttsCount = scores.filter(s => s.putts !== null).length;
+  // ファーストパット距離の集計
+  const puttDistScores = scores.filter(s => s.first_putt_distance !== null);
+  const puttDistCounts = puttDistScores.reduce((acc, s) => {
+    const d = s.first_putt_distance as FirstPuttDistance;
+    acc[d] = (acc[d] ?? 0) + 1;
+    return acc;
+  }, {} as Record<FirstPuttDistance, number>);
+  // 最も多い距離帯
+  const topPuttDist = puttDistScores.length > 0
+    ? (Object.entries(puttDistCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FirstPuttDistance | undefined)
+    : undefined;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -71,6 +84,7 @@ export default async function RoundReviewPage({
           {fwTotal > 0 && <StatCard label="FWキープ率" value={`${Math.round((fwHits / fwTotal) * 100)}%`} sub={`${fwHits}/${fwTotal}`} />}
           {puttsCount > 0 && <StatCard label="平均パット" value={`${(totalPutts / puttsCount).toFixed(1)}`} sub={`計${totalPutts}`} />}
           {girTotal > 0 && <StatCard label="パーオン率" value={`${Math.round((girHits / girTotal) * 100)}%`} sub={`${girHits}/${girTotal}`} />}
+          {topPuttDist && <StatCard label="最多パット距離" value={FIRST_PUTT_DISTANCE_LABELS[topPuttDist]} sub={`${puttDistScores.length}ホール記録`} />}
         </div>
       )}
 

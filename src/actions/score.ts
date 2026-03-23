@@ -28,6 +28,7 @@ export async function upsertScore(data: {
   obCount: number;
   bunkerCount: number;
   penaltyCount: number;
+  firstPuttDistance: string | null;
 }): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -42,7 +43,8 @@ export async function upsertScore(data: {
     validateEnum(data.teeShotFb, ['short', 'center', 'long'], 'ティーショット距離') ??
     validateIntRange(data.obCount, 0, 10, 'OB数') ??
     validateIntRange(data.bunkerCount, 0, 10, 'バンカー数') ??
-    validateIntRange(data.penaltyCount, 0, 10, 'ペナルティ数');
+    validateIntRange(data.penaltyCount, 0, 10, 'ペナルティ数') ??
+    validateEnum(data.firstPuttDistance, ['short', 'mid', 'long', 'very_long'], 'ファーストパット距離');
   if (validationError) return { error: validationError };
 
   const supabase = await createClient();
@@ -73,6 +75,7 @@ export async function upsertScore(data: {
         ob_count: data.obCount,
         bunker_count: data.bunkerCount,
         penalty_count: data.penaltyCount,
+        first_putt_distance: data.firstPuttDistance,
       },
       { onConflict: 'round_id,hole_number' }
     );
