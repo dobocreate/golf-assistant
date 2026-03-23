@@ -102,6 +102,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
                     min={1}
                     max={20}
                     value={score.strokes ?? ''}
+                    onFocus={e => e.target.select()}
                     onChange={e => {
                       const v = e.target.value === '' ? null : parseInt(e.target.value, 10);
                       if (v !== null && (isNaN(v) || v < 1 || v > 20)) return;
@@ -118,6 +119,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
                     min={0}
                     max={10}
                     value={score.putts ?? ''}
+                    onFocus={e => e.target.select()}
                     onChange={e => {
                       const v = e.target.value === '' ? null : parseInt(e.target.value, 10);
                       if (v !== null && (isNaN(v) || v < 0 || v > 10)) return;
