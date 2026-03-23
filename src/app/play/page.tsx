@@ -26,11 +26,17 @@ export default async function PlayPage() {
             <p className="text-sm text-gray-400 mt-1">{activeRound.played_at}</p>
           </div>
           <Link
-            href={`/play/${activeRound.id}`}
+            href={`/play/${activeRound.id}/score`}
             className="min-h-[56px] w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-8 py-4 text-xl font-bold text-white hover:bg-green-500 transition-colors"
           >
-            プレーを続ける
+            スコア入力を続ける
             <ArrowRight className="h-5 w-5" />
+          </Link>
+          <Link
+            href={`/play/${activeRound.id}`}
+            className="min-h-[48px] w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 px-6 py-3 text-base font-bold text-gray-200 hover:bg-gray-700 transition-colors"
+          >
+            ラウンド管理
           </Link>
           <Link
             href="/play/new"
