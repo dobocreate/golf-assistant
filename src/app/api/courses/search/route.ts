@@ -22,8 +22,9 @@ export async function GET(request: Request) {
   const appId = env.RAKUTEN_APP_ID;
   const accessKey = env.RAKUTEN_ACCESS_KEY;
   if (!appId || !accessKey) {
+    console.error('Rakuten API keys not configured:', { appId: !!appId, accessKey: !!accessKey });
     return NextResponse.json(
-      { error: '楽天GORA APIが設定されていません。', appId: !!appId, accessKey: !!accessKey },
+      { error: '楽天GORA APIが設定されていません。' },
       { status: 503 }
     );
   }
@@ -50,12 +51,8 @@ export async function GET(request: Request) {
   const rawText = await res.text();
 
   if (!res.ok) {
-    return NextResponse.json({
-      error: 'Rakuten API error',
-      status: res.status,
-      body: rawText.substring(0, 500),
-      siteUrl,
-    }, { status: 502 });
+    console.error('Rakuten API error:', { status: res.status, body: rawText.substring(0, 500) });
+    return NextResponse.json({ error: 'コース検索に失敗しました。' }, { status: 502 });
   }
 
   try {
@@ -72,10 +69,8 @@ export async function GET(request: Request) {
       };
     });
     return NextResponse.json({ results, count: data.count });
-  } catch {
-    return NextResponse.json({
-      error: 'Parse error',
-      body: rawText.substring(0, 500),
-    }, { status: 500 });
+  } catch (e) {
+    console.error('Rakuten API parse error:', e, rawText.substring(0, 500));
+    return NextResponse.json({ error: 'コース検索結果の処理に失敗しました。' }, { status: 500 });
   }
 }

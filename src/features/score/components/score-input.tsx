@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { CompanionScoresPanel } from '@/features/score/components/companion-scores';
@@ -34,6 +34,7 @@ interface ScoreInputProps {
   editMode?: boolean;
   startingCourse?: 'out' | 'in';
   companionData?: CompanionWithScores[];
+  initialHole?: number;
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -53,18 +54,29 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', companionData = [] }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', companionData = [], initialHole }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
-  const playRoundRef = useRef(playRound);
-  useEffect(() => { playRoundRef.current = playRound; }, [playRound]);
-  const [currentHole, setCurrentHole] = useState(holeOrder[0]);
-  // PlayRoundContext の初期ホールをスタートコースに同期
+
+  // 初期ホール決定: searchParams > localStorage > holeOrder[0]
+  const [currentHole, setCurrentHole] = useState(() => {
+    const validHoles = new Set(holeOrder);
+    if (initialHole && validHoles.has(initialHole)) return initialHole;
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`golf-last-hole-${roundId}`);
+      if (saved) {
+        const num = parseInt(saved, 10);
+        if (validHoles.has(num)) return num;
+      }
+    }
+    return holeOrder[0];
+  });
+  // PlayRoundContext の currentHole をローカルステートと同期
   useEffect(() => {
-    playRound?.setCurrentHole(holeOrder[0]);
-  }, [playRound, holeOrder]);
+    playRound?.setCurrentHole(currentHole);
+  }, [playRound, currentHole]);
   // Context の currentHole 変化をローカルに同期（switchHole は ref 経由で最新版を使用）
   const switchHoleRef = useRef<(holeNum: number) => void>(() => {});
   const prevContextHole = useRef(playRound?.currentHole ?? holeOrder[0]);
@@ -83,6 +95,24 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return map;
   });
   const [isPending, startTransition] = useTransition();
+
+  // 保存状態: 'idle' | 'saving' | 'saved' | 'error'
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // アンマウント時にタイマーをクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+    };
+  }, []);
+  // 保存失敗時のリトライ情報
+  const [failedSave, setFailedSave] = useState<{
+    holeNum: number;
+    strokes: number;
+    putts: number | null;
+    gir: boolean | null;
+    existingId?: string;
+  } | null>(null);
 
   const hole = holes.find(h => h.hole_number === currentHole) ?? { hole_number: currentHole, par: 4, distance: null };
   const score = scores.get(currentHole);
@@ -133,7 +163,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       previousScoreRef.current = prev.get(holeNum);
       return new Map(prev).set(holeNum, newScore);
     });
-    // 保存開始
+    // 保存状態を更新
+    setSaveStatus('saving');
+    setFailedSave(null);
+    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
 
     startTransition(async () => {
       const result = await upsertScore({
@@ -157,9 +190,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         } else {
           setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
         }
-        showToast('保存に失敗しました', 'error');
+        setSaveStatus('error');
+        setFailedSave({ holeNum, strokes: s, putts: p, gir, existingId });
       } else {
-        showToast('保存しました');
+        setSaveStatus('saved');
+        setFailedSave(null);
+        // 3秒後に idle に戻す
+        saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
       }
     });
   }, [roundId]);
@@ -193,13 +230,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
-    playRoundRef.current?.setCurrentHole(holeNum);
+    // 現在ホールを localStorage に保存（再開時に復元用）
+    try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
+    // 保存状態をリセット（前ホールの状態を引きずらない）
+    setSaveStatus('idle');
+    setFailedSave(null);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
-    // ホール切替完了
-  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges]);
+  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges, roundId]);
 
   // switchHole ref を最新に保持（Context同期用）
   useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
@@ -262,8 +302,36 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </Link>
       )}
 
-      {/* ヘッダー: コース名 */}
-      <p className="text-sm text-gray-400 truncate">{courseName}</p>
+      {/* ヘッダー: コース名 + 保存状態 */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-400 truncate flex-1">{courseName}</p>
+        {/* 同期状態インジケーター */}
+        {saveStatus === 'saving' && (
+          <span className="flex items-center gap-1 text-xs text-gray-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            保存中
+          </span>
+        )}
+        {saveStatus === 'saved' && (
+          <span className="flex items-center gap-1 text-xs text-green-400">
+            <Check className="h-3 w-3" />
+            保存済み
+          </span>
+        )}
+        {saveStatus === 'error' && (
+          <button
+            onClick={() => {
+              if (failedSave) {
+                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.existingId);
+              }
+            }}
+            className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+          >
+            <AlertCircle className="h-3 w-3" />
+            保存失敗 - タップで再試行
+          </button>
+        )}
+      </div>
 
       {/* ホールナビゲーション */}
       <div className="flex items-center justify-between">

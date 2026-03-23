@@ -10,14 +10,16 @@ export default async function ScoreInputPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; hole?: string }>;
 }) {
   const user = await getAuthenticatedUser();
   if (!user) redirect('/auth/login');
 
   const { roundId } = await params;
-  const { edit } = await searchParams;
+  const { edit, hole } = await searchParams;
   const editMode = edit === '1';
+  const parsed = hole ? parseInt(hole, 10) : undefined;
+  const initialHole = parsed && !isNaN(parsed) ? parsed : undefined;
 
   const [data, clubs, companionData] = await Promise.all([
     getScoresWithHoles(roundId),
@@ -37,6 +39,7 @@ export default async function ScoreInputPage({
       editMode={editMode}
       startingCourse={data.round.startingCourse}
       companionData={companionData}
+      initialHole={initialHole}
     />
   );
 }

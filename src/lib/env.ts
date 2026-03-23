@@ -19,9 +19,11 @@ export const env = {
     return getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY');
   },
   get RAKUTEN_APP_ID() {
-    return getOptionalEnvVar('NEXT_PUBLIC_RAKUTEN_APP_ID');
+    // TODO: NEXT_PUBLIC_ フォールバックはVercel環境変数の移行完了後に削除する
+    return getOptionalEnvVar('RAKUTEN_APP_ID') || getOptionalEnvVar('NEXT_PUBLIC_RAKUTEN_APP_ID');
   },
   get RAKUTEN_ACCESS_KEY() {
-    return getOptionalEnvVar('NEXT_PUBLIC_RAKUTEN_ACCESS_KEY');
+    // TODO: NEXT_PUBLIC_ フォールバックはVercel環境変数の移行完了後に削除する
+    return getOptionalEnvVar('RAKUTEN_ACCESS_KEY') || getOptionalEnvVar('NEXT_PUBLIC_RAKUTEN_ACCESS_KEY');
   },
 } as const;
