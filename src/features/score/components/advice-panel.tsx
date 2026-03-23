@@ -96,8 +96,16 @@ export function AdvicePanel({
     <div className="space-y-3">
       <label className="block text-sm font-bold text-gray-200">AIアドバイス</label>
 
-      {/* Supplementary notes input: mic + text side by side */}
-      <div className="flex items-center gap-2">
+      {/* Supplementary notes input: textarea + mic side by side */}
+      <div className="flex items-start gap-2">
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="補足（風向き等）"
+          maxLength={500}
+          rows={3}
+          className="flex-1 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-base border-0 focus:ring-2 focus:ring-blue-600 resize-none"
+        />
         {speechRecogSupported && (
           <button
             onClick={isListening ? stopListening : startListening}
@@ -111,14 +119,6 @@ export function AdvicePanel({
             {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
           </button>
         )}
-        <input
-          type="text"
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="補足（風向き等）"
-          maxLength={200}
-          className="flex-1 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-blue-600"
-        />
       </div>
 
       {isListening && (
