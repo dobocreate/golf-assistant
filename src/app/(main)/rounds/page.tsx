@@ -3,6 +3,11 @@ import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Flag, BarChart3 } from 'lucide-react';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'ラウンド履歴 | Golf Assistant',
+};
 
 export default async function RoundsPage() {
   const user = await getAuthenticatedUser();

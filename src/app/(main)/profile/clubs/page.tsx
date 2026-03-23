@@ -1,3 +1,9 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'クラブ設定 | Golf Assistant',
+};
+
 export default function ClubsPage() {
   return (
     <div className="space-y-4">

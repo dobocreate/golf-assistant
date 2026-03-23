@@ -3,6 +3,11 @@ import { Flag, Plus, ArrowRight } from 'lucide-react';
 import { getActiveRound } from '@/actions/round';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'プレー | Golf Assistant',
+};
 
 export default async function PlayPage() {
   const user = await getAuthenticatedUser();

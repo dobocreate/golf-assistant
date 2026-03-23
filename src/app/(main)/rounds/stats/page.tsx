@@ -4,6 +4,11 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Score } from '@/features/score/types';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: '統計 | Golf Assistant',
+};
 
 interface RoundRow {
   id: string;

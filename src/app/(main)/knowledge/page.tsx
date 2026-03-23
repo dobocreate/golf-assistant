@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { BookOpen, Plus } from 'lucide-react';
 import { getKnowledgeList } from '@/actions/knowledge';
 import { CategoryTabs } from '@/features/knowledge/components/category-tabs';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'ナレッジベース | Golf Assistant',
+};
 
 export default async function KnowledgePage({
   searchParams,

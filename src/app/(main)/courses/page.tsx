@@ -1,6 +1,11 @@
 import { getSavedCourses } from '@/actions/course';
 import { CourseSearch } from '@/features/course/components/course-search';
 import { CourseCard } from '@/features/course/components/course-card';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'コース一覧 | Golf Assistant',
+};
 
 export default async function CoursesPage() {
   const courses = await getSavedCourses();
