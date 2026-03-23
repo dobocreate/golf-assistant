@@ -92,54 +92,39 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
           {companions.map(({ companion }) => {
             const score = getScore(companion.id, currentHole);
             return (
-              <div key={companion.id} className="space-y-2">
-                <span className="text-sm font-bold text-gray-300">{companion.name}</span>
-                <div className="flex items-center gap-4">
-                  {/* Strokes stepper */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-500 w-8">打数</span>
-                    <button
-                      onClick={() => updateScore(companion.id, currentHole, 'strokes', Math.max(1, (score.strokes ?? 4) - 1))}
-                      disabled={isPending}
-                      className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    >
-                      −
-                    </button>
-                    <span className="text-xl font-bold min-w-[32px] text-center text-gray-200">
-                      {score.strokes ?? '-'}
-                    </span>
-                    <button
-                      onClick={() => updateScore(companion.id, currentHole, 'strokes', Math.min(20, (score.strokes ?? 4) + 1))}
-                      disabled={isPending}
-                      className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  <div className="h-8 w-px bg-gray-700" />
-
-                  {/* Putts stepper */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-500 w-8">パット</span>
-                    <button
-                      onClick={() => updateScore(companion.id, currentHole, 'putts', Math.max(0, (score.putts ?? 2) - 1))}
-                      disabled={isPending}
-                      className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    >
-                      −
-                    </button>
-                    <span className="text-xl font-bold min-w-[32px] text-center text-gray-200">
-                      {score.putts ?? '-'}
-                    </span>
-                    <button
-                      onClick={() => updateScore(companion.id, currentHole, 'putts', Math.min(10, (score.putts ?? 2) + 1))}
-                      disabled={isPending}
-                      className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    >
-                      +
-                    </button>
-                  </div>
+              <div key={companion.id} className="flex items-center gap-3">
+                <span className="text-sm font-bold text-gray-300 w-16 truncate">{companion.name}</span>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-gray-500">打数</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={20}
+                    value={score.strokes ?? ''}
+                    onChange={e => {
+                      const v = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                      if (v !== null && (isNaN(v) || v < 1 || v > 20)) return;
+                      updateScore(companion.id, currentHole, 'strokes', v);
+                    }}
+                    className="w-14 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 text-center text-base font-bold border-0 focus:ring-2 focus:ring-green-600"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-gray-500">パット</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={10}
+                    value={score.putts ?? ''}
+                    onChange={e => {
+                      const v = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                      if (v !== null && (isNaN(v) || v < 0 || v > 10)) return;
+                      updateScore(companion.id, currentHole, 'putts', v);
+                    }}
+                    className="w-14 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 text-center text-base font-bold border-0 focus:ring-2 focus:ring-green-600"
+                  />
                 </div>
               </div>
             );
