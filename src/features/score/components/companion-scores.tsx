@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useRef } from 'react';
+import { useState, useTransition, useCallback } from 'react';
 import { upsertCompanionScore } from '@/actions/companion';
 import type { Companion, CompanionScore } from '@/features/score/types';
 
@@ -35,9 +35,6 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
     return localScores.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
   }, [localScores]);
 
-  const localScoresRef = useRef(localScores);
-  localScoresRef.current = localScores;
-
   const updateScore = useCallback((companionId: string, holeNumber: number, field: 'strokes' | 'putts', value: number | null) => {
     setLocalScores(prev => {
       const next = new Map(prev);
@@ -48,8 +45,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
       return next;
     });
 
-    // ref経由で最新のstateを参照し、変更フィールドのみ上書き
-    const current = localScoresRef.current.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
+    const current = localScores.get(companionId)?.get(holeNumber) ?? { strokes: null, putts: null };
     const updated = { ...current, [field]: value };
 
     startTransition(async () => {
@@ -61,7 +57,7 @@ export function CompanionScoresPanel({ roundId, companions, currentHole, prevHol
         putts: updated.putts,
       });
     });
-  }, [roundId]);
+  }, [roundId, localScores]);
 
   if (companions.length === 0) return null;
 

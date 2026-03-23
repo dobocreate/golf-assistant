@@ -90,31 +90,18 @@ export async function getCompanionScores(roundId: string): Promise<{ companion: 
   const { error, supabase } = await verifyRoundOwnership(roundId);
   if (error || !supabase) return [];
 
-  const { data: companions } = await supabase
+  const { data, error: fetchError } = await supabase
     .from('companions')
-    .select('*')
+    .select('*, scores:companion_scores(*)')
     .eq('round_id', roundId)
     .order('sort_order')
     .order('name');
 
-  if (!companions || companions.length === 0) return [];
+  if (fetchError || !data) return [];
 
-  const companionIds = companions.map(c => c.id);
-  const { data: scores } = await supabase
-    .from('companion_scores')
-    .select('*')
-    .in('companion_id', companionIds);
-
-  const scoresByCompanion = new Map<string, CompanionScore[]>();
-  for (const s of (scores ?? []) as CompanionScore[]) {
-    const arr = scoresByCompanion.get(s.companion_id) ?? [];
-    arr.push(s);
-    scoresByCompanion.set(s.companion_id, arr);
-  }
-
-  return (companions as Companion[]).map(c => ({
-    companion: c,
-    scores: scoresByCompanion.get(c.id) ?? [],
+  return data.map(({ scores, ...companionData }) => ({
+    companion: companionData as Companion,
+    scores: (scores as CompanionScore[]) ?? [],
   }));
 }
 
