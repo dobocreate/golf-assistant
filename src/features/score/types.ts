@@ -61,6 +61,21 @@ export interface ShotFormState {
   note: string | null;
 }
 
+export interface Companion {
+  id: string;
+  round_id: string;
+  name: string;
+  sort_order: number;
+}
+
+export interface CompanionScore {
+  id: string;
+  companion_id: string;
+  hole_number: number;
+  strokes: number | null;
+  putts: number | null;
+}
+
 export interface AdviceHistoryItem {
   hole_number: number;
   shot_number: number;
