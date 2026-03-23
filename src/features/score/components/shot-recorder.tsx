@@ -53,6 +53,21 @@ const DIRECTION_GRID: { lr: DirectionLR; fb: DirectionFB; label: string }[] = [
   { lr: 'right', fb: 'short', label: '↘' },
 ];
 
+const SKIPPED_SHOT_PAYLOAD = {
+  club: null,
+  result: null,
+  missType: null,
+  directionLr: null,
+  directionFb: null,
+  lie: null,
+  slopeFb: null,
+  slopeLr: null,
+  landing: null,
+  shotType: null,
+  remainingDistance: null,
+  note: null,
+} as const;
+
 function emptyShotForm(): ShotFormState {
   return {
     club: null,
@@ -108,6 +123,7 @@ function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
 
 type FormsAction =
   | { type: 'INIT'; shots: Shot[] }
+  | { type: 'ADD_SHOT'; shot: Shot }
   | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
   | { type: 'CLEAR_INDEX'; index: number }
   | { type: 'CLEAR_ALL' };
@@ -121,6 +137,9 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
   switch (action.type) {
     case 'INIT':
       return { forms: new Map(), shots: action.shots };
+
+    case 'ADD_SHOT':
+      return { ...state, shots: [...state.shots, action.shot] };
 
     case 'UPDATE_FIELD': {
       const next = new Map(state.forms);
@@ -254,7 +273,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        dispatch({ type: 'INIT', shots: [...shots, result.shot] });
+        dispatch({ type: 'ADD_SHOT', shot: result.shot });
         // Expand the new empty slot
         setExpandedIndex(shots.length + 1);
       }
@@ -268,24 +287,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
         roundId,
         holeNumber,
         shotNumber,
-        club: null,
-        result: null,
-        missType: null,
-        directionLr: null,
-        directionFb: null,
-        lie: null,
-        slopeFb: null,
-        slopeLr: null,
-        landing: null,
-        shotType: null,
-        remainingDistance: null,
-        note: null,
+        ...SKIPPED_SHOT_PAYLOAD,
       });
       if (result.error) {
         setError(result.error);
       } else if (result.shot) {
         setError(null);
-        dispatch({ type: 'INIT', shots: [...shots, result.shot] });
+        dispatch({ type: 'ADD_SHOT', shot: result.shot });
         setExpandedIndex(shots.length + 1);
       }
     });
