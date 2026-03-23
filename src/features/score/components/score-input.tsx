@@ -120,6 +120,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
+  // ユーザーが明示的にスコアを操作したかどうか（デフォルト値の自動保存防止用）
+  const [userTouched, setUserTouched] = useState(score !== undefined);
   // penaltyCount / obCount / bunkerCount は廃止（ショット単位の landing に移行）。DB互換のため 0 固定で送信
 
   // 直前のスコアを保持（ロールバック用）
@@ -224,9 +226,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     scoresRef.current = scores;
   }, [scores]);
 
-  // ホール切り替え時に未保存データがあれば自動保存
+  // ホール切り替え時に未保存データがあれば自動保存（ユーザーが操作済みの場合のみ）
   const switchHole = useCallback((holeNum: number) => {
-    if (strokes !== null && hasChanges(currentHole, strokes, putts, greenInReg)) {
+    if (userTouched && strokes !== null && hasChanges(currentHole, strokes, putts, greenInReg)) {
       saveHole(currentHole, strokes, putts, greenInReg, score?.id);
     }
     setCurrentHole(holeNum);
@@ -239,7 +241,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
-  }, [strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges, roundId]);
+    setUserTouched(s !== undefined);
+  }, [userTouched, strokes, putts, greenInReg, currentHole, score?.id, saveHole, hasChanges, roundId]);
 
   // switchHole ref を最新に保持（Context同期用）
   useEffect(() => { switchHoleRef.current = switchHole; }, [switchHole]);
@@ -304,7 +307,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
       {/* ヘッダー: コース名 + 保存状態 */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-400 truncate flex-1">{courseName}</p>
+        <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
         {/* 同期状態インジケーター */}
         {saveStatus === 'saving' && (
           <span className="flex items-center gap-1 text-xs text-gray-400">
@@ -346,7 +349,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
         <div className="text-center">
           <p className="text-3xl font-bold">Hole {currentHole}</p>
-          <p className="text-lg text-gray-400">
+          <p className="text-lg text-gray-300">
             Par {hole.par}
             {hole.distance && ` ・ ${hole.distance}y`}
           </p>
@@ -374,7 +377,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <div className="h-8 w-px bg-gray-700" />
           <div className="text-center">
             <p className="text-xl font-bold text-gray-300">{totalPutts}</p>
-            <p className="text-xs text-gray-500">パット</p>
+            <p className="text-xs text-gray-400">パット</p>
           </div>
         </div>
       )}
@@ -386,7 +389,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <label className="block text-sm font-bold text-gray-300 text-center">総打数</label>
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={() => setStrokes(Math.max(1, (strokes ?? hole.par) - 1))}
+              onClick={() => {
+                const newStrokes = Math.max(1, (strokes ?? hole.par) - 1);
+                setStrokes(newStrokes);
+                if (putts !== null && putts > newStrokes) setPutts(newStrokes);
+                setUserTouched(true);
+              }}
               className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
               aria-label="打数を減らす"
             >
@@ -396,7 +404,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               {strokes ?? hole.par}
             </span>
             <button
-              onClick={() => setStrokes(Math.min(20, (strokes ?? hole.par) + 1))}
+              onClick={() => { setStrokes(Math.min(20, (strokes ?? hole.par) + 1)); setUserTouched(true); }}
               className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
               aria-label="打数を増やす"
             >
@@ -415,7 +423,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <label className="block text-sm font-bold text-gray-300 text-center">パット</label>
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={() => setPutts(Math.max(0, (putts ?? 2) - 1))}
+              onClick={() => { setPutts(Math.max(0, (putts ?? 2) - 1)); setUserTouched(true); }}
               className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
               aria-label="パット数を減らす"
             >
@@ -425,7 +433,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               {putts ?? 2}
             </span>
             <button
-              onClick={() => setPutts(Math.min(10, (putts ?? 2) + 1))}
+              onClick={() => { setPutts(Math.min(strokes ?? 20, (putts ?? 2) + 1)); setUserTouched(true); }}
               className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
               aria-label="パット数を増やす"
             >

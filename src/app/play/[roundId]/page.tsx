@@ -28,11 +28,11 @@ export default async function PlayMainPage({
     <div className="max-w-md mx-auto space-y-6">
       {/* ラウンド情報ヘッダー */}
       <div className="rounded-lg bg-gray-800 border border-gray-700 p-4">
-        <p className="text-sm text-gray-400">プレー中</p>
+        <p className="text-sm text-gray-300">プレー中</p>
         <h1 className="text-xl font-bold text-white mt-1">
           {course?.name ?? '不明なコース'}
         </h1>
-        <p className="text-sm text-gray-400 mt-1">{round.played_at}</p>
+        <p className="text-sm text-gray-300 mt-1">{round.played_at}</p>
         {round.total_score && (
           <p className="text-2xl font-bold text-green-400 mt-2">
             {round.total_score}

@@ -9,7 +9,7 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 z-50"
+      className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 z-50 pb-[env(safe-area-inset-bottom)]"
       aria-label="モバイルナビゲーション"
     >
       <div className="flex justify-around">
