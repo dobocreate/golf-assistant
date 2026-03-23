@@ -69,6 +69,23 @@ export function RoundStartForm({ courses, selectedCourseId }: RoundStartFormProp
         </select>
       </div>
 
+      {/* スタートコース */}
+      <div className="space-y-2">
+        <label className="block text-lg font-bold text-gray-200">
+          スタート
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex items-center justify-center min-h-[48px] rounded-lg bg-gray-800 border border-gray-600 text-white text-lg px-4 py-3 cursor-pointer has-[:checked]:bg-green-600 has-[:checked]:border-green-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-green-400 transition-colors">
+            <input type="radio" name="starting_course" value="out" defaultChecked className="sr-only" />
+            OUT
+          </label>
+          <label className="flex items-center justify-center min-h-[48px] rounded-lg bg-gray-800 border border-gray-600 text-white text-lg px-4 py-3 cursor-pointer has-[:checked]:bg-green-600 has-[:checked]:border-green-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-green-400 transition-colors">
+            <input type="radio" name="starting_course" value="in" className="sr-only" />
+            IN
+          </label>
+        </div>
+      </div>
+
       {/* プレー日 */}
       <div className="space-y-2">
         <label htmlFor="played_at" className="block text-lg font-bold text-gray-200">
