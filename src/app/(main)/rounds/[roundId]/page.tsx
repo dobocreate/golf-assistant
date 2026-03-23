@@ -46,9 +46,7 @@ export default async function RoundReviewPage({
     return acc;
   }, {} as Record<FirstPuttDistance, number>);
   // 最も多い距離帯
-  const topPuttDist = puttDistScores.length > 0
-    ? (Object.entries(puttDistCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FirstPuttDistance | undefined)
-    : undefined;
+  const topPuttDist = Object.entries(puttDistCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FirstPuttDistance | undefined;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

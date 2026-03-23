@@ -400,11 +400,9 @@ export default async function RoundStatsPage() {
                   <CssBar value={avgPutts} max={4} color={avgPutts >= 2.5 ? 'bg-red-500' : avgPutts >= 2 ? 'bg-yellow-500' : 'bg-green-500'} />
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-xs text-gray-400">{d.count}ホール</p>
-                    {d.count > 0 && (
-                      <p className={`text-xs font-bold ${threePuttRate > 20 ? 'text-red-500' : 'text-gray-400'}`}>
-                        3パット率: {threePuttRate}%
-                      </p>
-                    )}
+                    <p className={`text-xs font-bold ${threePuttRate > 20 ? 'text-red-500' : 'text-gray-400'}`}>
+                      3パット率: {threePuttRate}%
+                    </p>
                   </div>
                 </div>
               );
