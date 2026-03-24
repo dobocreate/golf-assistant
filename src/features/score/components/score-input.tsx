@@ -124,13 +124,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     gir: boolean | null,
     existingId?: string,
   ) => {
+    const existingScore = scoresRef.current.get(holeNum);
     const newScore: Score = {
       id: existingId ?? '',
       round_id: roundId,
       hole_number: holeNum,
       strokes: s,
       putts: p,
-      first_putt_distance: null,
+      first_putt_distance: existingScore?.first_putt_distance ?? null,
       fairway_hit: null,
       green_in_reg: gir,
       tee_shot_lr: null,
@@ -163,7 +164,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         obCount: 0,
         bunkerCount: 0,
         penaltyCount: 0,
-        firstPuttDistance: null,
+        firstPuttDistance: existingScore?.first_putt_distance ?? null,
       });
       if (result.error) {
         const prev = previousScoreRef.current;
