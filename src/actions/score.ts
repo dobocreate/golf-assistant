@@ -102,6 +102,31 @@ export async function upsertScore(data: {
   return {};
 }
 
+/** ファーストパット距離をscoresテーブルに同期保存（ショットレコーダーから呼ばれる） */
+export async function updateFirstPuttDistance(data: {
+  roundId: string;
+  holeNumber: number;
+  firstPuttDistance: string | null;
+}): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
+
+  if (data.firstPuttDistance !== null && !['short', 'mid', 'long', 'very_long'].includes(data.firstPuttDistance)) {
+    return { error: 'パット距離が不正です。' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('scores')
+    .update({ first_putt_distance: data.firstPuttDistance })
+    .eq('round_id', data.roundId)
+    .eq('hole_number', data.holeNumber);
+
+  if (error) return { error: 'パット距離の保存に失敗しました。' };
+  return {};
+}
+
 export async function getScores(roundId: string): Promise<Score[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];

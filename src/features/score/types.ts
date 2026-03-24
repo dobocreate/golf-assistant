@@ -74,6 +74,7 @@ export interface ShotFormState {
   shotType: ShotType | null;
   remainingDistance: number | null;
   note: string | null;
+  puttDistanceCategory: FirstPuttDistance | null;
 }
 
 export interface Companion {
