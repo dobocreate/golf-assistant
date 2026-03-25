@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { Round, RoundWithCourse } from '@/features/round/types';
+import { WEATHER_VALUES, WIND_STRENGTH_VALUES } from '@/features/round/types';
 import { isValidUUID } from '@/lib/utils';
 
 export async function startRound(formData: FormData) {
@@ -193,7 +194,7 @@ export async function updateWeather(roundId: string, weather: string | null): Pr
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
-  if (weather !== null && !['sunny', 'cloudy', 'light_rain', 'rain'].includes(weather)) {
+  if (weather !== null && !(WEATHER_VALUES as string[]).includes(weather)) {
     return { error: '天候の値が不正です。' };
   }
 
@@ -213,7 +214,7 @@ export async function updateWind(roundId: string, wind: string | null): Promise<
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
-  if (wind !== null && !['calm', 'light', 'moderate', 'strong'].includes(wind)) {
+  if (wind !== null && !(WIND_STRENGTH_VALUES as string[]).includes(wind)) {
     return { error: '風の値が不正です。' };
   }
 

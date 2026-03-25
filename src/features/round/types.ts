@@ -4,6 +4,10 @@ export type Weather = 'sunny' | 'cloudy' | 'light_rain' | 'rain';
 export type WindStrength = 'calm' | 'light' | 'moderate' | 'strong';
 export type WindDirection = 'head' | 'tail' | 'left' | 'right';
 
+export const WEATHER_VALUES: Weather[] = ['sunny', 'cloudy', 'light_rain', 'rain'];
+export const WIND_STRENGTH_VALUES: WindStrength[] = ['calm', 'light', 'moderate', 'strong'];
+export const WIND_DIRECTION_VALUES: WindDirection[] = ['head', 'tail', 'left', 'right'];
+
 export const WEATHER_LABELS: Record<Weather, string> = {
   sunny: '晴れ',
   cloudy: '曇り',

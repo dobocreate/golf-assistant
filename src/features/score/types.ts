@@ -1,3 +1,5 @@
+import type { WindDirection, WindStrength } from '@/features/round/types';
+
 export interface HoleInfo {
   hole_number: number;
   par: number;
@@ -59,8 +61,8 @@ export interface Shot {
   remaining_distance: number | null;
   advice_text: string | null;
   note: string | null;
-  wind_direction: string | null;
-  wind_strength: string | null;
+  wind_direction: WindDirection | null;
+  wind_strength: WindStrength | null;
 }
 
 export interface ShotFormState {
@@ -77,8 +79,8 @@ export interface ShotFormState {
   remainingDistance: number | null;
   note: string | null;
   puttDistanceCategory: FirstPuttDistance | null;
-  windDirection: string | null;
-  windStrength: string | null;
+  windDirection: WindDirection | null;
+  windStrength: WindStrength | null;
 }
 
 export interface Companion {
