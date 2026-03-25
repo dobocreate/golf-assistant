@@ -19,6 +19,12 @@ function scoreColor(strokes: number, par: number): string {
   return 'text-red-400';
 }
 
+function calcHitRate(targetHoles: number[], scoreMap: Map<number, Score>, stat: 'fairway_hit' | 'green_in_reg'): string {
+  const total = targetHoles.filter(h => scoreMap.get(h)?.[stat] != null).length;
+  const hits = targetHoles.filter(h => scoreMap.get(h)?.[stat] === true).length;
+  return total > 0 ? `${hits}/${total}` : '-';
+}
+
 function scoreBg(strokes: number, par: number): string {
   const diff = strokes - par;
   if (diff <= -2) return 'bg-yellow-900/30';
@@ -59,7 +65,7 @@ export function Scorecard({ holes, scores, courseName, startingCourse, companion
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
         <button
-          onClick={() => setShowDetail(!showDetail)}
+          onClick={() => setShowDetail(prev => !prev)}
           className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded-lg bg-gray-800"
         >
           {showDetail ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -139,18 +145,10 @@ export function Scorecard({ holes, scores, courseName, startingCourse, companion
                     <>
                       <td className="px-1 py-2 text-center font-bold text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
                       <td className="px-1 py-2 text-center text-xs text-gray-400">
-                        {(() => {
-                          const t = section.holes.filter(h => scoreMap.get(h)?.fairway_hit != null).length;
-                          const hi = section.holes.filter(h => scoreMap.get(h)?.fairway_hit === true).length;
-                          return t > 0 ? `${hi}/${t}` : '-';
-                        })()}
+                        {calcHitRate(section.holes, scoreMap, 'fairway_hit')}
                       </td>
                       <td className="px-1 py-2 text-center text-xs text-gray-400">
-                        {(() => {
-                          const t = section.holes.filter(h => scoreMap.get(h)?.green_in_reg != null).length;
-                          const hi = section.holes.filter(h => scoreMap.get(h)?.green_in_reg === true).length;
-                          return t > 0 ? `${hi}/${t}` : '-';
-                        })()}
+                        {calcHitRate(section.holes, scoreMap, 'green_in_reg')}
                       </td>
                     </>
                   )}
