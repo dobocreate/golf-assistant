@@ -17,6 +17,16 @@ function scoreColor(strokes: number, par: number): string {
   return 'text-red-400';
 }
 
+function calcHitRate(
+  targetHoles: number[],
+  scoreMap: Map<number, Score>,
+  stat: 'fairway_hit' | 'green_in_reg',
+): string {
+  const total = targetHoles.filter(h => { const v = scoreMap.get(h)?.[stat]; return v !== null && v !== undefined; }).length;
+  const hits = targetHoles.filter(h => scoreMap.get(h)?.[stat] === true).length;
+  return total > 0 ? `${hits}/${total}` : '-';
+}
+
 export function Scorecard({ holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
   const scoreMap = new Map(scores.map(s => [s.hole_number, s]));
   const holeMap = new Map(holes.map(h => [h.hole_number, h]));
@@ -116,11 +126,7 @@ export function Scorecard({ holes, scores, courseName, startingCourse, companion
                       );
                     })}
                     <td className="px-1.5 py-1.5 text-center text-gray-400">
-                      {(() => {
-                        const total = section.holes.filter(h => scoreMap.get(h)?.fairway_hit !== null && scoreMap.get(h)?.fairway_hit !== undefined).length;
-                        const hits = section.holes.filter(h => scoreMap.get(h)?.fairway_hit === true).length;
-                        return total > 0 ? `${hits}/${total}` : '-';
-                      })()}
+                      {calcHitRate(section.holes, scoreMap, 'fairway_hit')}
                     </td>
                   </tr>
 
@@ -137,11 +143,7 @@ export function Scorecard({ holes, scores, courseName, startingCourse, companion
                       );
                     })}
                     <td className="px-1.5 py-1.5 text-center text-gray-400">
-                      {(() => {
-                        const total = section.holes.filter(h => scoreMap.get(h)?.green_in_reg !== null && scoreMap.get(h)?.green_in_reg !== undefined).length;
-                        const hits = section.holes.filter(h => scoreMap.get(h)?.green_in_reg === true).length;
-                        return total > 0 ? `${hits}/${total}` : '-';
-                      })()}
+                      {calcHitRate(section.holes, scoreMap, 'green_in_reg')}
                     </td>
                   </tr>
 
