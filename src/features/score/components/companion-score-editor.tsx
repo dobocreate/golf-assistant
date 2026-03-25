@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { Save, Check, AlertCircle } from 'lucide-react';
+import { Save, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { CompanionWithScores } from '@/features/score/types';
@@ -14,18 +14,26 @@ interface CompanionScoreEditorProps {
 
 export function CompanionScoreEditor({ companionData, roundId, onSaved }: CompanionScoreEditorProps) {
   const playRound = usePlayRoundOptional();
-  const currentHole = playRound?.currentHole ?? 1;
+  const [editingHole, setEditingHole] = useState(playRound?.currentHole ?? 1);
   const [isPending, startTransition] = useTransition();
   const [saveResult, setSaveResult] = useState<'idle' | 'saved' | 'error'>('idle');
+
+  // スコア画面のeditingHole が変わったら同期
+  useEffect(() => {
+    if (playRound?.currentHole) setEditingHole(playRound.currentHole);
+  }, [playRound?.currentHole]);
+
+  const prevHole = editingHole > 1 ? editingHole - 1 : null;
+  const nextHole = editingHole < 18 ? editingHole + 1 : null;
 
   // 各同伴者の打数・パット入力値
   const [inputs, setInputs] = useState<Map<string, { strokes: string; putts: string }>>(new Map());
 
-  // currentHole 変更時に DB 値で入力値をリセット
+  // editingHole 変更時に DB 値で入力値をリセット
   useEffect(() => {
     const newInputs = new Map<string, { strokes: string; putts: string }>();
     for (const { companion, scores } of companionData) {
-      const s = scores.find(sc => sc.hole_number === currentHole);
+      const s = scores.find(sc => sc.hole_number === editingHole);
       newInputs.set(companion.id, {
         strokes: s?.strokes?.toString() ?? '',
         putts: s?.putts?.toString() ?? '',
@@ -33,7 +41,7 @@ export function CompanionScoreEditor({ companionData, roundId, onSaved }: Compan
     }
     setInputs(newInputs);
     setSaveResult('idle');
-  }, [currentHole, companionData]);
+  }, [editingHole, companionData]);
 
   if (companionData.length === 0) return null;
 
@@ -52,14 +60,14 @@ export function CompanionScoreEditor({ companionData, roundId, onSaved }: Compan
     startTransition(async () => {
       const result = await upsertCompanionScoresBatch({
         roundId,
-        holeNumber: currentHole,
+        holeNumber: editingHole,
         scores: scoreData,
       });
       if (result.error) {
         setSaveResult('error');
       } else {
         setSaveResult('saved');
-        onSaved?.(currentHole, scoreData);
+        onSaved?.(editingHole, scoreData);
         setTimeout(() => setSaveResult('idle'), 3000);
       }
     });
@@ -67,9 +75,17 @@ export function CompanionScoreEditor({ companionData, roundId, onSaved }: Compan
 
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden">
-      <div className="bg-gray-800 px-3 py-2 flex items-center justify-between">
+      <div className="bg-gray-800 px-2 py-2 flex items-center justify-between">
+        <button
+          onClick={() => prevHole && setEditingHole(prevHole)}
+          disabled={prevHole === null}
+          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
+          aria-label="前のホール"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
         <span className="text-sm font-bold text-gray-200">
-          Hole {currentHole} 同伴者スコア
+          Hole {editingHole} 同伴者スコア
         </span>
         {saveResult === 'saved' && (
           <span className="flex items-center gap-1 text-xs text-green-400">
@@ -83,6 +99,14 @@ export function CompanionScoreEditor({ companionData, roundId, onSaved }: Compan
             保存失敗
           </span>
         )}
+        <button
+          onClick={() => nextHole && setEditingHole(nextHole)}
+          disabled={nextHole === null}
+          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
+          aria-label="次のホール"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="p-3 space-y-3 bg-gray-900">
