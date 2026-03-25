@@ -365,66 +365,72 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       )}
 
-      {/* 総打数 + パット数 ステッパー（縦並び） */}
-      <div className="space-y-3">
-        {/* 総打数 */}
-        <div className="space-y-1">
-          <label className="block text-sm font-bold text-gray-300 text-center">総打数</label>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => {
-                const newStrokes = Math.max(1, (strokes ?? hole.par) - 1);
-                setStrokes(newStrokes);
-                if (putts !== null && putts > newStrokes) setPutts(newStrokes);
-                setUserTouched(true);
-              }}
-              className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
-              aria-label="打数を減らす"
-            >
-              −
-            </button>
-            <span className="text-4xl font-bold min-w-[48px] text-center">
-              {strokes ?? hole.par}
-            </span>
-            <button
-              onClick={() => { setStrokes(Math.min(20, (strokes ?? hole.par) + 1)); setUserTouched(true); }}
-              className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
-              aria-label="打数を増やす"
-            >
-              +
-            </button>
+      {/* 総打数 + パット数 ステッパー（横並び） */}
+      <div className="space-y-2">
+        <div className="flex gap-3">
+          {/* 総打数 */}
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-bold text-gray-300 text-center">総打数</label>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  const newStrokes = Math.max(1, (strokes ?? hole.par) - 1);
+                  setStrokes(newStrokes);
+                  if (putts !== null && putts > newStrokes) setPutts(newStrokes);
+                  setUserTouched(true);
+                }}
+                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                aria-label="打数を減らす"
+              >
+                −
+              </button>
+              <span className="text-3xl font-bold min-w-[40px] text-center">
+                {strokes ?? hole.par}
+              </span>
+              <button
+                onClick={() => { setStrokes(Math.min(20, (strokes ?? hole.par) + 1)); setUserTouched(true); }}
+                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                aria-label="打数を増やす"
+              >
+                +
+              </button>
+            </div>
           </div>
-          {strokes !== null && (
-            <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
-              {getScoreLabel(strokes, hole.par)}
-            </p>
-          )}
+
+          {/* 区切り */}
+          <div className="w-px bg-gray-700 self-stretch mt-5" />
+
+          {/* パット数 */}
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-bold text-gray-300 text-center">パット</label>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => { setPutts(Math.max(0, (putts ?? 2) - 1)); setUserTouched(true); }}
+                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                aria-label="パット数を減らす"
+              >
+                −
+              </button>
+              <span className="text-3xl font-bold min-w-[40px] text-center">
+                {putts ?? 2}
+              </span>
+              <button
+                onClick={() => { setPutts(Math.min(strokes ?? 20, (putts ?? 2) + 1)); setUserTouched(true); }}
+                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                aria-label="パット数を増やす"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* パット数 */}
-        <div className="space-y-1">
-          <label className="block text-sm font-bold text-gray-300 text-center">パット</label>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => { setPutts(Math.max(0, (putts ?? 2) - 1)); setUserTouched(true); }}
-              className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
-              aria-label="パット数を減らす"
-            >
-              −
-            </button>
-            <span className="text-4xl font-bold min-w-[48px] text-center">
-              {putts ?? 2}
-            </span>
-            <button
-              onClick={() => { setPutts(Math.min(strokes ?? 20, (putts ?? 2) + 1)); setUserTouched(true); }}
-              className="min-h-[56px] min-w-[56px] flex items-center justify-center rounded-lg bg-gray-800 text-2xl font-bold text-white hover:bg-gray-700 transition-colors"
-              aria-label="パット数を増やす"
-            >
-              +
-            </button>
-          </div>
-        </div>
-
+        {/* スコアラベル */}
+        {strokes !== null && (
+          <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
+            {getScoreLabel(strokes, hole.par)}
+          </p>
+        )}
       </div>
 
       {/* ショット記録 */}
