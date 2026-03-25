@@ -350,17 +350,25 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
       {/* スコアサマリー */}
       {completedHoles > 0 && (
-        <div className="flex items-center justify-center gap-6 rounded-lg bg-gray-800 border border-gray-700 py-3">
-          <div className="text-center">
-            <p className="text-3xl font-bold">{totalStrokes}</p>
-            <p className={`text-sm font-bold ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
-              {totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar}
-            </p>
+        <div className="rounded-lg bg-gray-800 border border-gray-700 overflow-hidden">
+          <div className="grid grid-cols-3 divide-x divide-gray-700 py-3">
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">スコア</p>
+              <p className="text-2xl font-bold tabular-nums">{totalStrokes}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">トゥパー</p>
+              <p className={`text-2xl font-bold tabular-nums ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
+                {totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">パット</p>
+              <p className="text-2xl font-bold tabular-nums">{totalPutts}</p>
+            </div>
           </div>
-          <div className="h-8 w-px bg-gray-700" />
-          <div className="text-center">
-            <p className="text-xl font-bold text-gray-300">{totalPutts}</p>
-            <p className="text-xs text-gray-400">パット</p>
+          <div className="border-t border-gray-700 px-3 py-1.5 text-right">
+            <span className="text-xs text-gray-400 tabular-nums">{completedHoles}/18H</span>
           </div>
         </div>
       )}
