@@ -165,3 +165,25 @@ export async function completeRound(
   revalidatePath(`/rounds/${roundId}`);
   redirect(`/rounds/${roundId}`);
 }
+
+/** スタートコース（OUT/IN）を変更 */
+export async function updateStartingCourse(roundId: string, startingCourse: 'out' | 'in'): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .update({ starting_course: startingCourse })
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .eq('status', 'in_progress');
+
+  if (error) return { error: 'スタートコースの変更に失敗しました。' };
+
+  revalidatePath(`/play/${roundId}`);
+  revalidatePath(`/play/${roundId}/score`);
+  revalidatePath(`/play/${roundId}/scorecard`);
+  return {};
+}

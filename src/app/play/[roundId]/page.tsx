@@ -5,6 +5,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Pencil, CheckCircle } from 'lucide-react';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
+import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
 
 export default async function PlayMainPage({
   params,
@@ -39,6 +40,9 @@ export default async function PlayMainPage({
           </p>
         )}
       </div>
+
+      {/* スタートコース設定 */}
+      <StartingCourseToggle roundId={roundId} initialValue={round.starting_course} />
 
       {/* 同伴者管理 */}
       <CompanionManager roundId={roundId} initialCompanions={companions} />
