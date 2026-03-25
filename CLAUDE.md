@@ -139,9 +139,8 @@ RAKUTEN_APP_ID=
 
 ### デプロイ
 
-```bash
-npx vercel deploy --prod
-```
+- **自動デプロイ:** GitHub上でPRをマージすると、Vercel Git連携により自動デプロイされる（通常ルート）
+- **手動デプロイ:** mainに直接pushした場合は `npx vercel deploy --prod` で手動デプロイ
 
 ## コーディング規約
 
@@ -162,5 +161,5 @@ npx vercel deploy --prod
   4. GitHub上のレビュー（Gemini Code Assist等）の指摘にも対応する
   5. 承認後にコミット・プッシュし、PRを作成
   6. squash merge でマージ
-- **デプロイ:** `npx vercel deploy --prod` で手動デプロイ
+- **デプロイ:** PRマージ → Vercel自動デプロイ。mainへの直接push時のみ `npx vercel deploy --prod` で手動デプロイ
 - **DB変更:** Supabase MCP の `apply_migration` で適用。ローカルの `supabase/migrations/` にもファイルを保持
