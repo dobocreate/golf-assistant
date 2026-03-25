@@ -77,9 +77,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     ? [{ label: 'IN', holes: inHoles }, { label: 'OUT', holes: outHoles }]
     : [{ label: 'OUT', holes: outHoles }, { label: 'IN', holes: inHoles }];
 
-  const totalStrokes = scores.reduce((sum, s) => sum + s.strokes, 0);
-  const totalPutts = scores.reduce((sum, s) => sum + (s.putts ?? 0), 0);
-  const totalPar = scores.reduce((sum, s) => sum + (holeMap.get(s.hole_number)?.par ?? 0), 0);
 
   const companions = companionData.map(c => c.companion);
 
@@ -190,25 +187,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </div>
         );
       })}
-
-      {/* トータル */}
-      <div className="rounded-lg bg-gray-800 border border-gray-700 p-3">
-        <div className="grid grid-cols-2 divide-x divide-gray-700 text-center">
-          <div>
-            <p className="text-xs text-gray-400 mb-1">トータル</p>
-            <p className="text-2xl font-bold tabular-nums">{totalStrokes || '-'}</p>
-            {totalPar > 0 && (
-              <p className={`text-sm font-bold ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
-                {totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar}
-              </p>
-            )}
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-1">パット</p>
-            <p className="text-2xl font-bold tabular-nums">{totalPutts || '-'}</p>
-          </div>
-        </div>
-      </div>
 
       {/* 同伴者スコア入力 */}
       {companionData.length > 0 && (
