@@ -95,6 +95,15 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
       </div>
 
       {/* セクション（OUT/IN） */}
+      {/* 同伴者スコア入力 */}
+      {companionData.length > 0 && (
+        <CompanionScoreEditor
+          companionData={companionData}
+          roundId={roundId}
+          onSaved={handleCompanionSaved}
+        />
+      )}
+
       {sections.map(section => {
         const sectionStrokes = section.holes.reduce((sum, h) => sum + (scoreMap.get(h)?.strokes ?? 0), 0);
         const sectionPutts = section.holes.reduce((sum, h) => sum + (scoreMap.get(h)?.putts ?? 0), 0);
@@ -187,15 +196,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </div>
         );
       })}
-
-      {/* 同伴者スコア入力 */}
-      {companionData.length > 0 && (
-        <CompanionScoreEditor
-          companionData={companionData}
-          roundId={roundId}
-          onSaved={handleCompanionSaved}
-        />
-      )}
 
       <div className="h-24" />
     </div>
