@@ -135,10 +135,14 @@ export function CompanionScoreEditor({ companionData, roundId, onSaved }: Compan
           );
         })}
 
+      </div>
+
+      {/* フローティング保存ボタン */}
+      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save className="h-4 w-4" />
           {isPending ? '保存中...' : '保存'}
