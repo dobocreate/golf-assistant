@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Save, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
-import { CompanionScoresPanel } from '@/features/score/components/companion-scores';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
+import type { Score, HoleInfo } from '@/features/score/types';
 
 interface ClubOption {
   name: string;
@@ -22,7 +21,6 @@ interface ScoreInputProps {
   clubs?: ClubOption[];
   editMode?: boolean;
   startingCourse?: 'out' | 'in';
-  companionData?: CompanionWithScores[];
   initialHole?: number;
 }
 
@@ -43,7 +41,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', companionData = [], initialHole }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
@@ -78,10 +76,33 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // 保存状態: 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // アンマウント時にタイマーをクリーンアップ
+  // アンマウント時にタイマーをクリーンアップ + 未保存スコアをfire-and-forget保存
+  const roundIdRef = useRef(roundId);
+  useEffect(() => { roundIdRef.current = roundId; }, [roundId]);
+
   useEffect(() => {
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      // アンマウント時: 未保存スコアをstate更新なしで保存
+      const { strokes, putts, greenInReg, currentHole, scoreId, userTouched } = currentInputRef.current;
+      if (!userTouched || strokes === null) return;
+      const existing = scoresRef.current.get(currentHole);
+      if (!existing || existing.strokes !== strokes || existing.putts !== putts || existing.green_in_reg !== greenInReg) {
+        upsertScore({
+          roundId: roundIdRef.current,
+          holeNumber: currentHole,
+          strokes,
+          putts,
+          fairwayHit: null,
+          greenInReg,
+          teeShotLr: null,
+          teeShotFb: null,
+          obCount: 0,
+          bunkerCount: 0,
+          penaltyCount: 0,
+          firstPuttDistance: existing?.first_putt_distance ?? null,
+        }).catch(() => {});
+      }
     };
   }, []);
   // 保存失敗時のリトライ情報
@@ -266,10 +287,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const prevHole = currentIndex > 0 ? holeOrder[currentIndex - 1] : null;
   const nextHole = currentIndex < holeOrder.length - 1 ? holeOrder[currentIndex + 1] : null;
 
-  // ミニスコアカード用ホール配列
-  const firstNineHoles = holeOrder.slice(0, 9).map(n => holes.find(h => h.hole_number === n) ?? { hole_number: n, par: 4, distance: null });
-  const secondNineHoles = holeOrder.slice(9, 18).map(n => holes.find(h => h.hole_number === n) ?? { hole_number: n, par: 4, distance: null });
-
   // 初回表示時にデフォルト値を設定（strokes=Par, putts=2）
   useEffect(() => {
     if (strokes === null) setStrokes(hole.par);
@@ -448,23 +465,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         clubs={clubs}
       />
 
-      {/* 同伴者スコア */}
-      {companionData.length > 0 && (
-        <CompanionScoresPanel
-          roundId={roundId}
-          companions={companionData}
-          currentHole={currentHole}
-          prevHole={prevHole}
-        />
-      )}
-
-      {/* ホール一覧（ミニスコアカード） */}
-      <div className="space-y-2">
-        <label className="block text-sm font-bold text-gray-300">スコア一覧</label>
-        <MiniScorecardRow holes={firstNineHoles} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
-        <MiniScorecardRow holes={secondNineHoles} scores={scores} currentHole={currentHole} onSwitch={switchHole} getScoreColor={getScoreColor} />
-      </div>
-
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />
 
@@ -479,44 +479,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           {isPending ? '保存中...' : '保存'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function MiniScorecardRow({
-  holes,
-  scores,
-  currentHole,
-  onSwitch,
-  getScoreColor,
-}: {
-  holes: HoleInfo[];
-  scores: Map<number, Score>;
-  currentHole: number;
-  onSwitch: (holeNum: number) => void;
-  getScoreColor: (s: number, par: number) => string;
-}) {
-  return (
-    <div className="grid grid-cols-9 gap-1">
-      {holes.map(h => {
-        const s = scores.get(h.hole_number);
-        return (
-          <button
-            key={h.hole_number}
-            onClick={() => onSwitch(h.hole_number)}
-            className={`min-h-[48px] rounded text-xs font-bold transition-colors ${
-              currentHole === h.hole_number
-                ? 'bg-green-600 text-white'
-                : s
-                  ? 'bg-gray-700 text-white'
-                  : 'bg-gray-800 text-gray-500'
-            }`}
-          >
-            <div>{h.hole_number}</div>
-            {s && <div className={getScoreColor(s.strokes, h.par)}>{s.strokes}</div>}
-          </button>
-        );
-      })}
     </div>
   );
 }
