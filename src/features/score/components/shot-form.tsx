@@ -3,7 +3,8 @@
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
 import { AdvicePanel } from '@/features/score/components/advice-panel';
-import type { Shot, ShotFormState } from '@/features/score/types';
+import type { Shot, ShotFormState, FirstPuttDistance } from '@/features/score/types';
+import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FormsAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
 
@@ -25,7 +26,116 @@ interface ShotFormProps {
 
 export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, onAdviceReceived }: ShotFormProps) {
   const showMissType = form.result === 'fair' || form.result === 'poor';
+  const isPutt = form.shotType === 'putt';
 
+  // パット用簡略化フォーム
+  if (isPutt) {
+    return (
+      <div className="p-3 space-y-3 bg-gray-900">
+        {/* ===== 状況セクション ===== */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">パット状況</p>
+
+        {/* ファーストパット距離（4択） */}
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">パット距離</label>
+          <div className="flex items-center justify-center gap-2">
+            {(Object.entries(FIRST_PUTT_DISTANCE_LABELS) as [FirstPuttDistance, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => dispatch({
+                  type: 'UPDATE_FIELD',
+                  index: slot.index,
+                  updater: f => ({ ...f, puttDistanceCategory: f.puttDistanceCategory === key ? null : key }),
+                })}
+                className={`min-h-[48px] px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                  form.puttDistanceCategory === key
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ===== 区切り線 ===== */}
+        <div className="border-t border-gray-700 my-1" />
+
+        {/* ===== 結果セクション ===== */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">結果</p>
+
+        {/* 結果 */}
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">結果</label>
+          <div className="grid grid-cols-4 gap-2">
+            {RESULT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => dispatch({
+                  type: 'UPDATE_FIELD',
+                  index: slot.index,
+                  updater: f => ({ ...f, result: f.result === opt.value ? null : opt.value }),
+                })}
+                className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                  form.result === opt.value ? opt.activeColor : opt.color
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 方向グリッド */}
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">方向</label>
+          <div className="grid grid-cols-3 gap-1.5 max-w-[180px] mx-auto">
+            {DIRECTION_GRID.map(({ lr, fb, label }) => {
+              const isSelected = form.directionLr === lr && form.directionFb === fb;
+              return (
+                <button
+                  key={`${lr}-${fb}`}
+                  onClick={() => dispatch({
+                    type: 'UPDATE_FIELD',
+                    index: slot.index,
+                    updater: f => {
+                      if (f.directionLr === lr && f.directionFb === fb) {
+                        return { ...f, directionLr: null, directionFb: null };
+                      }
+                      return { ...f, directionLr: lr, directionFb: fb };
+                    },
+                  })}
+                  className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                    isSelected
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* メモ */}
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">メモ</label>
+          <textarea
+            value={form.note ?? ''}
+            onChange={e => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, note: e.target.value || null }) })}
+            placeholder="気づき・反省点など"
+            maxLength={SHOT_NOTE_MAX_LENGTH}
+            rows={2}
+            className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-base border-0 focus:ring-2 focus:ring-green-600 resize-none"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // 通常ショットフォーム
   return (
     <div className="p-3 space-y-3 bg-gray-900">
       {/* スキップヒント */}

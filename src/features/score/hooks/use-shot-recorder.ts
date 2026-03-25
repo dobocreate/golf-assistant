@@ -1,5 +1,6 @@
 import { useReducer, useState, useEffect, useCallback, useRef } from 'react';
 import { getShots, saveShotsForHole } from '@/actions/shot';
+import { updateFirstPuttDistance } from '@/actions/score';
 import { emptyShotForm, shotToForm, hasFormChanged, shouldSaveForm } from '@/features/score/shot-constants';
 import type { Shot, ShotFormState } from '@/features/score/types';
 import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
@@ -108,6 +109,19 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     } else {
       setSaveStatus('saved');
       saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
+
+      // パットショットのputtDistanceCategoryをscores.first_putt_distanceに同期
+      const allForms = snapshotState.forms;
+      for (const [, form] of allForms) {
+        if (form.shotType === 'putt' && form.puttDistanceCategory) {
+          updateFirstPuttDistance({
+            roundId: payload.roundId,
+            holeNumber: forHoleNumber,
+            firstPuttDistance: form.puttDistanceCategory,
+          }).catch(() => {});
+          break; // ファーストパットのみ同期
+        }
+      }
     }
   }, [collectPendingShots]);
 
@@ -155,7 +169,7 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
       distance: shot.remaining_distance,
       lieLabel: shot.lie ? (LIE_DB_TO_LABEL[shot.lie] ?? null) : null,
       hasAdvice: !!shot.advice_text,
-      isSkipped: shot.result === null && shot.club === null,
+      isSkipped: shot.result === null && shot.club === null && shot.shot_type === null,
     })),
     {
       index: shots.length,

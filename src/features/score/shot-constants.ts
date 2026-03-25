@@ -53,6 +53,7 @@ export function emptyShotForm(): ShotFormState {
     shotType: null,
     remainingDistance: null,
     note: null,
+    puttDistanceCategory: null,
   };
 }
 
@@ -70,6 +71,7 @@ export function shotToForm(shot: Shot): ShotFormState {
     shotType: shot.shot_type,
     remainingDistance: shot.remaining_distance,
     note: shot.note,
+    puttDistanceCategory: null, // DBには保存されない。scores.first_putt_distanceと同期
   };
 }
 
@@ -86,11 +88,12 @@ export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.landing !== shot.landing ||
     form.shotType !== shot.shot_type ||
     form.remainingDistance !== shot.remaining_distance ||
-    form.note !== shot.note
+    form.note !== shot.note ||
+    form.puttDistanceCategory !== null // puttDistanceCategoryが設定されていれば変更あり
   );
 }
 
 /** 全フィールドnullのフォームは保存しない */
 export function shouldSaveForm(form: ShotFormState): boolean {
-  return !!(form.club || form.result || form.shotType || form.lie || form.remainingDistance != null || form.directionLr || form.note);
+  return !!(form.club || form.result || form.shotType || form.lie || form.remainingDistance != null || form.directionLr || form.note || form.puttDistanceCategory);
 }
