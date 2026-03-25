@@ -23,6 +23,7 @@ export default async function ScorecardPage({
 
   return (
     <Scorecard
+      roundId={roundId}
       holes={data.holes}
       scores={data.scores}
       courseName={data.round.courseName}

@@ -104,6 +104,19 @@ export async function getCompanionScores(roundId: string): Promise<{ companion: 
   }));
 }
 
+function validateCompanionScore(score: { strokes: number | null; putts: number | null }): string | null {
+  if (score.strokes !== null && (!Number.isInteger(score.strokes) || score.strokes < 1 || score.strokes > 20)) {
+    return '打数が不正です。';
+  }
+  if (score.putts !== null && (!Number.isInteger(score.putts) || score.putts < 0 || score.putts > 10)) {
+    return 'パット数が不正です。';
+  }
+  if (score.strokes !== null && score.putts !== null && score.putts > score.strokes) {
+    return 'パット数が打数を超えています。';
+  }
+  return null;
+}
+
 export async function upsertCompanionScore(data: {
   companionId: string;
   roundId: string;
@@ -115,15 +128,8 @@ export async function upsertCompanionScore(data: {
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
   }
-  if (data.strokes !== null && (!Number.isInteger(data.strokes) || data.strokes < 1 || data.strokes > 20)) {
-    return { error: '打数が不正です。' };
-  }
-  if (data.putts !== null && (!Number.isInteger(data.putts) || data.putts < 0 || data.putts > 10)) {
-    return { error: 'パット数が不正です。' };
-  }
-  if (data.strokes !== null && data.putts !== null && data.putts > data.strokes) {
-    return { error: 'パット数が打数を超えています。' };
-  }
+  const scoreError = validateCompanionScore(data);
+  if (scoreError) return { error: scoreError };
 
   const { error, supabase } = await verifyRoundOwnership(data.roundId);
   if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
@@ -141,5 +147,47 @@ export async function upsertCompanionScore(data: {
     );
 
   if (upsertError) return { error: 'スコアの保存に失敗しました。' };
+  return {};
+}
+
+/** 同伴者スコアの一括保存（カード画面の保存ボタン用） */
+export async function upsertCompanionScoresBatch(data: {
+  roundId: string;
+  holeNumber: number;
+  scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>;
+}): Promise<{ error?: string }> {
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
+    return { error: 'ホール番号が不正です。' };
+  }
+
+  // strokes/putts両方nullのエントリを除外
+  const validScores = data.scores.filter(s => s.strokes !== null || s.putts !== null);
+  if (validScores.length === 0) return {};
+
+  // 各エントリのバリデーション
+  for (const s of validScores) {
+    if (!isValidUUID(s.companionId)) return { error: 'IDが不正です。' };
+    const scoreError = validateCompanionScore(s);
+    if (scoreError) return { error: scoreError };
+  }
+
+  // 認証+所有権チェック1回
+  const { error, supabase } = await verifyRoundOwnership(data.roundId);
+  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
+
+  // 一括upsert
+  const { error: upsertError } = await supabase
+    .from('companion_scores')
+    .upsert(
+      validScores.map(s => ({
+        companion_id: s.companionId,
+        hole_number: data.holeNumber,
+        strokes: s.strokes,
+        putts: s.putts,
+      })),
+      { onConflict: 'companion_id,hole_number' }
+    );
+
+  if (upsertError) return { error: '同伴者スコアの保存に失敗しました。' };
   return {};
 }

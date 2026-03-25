@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { CompanionScoreEditor } from '@/features/score/components/companion-score-editor';
 import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
 
 interface ScorecardProps {
+  roundId: string;
   holes: HoleInfo[];
   scores: Score[];
   courseName: string;
@@ -34,18 +36,40 @@ function scoreBg(strokes: number, par: number): string {
   return 'bg-red-900/20';
 }
 
-export function Scorecard({ holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
+export function Scorecard({ roundId, holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
   const [showDetail, setShowDetail] = useState(false);
+  // 楽観的更新: 同伴者スコアのローカルオーバーライド
+  const [companionOverrides, setCompanionOverrides] = useState<Map<string, Map<number, { strokes: number | null; putts: number | null }>>>(new Map());
 
   const scoreMap = new Map(scores.map(s => [s.hole_number, s]));
   const holeMap = new Map(holes.map(h => [h.hole_number, h]));
 
+  // 同伴者スコアMap（DB値 + 楽観的更新をマージ）
   const companionScoreMap = new Map<string, Map<number, { strokes: number | null; putts: number | null }>>();
   for (const { companion, scores: cs } of companionData) {
     const m = new Map<number, { strokes: number | null; putts: number | null }>();
     for (const s of cs) m.set(s.hole_number, { strokes: s.strokes, putts: s.putts });
+    // オーバーライドをマージ
+    const overrides = companionOverrides.get(companion.id);
+    if (overrides) {
+      for (const [hole, val] of overrides) m.set(hole, val);
+    }
     companionScoreMap.set(companion.id, m);
   }
+
+  // CompanionScoreEditor からの保存完了コールバック
+  const handleCompanionSaved = (holeNumber: number, savedScores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => {
+    setCompanionOverrides(prev => {
+      const next = new Map(prev);
+      for (const s of savedScores) {
+        if (s.strokes === null && s.putts === null) continue;
+        const m = new Map(next.get(s.companionId) ?? new Map());
+        m.set(holeNumber, { strokes: s.strokes, putts: s.putts });
+        next.set(s.companionId, m);
+      }
+      return next;
+    });
+  };
 
   const outHoles = Array.from({ length: 9 }, (_, i) => i + 1);
   const inHoles = Array.from({ length: 9 }, (_, i) => i + 10);
@@ -189,6 +213,15 @@ export function Scorecard({ holes, scores, courseName, startingCourse, companion
           </div>
         </div>
       </div>
+
+      {/* 同伴者スコア入力 */}
+      {companionData.length > 0 && (
+        <CompanionScoreEditor
+          companionData={companionData}
+          roundId={roundId}
+          onSaved={handleCompanionSaved}
+        />
+      )}
 
       <div className="h-24" />
     </div>
