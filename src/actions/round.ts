@@ -187,3 +187,43 @@ export async function updateStartingCourse(roundId: string, startingCourse: 'out
   revalidatePath(`/play/${roundId}/scorecard`);
   return {};
 }
+
+/** 天候を変更 */
+export async function updateWeather(roundId: string, weather: string | null): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (weather !== null && !['sunny', 'cloudy', 'light_rain', 'rain'].includes(weather)) {
+    return { error: '天候の値が不正です。' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .update({ weather })
+    .eq('id', roundId)
+    .eq('user_id', user.id);
+
+  if (error) return { error: '天候の変更に失敗しました。' };
+  return {};
+}
+
+/** 風を変更 */
+export async function updateWind(roundId: string, wind: string | null): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (wind !== null && !['calm', 'light', 'moderate', 'strong'].includes(wind)) {
+    return { error: '風の値が不正です。' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .update({ wind })
+    .eq('id', roundId)
+    .eq('user_id', user.id);
+
+  if (error) return { error: '風の変更に失敗しました。' };
+  return {};
+}

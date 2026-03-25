@@ -353,6 +353,8 @@ export async function saveShotsForHole(data: {
     remainingDistance: number | null;
     note: string | null;
     adviceText: string | null;
+    windDirection: string | null;
+    windStrength: string | null;
   }>;
 }): Promise<{ error?: string; shots?: Shot[] }> {
   if (data.shots.length === 0) return { shots: [] };
@@ -406,6 +408,8 @@ export async function saveShotsForHole(data: {
     remaining_distance: s.remainingDistance,
     note: s.note,
     advice_text: s.adviceText,
+    wind_direction: s.windDirection ?? null,
+    wind_strength: s.windStrength ?? null,
   }));
 
   const { error: upsertErr } = await supabase

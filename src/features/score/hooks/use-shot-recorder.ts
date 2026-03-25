@@ -236,6 +236,8 @@ function collectPendingShotsSync(
     remainingDistance: number | null;
     note: string | null;
     adviceText: string | null;
+    windDirection: string | null;
+    windStrength: string | null;
   }> = [];
 
   // 既存ショットで変更があるもの
@@ -287,5 +289,7 @@ function formToPayload(form: ShotFormState) {
     shotType: form.shotType,
     remainingDistance: form.remainingDistance,
     note: form.note,
+    windDirection: form.windDirection,
+    windStrength: form.windStrength,
   };
 }
