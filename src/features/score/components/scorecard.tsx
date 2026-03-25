@@ -193,7 +193,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
       {/* トータル */}
       <div className="rounded-lg bg-gray-800 border border-gray-700 p-3">
-        <div className="grid grid-cols-3 divide-x divide-gray-700 text-center">
+        <div className="grid grid-cols-2 divide-x divide-gray-700 text-center">
           <div>
             <p className="text-xs text-gray-400 mb-1">トータル</p>
             <p className="text-2xl font-bold tabular-nums">{totalStrokes || '-'}</p>
@@ -206,10 +206,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           <div>
             <p className="text-xs text-gray-400 mb-1">パット</p>
             <p className="text-2xl font-bold tabular-nums">{totalPutts || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-1">入力</p>
-            <p className="text-2xl font-bold tabular-nums">{scores.length}/18</p>
           </div>
         </div>
       </div>
