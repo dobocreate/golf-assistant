@@ -1,4 +1,6 @@
 import { LIE_DB_TO_LABEL, SLOPE_FB_DB_TO_LABEL, SLOPE_LR_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
+import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS, WEATHER_LABELS } from '@/features/round/types';
+import type { WindDirection, WindStrength, Weather } from '@/features/round/types';
 
 const SYSTEM_PROMPT = `あなたはプロゴルファーの経験を持つAIキャディーです。
 プレーヤーの特性、コース情報、過去の傾向を踏まえて、具体的で実用的なアドバイスを提供します。
@@ -28,6 +30,9 @@ export function createUserPrompt(situation: {
   slopeFB?: string | null;
   slopeLR?: string | null;
   notes?: string;
+  windDirection?: string | null;
+  windStrength?: string | null;
+  weather?: string | null;
 }): string {
   const lieLabel = LIE_DB_TO_LABEL[situation.lie] ?? situation.lie;
   const shotTypeLabel = SHOT_TYPE_DB_TO_LABEL[situation.shotType] ?? situation.shotType;
@@ -49,6 +54,24 @@ export function createUserPrompt(situation: {
     if (label) slopes.push(label);
   }
   if (slopes.length > 0) parts.push(`傾斜: ${slopes.join('・')}`);
+
+  // 風
+  const windParts: string[] = [];
+  if (situation.windDirection) {
+    const label = WIND_DIRECTION_LABELS[situation.windDirection as WindDirection];
+    if (label) windParts.push(label);
+  }
+  if (situation.windStrength) {
+    const label = WIND_STRENGTH_LABELS[situation.windStrength as WindStrength];
+    if (label) windParts.push(label);
+  }
+  if (windParts.length > 0) parts.push(`風: ${windParts.join('・')}`);
+
+  // 天候
+  if (situation.weather) {
+    const label = WEATHER_LABELS[situation.weather as Weather];
+    if (label) parts.push(`天候: ${label}`);
+  }
 
   if (situation.notes) {
     parts.push(`補足: ${situation.notes}`);

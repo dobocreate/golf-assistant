@@ -37,6 +37,7 @@ export default async function ScoreInputPage({
       editMode={editMode}
       startingCourse={data.round.startingCourse}
       initialHole={initialHole}
+      weather={data.round.weather}
     />
   );
 }

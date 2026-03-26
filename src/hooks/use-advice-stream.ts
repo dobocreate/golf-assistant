@@ -12,6 +12,9 @@ export interface AdviceRequestParams {
   slopeFB: string | null;
   slopeLR: string | null;
   notes?: string;
+  windDirection?: string;
+  windStrength?: string;
+  weather?: string;
 }
 
 export interface UseAdviceStreamReturn {
@@ -64,6 +67,9 @@ export function useAdviceStream(): UseAdviceStreamReturn {
           slopeFB: params.slopeFB,
           slopeLR: params.slopeLR,
           notes: params.notes,
+          windDirection: params.windDirection,
+          windStrength: params.windStrength,
+          weather: params.weather,
         }),
         signal: controller.signal,
       });

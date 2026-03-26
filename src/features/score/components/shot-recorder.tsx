@@ -9,9 +9,12 @@ interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
   clubs: ClubOption[];
+  windDirection?: string | null;
+  windStrength?: string | null;
+  weather?: string | null;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -95,6 +98,9 @@ export function ShotRecorder({ roundId, holeNumber, clubs }: ShotRecorderProps) 
                 clubs={clubs}
                 roundId={roundId}
                 holeNumber={holeNumber}
+                windDirection={windDirection}
+                windStrength={windStrength}
+                weather={weather}
                 onAdviceReceived={handleAdviceReceived}
               />
             )}

@@ -17,6 +17,9 @@ interface AdvicePanelProps {
   slopeLr: ShotSlopeLR | null;
   shotType: ShotType | null;
   remainingDistance: number | null;
+  windDirection?: string | null;
+  windStrength?: string | null;
+  weather?: string | null;
   savedAdviceText?: string | null;
   onAdviceReceived?: (text: string) => void;
 }
@@ -30,6 +33,9 @@ export function AdvicePanel({
   slopeLr,
   shotType,
   remainingDistance,
+  windDirection,
+  windStrength,
+  weather,
   savedAdviceText,
   onAdviceReceived,
 }: AdvicePanelProps) {
@@ -74,8 +80,11 @@ export function AdvicePanel({
       slopeFB: slopeFb,
       slopeLR: slopeLr,
       notes: notes || undefined,
+      windDirection: windDirection ?? undefined,
+      windStrength: windStrength ?? undefined,
+      weather: weather ?? undefined,
     });
-  }, [isStreaming, requestAdvice, roundId, holeNumber, shotType, remainingDistance, lie, slopeFb, slopeLr, notes]);
+  }, [isStreaming, requestAdvice, roundId, holeNumber, shotType, remainingDistance, lie, slopeFb, slopeLr, notes, windDirection, windStrength, weather]);
 
   // アドバイス取得完了時にコールバックで親に通知（DB保存は親が管理）
   const prevAdviceText = useRef('');

@@ -24,6 +24,7 @@ interface ScoreInputProps {
   editMode?: boolean;
   startingCourse?: 'out' | 'in';
   initialHole?: number;
+  weather?: string | null;
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -43,7 +44,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
@@ -509,6 +510,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         roundId={roundId}
         holeNumber={currentHole}
         clubs={clubs}
+        windDirection={windDirection}
+        windStrength={windStrength}
+        weather={weather}
       />
 
       {/* ナビバー + フローティングボタン分のスペーサー */}

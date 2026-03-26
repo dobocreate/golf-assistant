@@ -31,6 +31,9 @@ export async function POST(request: Request) {
       slopeFB?: string | null;
       slopeLR?: string | null;
       notes?: string;
+      windDirection?: string | null;
+      windStrength?: string | null;
+      weather?: string | null;
     };
 
     try {
@@ -88,6 +91,9 @@ export async function POST(request: Request) {
       slopeFB: body.slopeFB,
       slopeLR: body.slopeLR,
       notes: body.notes,
+      windDirection: body.windDirection,
+      windStrength: body.windStrength,
+      weather: body.weather,
     });
 
     // Gemini API ストリーミング
