@@ -195,23 +195,6 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, onA
         />
       </div>
 
-      {/* クラブ */}
-      {clubs.length > 0 && (
-        <div className="space-y-1">
-          <label className="block text-xs text-gray-400">クラブ</label>
-          <select
-            value={form.club ?? ''}
-            onChange={e => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, club: e.target.value || null }) })}
-            className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-green-600"
-          >
-            <option value="">選択なし</option>
-            {clubs.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {/* ライ */}
       <div className="space-y-1">
         <label className="block text-xs text-gray-400">ライ</label>
@@ -307,6 +290,23 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, onA
 
       {/* ===== 結果セクション ===== */}
       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">結果</p>
+
+      {/* クラブ */}
+      {clubs.length > 0 && (
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">クラブ</label>
+          <select
+            value={form.club ?? ''}
+            onChange={e => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, club: e.target.value || null }) })}
+            className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-green-600"
+          >
+            <option value="">選択なし</option>
+            {clubs.map(c => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* 結果 */}
       <div className="space-y-1">
