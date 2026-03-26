@@ -66,10 +66,10 @@ export function Modal({ isOpen, onClose, title, 'aria-label': ariaLabel, childre
     }
   }, [isOpen, handleKeyDown]);
 
-  if (!isOpen) return null;
-
   const generatedId = useId();
   const titleId = title ? `modal-title-${generatedId}` : undefined;
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
