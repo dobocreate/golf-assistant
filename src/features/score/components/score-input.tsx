@@ -8,6 +8,8 @@ import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { Score, HoleInfo } from '@/features/score/types';
+import type { WindDirection, WindStrength } from '@/features/round/types';
+import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 
 interface ClubOption {
   name: string;
@@ -84,10 +86,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
       // アンマウント時: 未保存スコアをstate更新なしで保存
-      const { strokes, putts, greenInReg, currentHole, scoreId, userTouched } = currentInputRef.current;
+      const { strokes, putts, greenInReg, windDirection: wd, windStrength: ws, currentHole, scoreId, userTouched } = currentInputRef.current;
       if (!userTouched || strokes === null) return;
       const existing = scoresRef.current.get(currentHole);
-      if (!existing || existing.strokes !== strokes || existing.putts !== putts || existing.green_in_reg !== greenInReg) {
+      if (!existing || existing.strokes !== strokes || existing.putts !== putts || existing.green_in_reg !== greenInReg || existing.wind_direction !== wd || existing.wind_strength !== ws) {
         upsertScore({
           roundId: roundIdRef.current,
           holeNumber: currentHole,
@@ -101,6 +103,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           bunkerCount: 0,
           penaltyCount: 0,
           firstPuttDistance: existing?.first_putt_distance ?? null,
+          windDirection: wd,
+          windStrength: ws,
         }).catch(() => {});
       }
     };
@@ -111,6 +115,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     strokes: number;
     putts: number | null;
     gir: boolean | null;
+    wd: WindDirection | null;
+    ws: WindStrength | null;
     existingId?: string;
   } | null>(null);
 
@@ -119,6 +125,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
+  const [windDirection, setWindDirection] = useState<WindDirection | null>(score?.wind_direction ?? null);
+  const [windStrength, setWindStrength] = useState<WindStrength | null>(score?.wind_strength ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
   // ユーザーが明示的にスコアを操作したかどうか（デフォルト値の自動保存防止用）
   const [userTouched, setUserTouched] = useState(score !== undefined);
@@ -143,6 +151,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     s: number,
     p: number | null,
     gir: boolean | null,
+    wd: WindDirection | null,
+    ws: WindStrength | null,
     existingId?: string,
   ) => {
     const existingScore = scoresRef.current.get(holeNum);
@@ -160,6 +170,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       ob_count: 0,
       bunker_count: 0,
       penalty_count: 0,
+      wind_direction: wd,
+      wind_strength: ws,
     };
 
     // 楽観的更新
@@ -186,6 +198,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         bunkerCount: 0,
         penaltyCount: 0,
         firstPuttDistance: existingScore?.first_putt_distance ?? null,
+        windDirection: wd,
+        windStrength: ws,
       });
       if (result.error) {
         const prev = previousScoreRef.current;
@@ -195,7 +209,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
         }
         setSaveStatus('error');
-        setFailedSave({ holeNum, strokes: s, putts: p, gir, existingId });
+        setFailedSave({ holeNum, strokes: s, putts: p, gir, wd, ws, existingId });
       } else {
         setSaveStatus('saved');
         setFailedSave(null);
@@ -205,21 +219,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [roundId]);
 
   // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
-  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null): boolean => {
+  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null, wd: WindDirection | null, ws: WindStrength | null): boolean => {
     if (s === null) return false;
     const saved = scoresRef.current.get(holeNum);
     if (!saved) return true;
-    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir;
+    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir || saved.wind_direction !== wd || saved.wind_strength !== ws;
   }, []);
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    if (!hasChanges(currentHole, strokes, putts, greenInReg)) {
+    if (!hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength)) {
       showToast('変更なし', 'info');
       return;
     }
-    saveHole(currentHole, strokes, putts, greenInReg, score?.id);
-  }, [currentHole, strokes, putts, greenInReg, score?.id, saveHole, hasChanges, showToast]);
+    saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id, saveHole, hasChanges, showToast]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -228,16 +242,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [scores]);
 
   // 現在の入力値を ref で保持（switchHole の依存配列を最小化するため）
-  const currentInputRef = useRef({ strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched });
+  const currentInputRef = useRef({ strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched });
   useEffect(() => {
-    currentInputRef.current = { strokes, putts, greenInReg, currentHole, scoreId: score?.id, userTouched };
-  }, [strokes, putts, greenInReg, currentHole, score?.id, userTouched]);
+    currentInputRef.current = { strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched };
+  }, [strokes, putts, greenInReg, windDirection, windStrength, currentHole, score?.id, userTouched]);
 
   // ホール切り替え時に未保存データがあれば自動保存（ユーザーが操作済みの場合のみ）
   const switchHole = useCallback((holeNum: number) => {
-    const { strokes: st, putts: pt, greenInReg: gir, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
-    if (touched && st !== null && hasChanges(ch, st, pt, gir)) {
-      saveHole(ch, st, pt, gir, scoreId);
+    const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
+    if (touched && st !== null && hasChanges(ch, st, pt, gir, wd, ws)) {
+      saveHole(ch, st, pt, gir, wd, ws, scoreId);
     }
     setCurrentHole(holeNum);
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
@@ -246,6 +260,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
+    setWindDirection(s?.wind_direction ?? null);
+    setWindStrength(s?.wind_strength ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     setUserTouched(s !== undefined);
   }, [saveHole, hasChanges, roundId]);
@@ -325,7 +341,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <button
             onClick={() => {
               if (failedSave) {
-                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.existingId);
+                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId);
               }
             }}
             className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -363,6 +379,42 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         >
           <ChevronRight className="h-6 w-6" />
         </button>
+      </div>
+
+      {/* 風（ホール単位） */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風向き</p>
+          <div className="grid grid-cols-4 gap-1">
+            {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setWindDirection(windDirection === key ? null : key); setUserTouched(true); }}
+                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
+                  windDirection === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風の強さ</p>
+          <div className="grid grid-cols-2 gap-1">
+            {(Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setWindStrength(windStrength === key ? null : key); setUserTouched(true); }}
+                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
+                  windStrength === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* スコアサマリー */}

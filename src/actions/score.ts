@@ -29,6 +29,8 @@ export async function upsertScore(data: {
   bunkerCount: number;
   penaltyCount: number;
   firstPuttDistance: string | null;
+  windDirection: string | null;
+  windStrength: string | null;
 }): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -44,7 +46,9 @@ export async function upsertScore(data: {
     validateIntRange(data.obCount, 0, 10, 'OB数') ??
     validateIntRange(data.bunkerCount, 0, 10, 'バンカー数') ??
     validateIntRange(data.penaltyCount, 0, 10, 'ペナルティ数') ??
-    validateEnum(data.firstPuttDistance, ['short', 'mid', 'long', 'very_long'], 'ファーストパット距離');
+    validateEnum(data.firstPuttDistance, ['short', 'mid', 'long', 'very_long'], 'ファーストパット距離') ??
+    validateEnum(data.windDirection, ['head', 'tail', 'left', 'right'], '風向き') ??
+    validateEnum(data.windStrength, ['calm', 'light', 'moderate', 'strong'], '風の強さ');
   if (validationError) return { error: validationError };
 
   const supabase = await createClient();
@@ -76,6 +80,8 @@ export async function upsertScore(data: {
         bunker_count: data.bunkerCount,
         penalty_count: data.penaltyCount,
         first_putt_distance: data.firstPuttDistance,
+        wind_direction: data.windDirection,
+        wind_strength: data.windStrength,
       },
       { onConflict: 'round_id,hole_number' }
     );

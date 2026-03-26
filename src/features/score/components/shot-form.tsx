@@ -5,8 +5,6 @@ import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } fr
 import { AdvicePanel } from '@/features/score/components/advice-panel';
 import type { Shot, ShotFormState, FirstPuttDistance } from '@/features/score/types';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
-import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
-import type { WindDirection, WindStrength } from '@/features/round/types';
 import type { FormsAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
 
@@ -289,56 +287,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, onA
         </div>
       </div>
 
-      {/* 風（ホール単位） */}
-      <div className="space-y-1">
-        <label className="block text-xs text-gray-400">風</label>
-        <div className="flex gap-2">
-          <div className="flex-1 space-y-1">
-            <p className="text-xs text-gray-400">風向き</p>
-            <div className="grid grid-cols-4 gap-1">
-              {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: slot.index,
-                    updater: f => ({ ...f, windDirection: f.windDirection === key ? null : key }),
-                  })}
-                  className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                    form.windDirection === key
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 space-y-1">
-            <p className="text-xs text-gray-400">強さ</p>
-            <div className="grid grid-cols-2 gap-1">
-              {(Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: slot.index,
-                    updater: f => ({ ...f, windStrength: f.windStrength === key ? null : key }),
-                  })}
-                  className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                    form.windStrength === key
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 風はスコア画面のホールヘッダーで設定（ホール単位） */}
 
       {/* AIアドバイス */}
       <AdvicePanel

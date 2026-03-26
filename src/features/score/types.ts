@@ -31,6 +31,8 @@ export interface Score {
   ob_count: number;
   bunker_count: number;
   penalty_count: number;
+  wind_direction: WindDirection | null;
+  wind_strength: WindStrength | null;
 }
 
 export type ShotResult = 'excellent' | 'good' | 'fair' | 'poor';
