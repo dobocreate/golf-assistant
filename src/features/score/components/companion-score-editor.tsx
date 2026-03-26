@@ -9,22 +9,32 @@ import type { CompanionWithScores } from '@/features/score/types';
 interface CompanionScoreEditorProps {
   companionData: CompanionWithScores[];
   roundId: string;
+  startingCourse?: 'out' | 'in';
   onSaved?: (holeNumber: number, scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => void;
 }
 
-export function CompanionScoreEditor({ companionData, roundId, onSaved }: CompanionScoreEditorProps) {
+function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
+  if (startingCourse === 'in') {
+    return [...Array.from({ length: 9 }, (_, i) => i + 10), ...Array.from({ length: 9 }, (_, i) => i + 1)];
+  }
+  return Array.from({ length: 18 }, (_, i) => i + 1);
+}
+
+export function CompanionScoreEditor({ companionData, roundId, startingCourse = 'out', onSaved }: CompanionScoreEditorProps) {
   const playRound = usePlayRoundOptional();
-  const [editingHole, setEditingHole] = useState(playRound?.currentHole ?? 1);
+  const holeOrder = getHoleOrder(startingCourse);
+  const [editingHole, setEditingHole] = useState(playRound?.currentHole ?? holeOrder[0]);
   const [isPending, startTransition] = useTransition();
   const [saveResult, setSaveResult] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  // スコア画面のeditingHole が変わったら同期
+  // スコア画面のcurrentHole が変わったら同期
   useEffect(() => {
     if (playRound?.currentHole) setEditingHole(playRound.currentHole);
   }, [playRound?.currentHole]);
 
-  const prevHole = editingHole > 1 ? editingHole - 1 : null;
-  const nextHole = editingHole < 18 ? editingHole + 1 : null;
+  const currentIndex = holeOrder.indexOf(editingHole);
+  const prevHole = currentIndex > 0 ? holeOrder[currentIndex - 1] : null;
+  const nextHole = currentIndex < holeOrder.length - 1 ? holeOrder[currentIndex + 1] : null;
 
   // 各同伴者の打数・パット入力値
   const [inputs, setInputs] = useState<Map<string, { strokes: string; putts: string }>>(new Map());

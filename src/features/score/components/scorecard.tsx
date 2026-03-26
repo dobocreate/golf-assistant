@@ -100,6 +100,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         <CompanionScoreEditor
           companionData={companionData}
           roundId={roundId}
+          startingCourse={startingCourse}
           onSaved={handleCompanionSaved}
         />
       )}
