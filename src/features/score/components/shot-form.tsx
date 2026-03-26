@@ -279,6 +279,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, onA
         shotNumber={slot.shotNumber}
         lie={form.lie}
         slopeFb={form.slopeFb}
+        savedAdviceText={slot.shot?.advice_text}
         slopeLr={form.slopeLr}
         shotType={form.shotType}
         remainingDistance={form.remainingDistance}
