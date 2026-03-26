@@ -385,7 +385,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       <div className="flex gap-2">
         <div className="flex-1">
           <p className="text-xs text-gray-400 mb-1">風向き</p>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-2 gap-1">
             {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
               <button
                 key={key}
