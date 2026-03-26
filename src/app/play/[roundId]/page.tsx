@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Pencil, CheckCircle } from 'lucide-react';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
 import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
+import { WeatherWindSetting } from '@/features/round/components/weather-wind-setting';
 
 export default async function PlayMainPage({
   params,
@@ -41,8 +42,9 @@ export default async function PlayMainPage({
         )}
       </div>
 
-      {/* スタートコース設定 */}
+      {/* ラウンド設定 */}
       <StartingCourseToggle roundId={roundId} initialValue={round.starting_course} />
+      <WeatherWindSetting roundId={roundId} initialWeather={round.weather} initialWind={round.wind} />
 
       {/* 同伴者管理 */}
       <CompanionManager roundId={roundId} initialCompanions={companions} />
