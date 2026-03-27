@@ -41,6 +41,8 @@ export async function startRound(formData: FormData) {
     return { error: 'スタートコースを選択してください。' };
   }
 
+  const gamePlanSetId = formData.get('game_plan_set_id') as string | null;
+
   // ラウンド作成
   const { data: round, error } = await supabase
     .from('rounds')
@@ -56,6 +58,16 @@ export async function startRound(formData: FormData) {
 
   if (error) {
     return { error: 'ラウンドの作成に失敗しました。' };
+  }
+
+  // ゲームプランセットをラウンドにコピー
+  if (gamePlanSetId && isValidUUID(gamePlanSetId)) {
+    const { applyGamePlanSetToRound } = await import('@/actions/game-plan-set');
+    const planResult = await applyGamePlanSetToRound({ setId: gamePlanSetId, roundId: round.id });
+    if (planResult.error) {
+      // プランコピー失敗はラウンド開始を止めない（警告のみ）
+      console.error('Failed to apply game plan:', planResult.error);
+    }
   }
 
   revalidatePath('/play');

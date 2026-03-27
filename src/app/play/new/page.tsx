@@ -1,4 +1,5 @@
 import { getSavedCourses } from '@/actions/course';
+import { getGamePlanSets } from '@/actions/game-plan-set';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import { RoundStartForm } from '@/features/round/components/round-start-form';
@@ -17,12 +18,15 @@ export default async function NewRoundPage({
   if (!user) redirect('/auth/login');
 
   const { courseId } = await searchParams;
-  const courses = await getSavedCourses();
+  const [courses, gamePlanSets] = await Promise.all([
+    getSavedCourses(),
+    getGamePlanSets(),
+  ]);
 
   return (
     <div className="max-w-md mx-auto space-y-6">
       <h1 className="text-2xl font-bold">ラウンド開始</h1>
-      <RoundStartForm courses={courses} selectedCourseId={courseId} />
+      <RoundStartForm courses={courses} selectedCourseId={courseId} gamePlanSets={gamePlanSets} />
     </div>
   );
 }
