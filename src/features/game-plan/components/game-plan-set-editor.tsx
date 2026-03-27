@@ -5,6 +5,7 @@ import { Save, Loader2, Check, Trash2, Info } from 'lucide-react';
 import { updateGamePlanSet, upsertGamePlanHolesBatch } from '@/actions/game-plan-set';
 import type { GamePlanSetWithHoles, GamePlanHole, RiskLevel } from '@/features/game-plan/types';
 import { RISK_LEVEL_VALUES, RISK_LEVEL_LABELS } from '@/features/game-plan/types';
+import type { Hole } from '@/features/course/types';
 
 interface HolePlanState {
   planText: string;
@@ -22,7 +23,8 @@ function initHolePlan(hole?: GamePlanHole): HolePlanState {
   };
 }
 
-export function GamePlanSetEditor({ planSet }: { planSet: GamePlanSetWithHoles }) {
+export function GamePlanSetEditor({ planSet, courseHoles = [] }: { planSet: GamePlanSetWithHoles; courseHoles?: Hole[] }) {
+  const courseHoleMap = new Map(courseHoles.map(h => [h.hole_number, h]));
   const holeMap = new Map(planSet.holes.map(h => [h.hole_number, h]));
 
   const [name, setName] = useState(planSet.name);
@@ -153,6 +155,7 @@ export function GamePlanSetEditor({ planSet }: { planSet: GamePlanSetWithHoles }
           isExpanded={expandedHole === hole}
           onToggle={() => setExpandedHole(expandedHole === hole ? null : hole)}
           onChange={(field, value) => updateHolePlan(hole, field, value)}
+          courseHole={courseHoleMap.get(hole)}
         />
       ))}
 
@@ -165,6 +168,7 @@ export function GamePlanSetEditor({ planSet }: { planSet: GamePlanSetWithHoles }
           isExpanded={expandedHole === hole}
           onToggle={() => setExpandedHole(expandedHole === hole ? null : hole)}
           onChange={(field, value) => updateHolePlan(hole, field, value)}
+          courseHole={courseHoleMap.get(hole)}
         />
       ))}
 
@@ -187,18 +191,23 @@ export function GamePlanSetEditor({ planSet }: { planSet: GamePlanSetWithHoles }
   );
 }
 
+const DOGLEG_LABELS: Record<string, string> = { straight: 'ストレート', left: '左DL', right: '右DL' };
+const ELEVATION_LABELS: Record<string, string> = { flat: 'フラット', uphill: '打ち上げ', downhill: '打ち下ろし' };
+
 function HoleCard({
   hole,
   state,
   isExpanded,
   onToggle,
   onChange,
+  courseHole,
 }: {
   hole: number;
   state: HolePlanState;
   isExpanded: boolean;
   onToggle: () => void;
   onChange: (field: keyof HolePlanState, value: string) => void;
+  courseHole?: Hole;
 }) {
   const filled = !!(state.planText || state.alertText || state.riskLevel || state.targetStrokes);
 
@@ -208,16 +217,45 @@ function HoleCard({
         onClick={onToggle}
         className="w-full min-h-[48px] flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-bold min-w-[48px]">Hole {hole}</span>
+          {courseHole && (
+            <span className="text-xs text-gray-400">
+              Par{courseHole.par}{courseHole.distance ? ` ・ ${courseHole.distance}y` : ''}
+            </span>
+          )}
           {filled && <span className="text-xs text-green-600 dark:text-green-400">登録済み</span>}
-          {state.alertText && <span className="text-xs text-gray-500 truncate max-w-[200px]">{state.alertText}</span>}
         </div>
         <span className="text-gray-400">{isExpanded ? '▲' : '▼'}</span>
       </button>
 
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+          {/* コースホール情報 */}
+          {courseHole && (
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50 p-2.5 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold">Par {courseHole.par}</span>
+                {courseHole.distance && <span className="text-sm text-gray-500">{courseHole.distance}y</span>}
+                {courseHole.hdcp && <span className="text-xs text-gray-400 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">HDCP {courseHole.hdcp}</span>}
+                {courseHole.dogleg && courseHole.dogleg !== 'straight' && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">{DOGLEG_LABELS[courseHole.dogleg]}</span>
+                )}
+                {courseHole.elevation && courseHole.elevation !== 'flat' && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">{ELEVATION_LABELS[courseHole.elevation]}</span>
+                )}
+              </div>
+              {(courseHole.hazard || courseHole.ob) && (
+                <div className="flex gap-2 flex-wrap">
+                  {courseHole.hazard && <span className="text-xs text-red-600 dark:text-red-400">ハザード: {courseHole.hazard}</span>}
+                  {courseHole.ob && <span className="text-xs text-orange-600 dark:text-orange-400">OB: {courseHole.ob}</span>}
+                </div>
+              )}
+              {courseHole.description && (
+                <p className="text-xs text-gray-500">{courseHole.description}</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">弱点アラート</label>
             <input
