@@ -284,7 +284,7 @@ function HoleCard({
                 リスクレベル
                 <span className="relative group">
                   <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover:block w-52 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs font-normal p-2 shadow-lg z-10 leading-relaxed">
+                  <span className="absolute left-full bottom-full mb-1 ml-1 hidden group-hover:block w-52 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs font-normal p-2 shadow-lg z-10 leading-relaxed">
                     <span className="text-emerald-400">低</span>: 普通に打てばOK（広いFW等）<br />
                     <span className="text-amber-400">中</span>: 注意が必要（片側OB等）<br />
                     <span className="text-rose-400">高</span>: 要警戒（両側OB、過去大叩き等）
