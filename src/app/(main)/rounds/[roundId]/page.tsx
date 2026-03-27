@@ -1,13 +1,11 @@
 import { getRoundWithCourse } from '@/actions/round';
 import { getScoresWithHoles } from '@/actions/score';
-import { getGamePlans } from '@/actions/game-plan';
 import { getMemos } from '@/actions/memo';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
-import { GamePlanEditor } from '@/features/game-plan/components/game-plan-editor';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
 
@@ -23,9 +21,8 @@ export default async function RoundReviewPage({
   const round = await getRoundWithCourse(roundId);
   if (!round) notFound();
 
-  const [data, gamePlans, memos] = await Promise.all([
+  const [data, memos] = await Promise.all([
     getScoresWithHoles(roundId),
-    getGamePlans(roundId),
     getMemos(roundId),
   ]);
 
@@ -138,16 +135,6 @@ export default async function RoundReviewPage({
           </div>
         </div>
       )}
-
-      {/* ゲームプラン */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-bold">ゲームプラン</h2>
-        <GamePlanEditor
-          roundId={roundId}
-          initialPlans={gamePlans}
-          initialTargetScore={data?.round.targetScore ?? null}
-        />
-      </div>
 
       {/* アクションリンク */}
       {round.status === 'in_progress' && (
