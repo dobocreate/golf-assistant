@@ -1,12 +1,12 @@
-export type RiskLevel = 'low' | 'medium' | 'high';
-
-export const RISK_LEVEL_VALUES: RiskLevel[] = ['low', 'medium', 'high'];
-
-export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+export const RISK_LEVEL_LABELS = {
   low: '低',
   medium: '中',
   high: '高',
-};
+} as const;
+
+export type RiskLevel = keyof typeof RISK_LEVEL_LABELS;
+
+export const RISK_LEVEL_VALUES = Object.keys(RISK_LEVEL_LABELS) as RiskLevel[];
 
 export interface GamePlan {
   id: string;

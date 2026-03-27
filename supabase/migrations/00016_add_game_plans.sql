@@ -3,8 +3,8 @@ CREATE TABLE game_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   round_id uuid REFERENCES rounds(id) ON DELETE CASCADE NOT NULL,
   hole_number integer NOT NULL CHECK (hole_number >= 1 AND hole_number <= 18),
-  plan_text text,
-  alert_text text,
+  plan_text text CHECK (length(plan_text) <= 2000),
+  alert_text text CHECK (length(alert_text) <= 1000),
   risk_level text CHECK (risk_level IN ('low', 'medium', 'high')),
   target_strokes integer CHECK (target_strokes >= 1 AND target_strokes <= 20),
   UNIQUE(round_id, hole_number)

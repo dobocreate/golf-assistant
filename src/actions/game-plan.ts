@@ -54,15 +54,25 @@ function validateGamePlanFields(data: {
   return null;
 }
 
+function revalidateGamePlanPaths(roundId: string) {
+  revalidatePath(`/play/${roundId}/score`);
+  revalidatePath(`/rounds/${roundId}`);
+}
+
 export async function getGamePlans(roundId: string): Promise<GamePlan[]> {
   const { error, supabase } = await verifyRoundOwnership(roundId);
   if (error || !supabase) return [];
 
-  const { data } = await supabase
+  const { data, error: dbError } = await supabase
     .from('game_plans')
     .select('*')
     .eq('round_id', roundId)
     .order('hole_number');
+
+  if (dbError) {
+    console.error('Failed to fetch game plans:', dbError.message);
+    return [];
+  }
 
   return (data as GamePlan[]) ?? [];
 }
@@ -100,8 +110,7 @@ export async function upsertGamePlan(data: {
 
   if (upsertError) return { error: 'ゲームプランの保存に失敗しました。' };
 
-  revalidatePath(`/play/${data.roundId}/score`);
-  revalidatePath(`/rounds/${data.roundId}`);
+  revalidateGamePlanPaths(data.roundId);
   return {};
 }
 
@@ -150,8 +159,7 @@ export async function upsertGamePlansBatch(data: {
 
   if (upsertError) return { error: 'ゲームプランの一括保存に失敗しました。' };
 
-  revalidatePath(`/play/${data.roundId}/score`);
-  revalidatePath(`/rounds/${data.roundId}`);
+  revalidateGamePlanPaths(data.roundId);
   return {};
 }
 
@@ -173,8 +181,7 @@ export async function deleteGamePlan(data: {
 
   if (deleteError) return { error: 'ゲームプランの削除に失敗しました。' };
 
-  revalidatePath(`/play/${data.roundId}/score`);
-  revalidatePath(`/rounds/${data.roundId}`);
+  revalidateGamePlanPaths(data.roundId);
   return {};
 }
 
@@ -198,7 +205,6 @@ export async function updateTargetScore(data: {
 
   if (updateError) return { error: '目標スコアの更新に失敗しました。' };
 
-  revalidatePath(`/play/${data.roundId}/score`);
-  revalidatePath(`/rounds/${data.roundId}`);
+  revalidateGamePlanPaths(data.roundId);
   return {};
 }
