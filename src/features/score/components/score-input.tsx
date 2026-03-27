@@ -271,6 +271,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setWindStrength(s?.wind_strength ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
     setUserTouched(s !== undefined);
+    setGamePlanContextForAdvice(null);
   }, [saveHole, hasChanges, roundId]);
 
 
