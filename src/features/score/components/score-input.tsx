@@ -10,6 +10,8 @@ import { usePlayRoundOptional } from '@/features/play/context/play-round-context
 import type { Score, HoleInfo } from '@/features/score/types';
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
+import { ManagementBand } from '@/features/score/components/management-band';
+import type { GamePlan } from '@/features/game-plan/types';
 
 interface ClubOption {
   name: string;
@@ -25,6 +27,8 @@ interface ScoreInputProps {
   startingCourse?: 'out' | 'in';
   initialHole?: number;
   weather?: string | null;
+  gamePlans?: GamePlan[];
+  targetScore?: number | null;
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -44,11 +48,12 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null, gamePlans = [], targetScore = null }: ScoreInputProps) {
   const { showToast } = useToast();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
+  const shotRecorderRef = useRef<HTMLDivElement>(null);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -382,6 +387,20 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </button>
       </div>
 
+      {/* マネジメントバンド */}
+      {gamePlans.length > 0 && (
+        <ManagementBand
+          gamePlans={gamePlans}
+          currentHole={currentHole}
+          scores={scores}
+          targetScore={targetScore}
+          holeOrder={holeOrder}
+          onAdviceTap={() => {
+            shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+      )}
+
       {/* スコアサマリー */}
       {completedHoles > 0 && (
         <div className="rounded-lg bg-gray-800 border border-gray-700 overflow-hidden">
@@ -506,6 +525,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       </div>
 
       {/* ショット記録 */}
+      <div ref={shotRecorderRef}>
       <ShotRecorder
         roundId={roundId}
         holeNumber={currentHole}
@@ -514,6 +534,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         windStrength={windStrength}
         weather={weather}
       />
+      </div>
 
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />

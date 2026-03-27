@@ -168,7 +168,7 @@ export async function getScoresWithHoles(roundId: string) {
   // ラウンド + コース情報を取得
   const { data: round } = await supabase
     .from('rounds')
-    .select('id, course_id, status, starting_course, weather, courses(id, name)')
+    .select('id, course_id, status, starting_course, weather, target_score, courses(id, name)')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -197,6 +197,7 @@ export async function getScoresWithHoles(roundId: string) {
       status: round.status as string,
       startingCourse: (round.starting_course === 'in' ? 'in' : 'out') as 'out' | 'in',
       weather: (round.weather as string) ?? null,
+      targetScore: (round.target_score as number) ?? null,
     },
     holes: holesResult.data ?? [],
     scores: (scoresResult.data as Score[]) ?? [],
