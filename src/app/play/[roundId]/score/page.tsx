@@ -1,5 +1,6 @@
 import { getScoresWithHoles } from '@/actions/score';
 import { getClubs } from '@/actions/club';
+import { getGamePlans } from '@/actions/game-plan';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import { ScoreInput } from '@/features/score/components/score-input';
@@ -20,9 +21,10 @@ export default async function ScoreInputPage({
   const parsed = hole ? parseInt(hole, 10) : undefined;
   const initialHole = parsed && !isNaN(parsed) ? parsed : undefined;
 
-  const [data, clubs] = await Promise.all([
+  const [data, clubs, gamePlans] = await Promise.all([
     getScoresWithHoles(roundId),
     getClubs(),
+    getGamePlans(roundId),
   ]);
 
   if (!data) notFound();
@@ -38,6 +40,8 @@ export default async function ScoreInputPage({
       startingCourse={data.round.startingCourse}
       initialHole={initialHole}
       weather={data.round.weather}
+      gamePlans={gamePlans}
+      targetScore={data.round.targetScore}
     />
   );
 }
