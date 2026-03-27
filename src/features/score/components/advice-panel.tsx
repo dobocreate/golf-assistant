@@ -22,6 +22,7 @@ interface AdvicePanelProps {
   weather?: string | null;
   savedAdviceText?: string | null;
   onAdviceReceived?: (text: string) => void;
+  gamePlanContext?: string | null;
 }
 
 export function AdvicePanel({
@@ -38,6 +39,7 @@ export function AdvicePanel({
   weather,
   savedAdviceText,
   onAdviceReceived,
+  gamePlanContext,
 }: AdvicePanelProps) {
   const { adviceText, isStreaming, error, requestAdvice } = useAdviceStream();
   const {
@@ -79,12 +81,12 @@ export function AdvicePanel({
       lie,
       slopeFB: slopeFb,
       slopeLR: slopeLr,
-      notes: notes || undefined,
+      notes: [gamePlanContext, notes].filter(Boolean).join('\n') || undefined,
       windDirection: windDirection ?? undefined,
       windStrength: windStrength ?? undefined,
       weather: weather ?? undefined,
     });
-  }, [isStreaming, requestAdvice, roundId, holeNumber, shotType, remainingDistance, lie, slopeFb, slopeLr, notes, windDirection, windStrength, weather]);
+  }, [isStreaming, requestAdvice, roundId, holeNumber, shotType, remainingDistance, lie, slopeFb, slopeLr, notes, gamePlanContext, windDirection, windStrength, weather]);
 
   // アドバイス取得完了時にコールバックで親に通知（DB保存は親が管理）
   const prevAdviceText = useRef('');
