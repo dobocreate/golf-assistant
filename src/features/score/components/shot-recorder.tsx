@@ -12,9 +12,10 @@ interface ShotRecorderProps {
   windDirection?: string | null;
   windStrength?: string | null;
   weather?: string | null;
+  gamePlanContext?: string | null;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -102,6 +103,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
                 windStrength={windStrength}
                 weather={weather}
                 onAdviceReceived={handleAdviceReceived}
+                gamePlanContext={gamePlanContext}
               />
             )}
           </div>

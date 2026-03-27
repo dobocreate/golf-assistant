@@ -25,9 +25,10 @@ interface ShotFormProps {
   windStrength?: string | null;
   weather?: string | null;
   onAdviceReceived: (index: number, text: string) => void;
+  gamePlanContext?: string | null;
 }
 
-export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, windDirection, windStrength, weather, onAdviceReceived }: ShotFormProps) {
+export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, windDirection, windStrength, weather, onAdviceReceived, gamePlanContext }: ShotFormProps) {
   const showMissType = form.result === 'fair' || form.result === 'poor';
   const isPutt = form.shotType === 'putt';
 
@@ -290,6 +291,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         windStrength={windStrength}
         weather={weather}
         onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
+        gamePlanContext={gamePlanContext}
       />
 
       {/* ===== 区切り線 ===== */}

@@ -10,7 +10,7 @@ import { usePlayRoundOptional } from '@/features/play/context/play-round-context
 import type { Score, HoleInfo } from '@/features/score/types';
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
-import { ManagementBand } from '@/features/score/components/management-band';
+import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
 
 interface ClubOption {
@@ -54,6 +54,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
   const shotRecorderRef = useRef<HTMLDivElement>(null);
+  const [gamePlanContextForAdvice, setGamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -395,7 +396,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           scores={scores}
           targetScore={targetScore}
           holeOrder={holeOrder}
-          onAdviceTap={() => {
+          onAdviceTap={(ctx) => {
+            setGamePlanContextForAdvice(ctx);
             shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
         />
@@ -533,6 +535,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         windDirection={windDirection}
         windStrength={windStrength}
         weather={weather}
+        gamePlanContext={
+          gamePlanContextForAdvice
+            ? [
+                gamePlanContextForAdvice.alertText && `【弱点アラート】${gamePlanContextForAdvice.alertText}`,
+                gamePlanContextForAdvice.planText && `【ゲームプラン】${gamePlanContextForAdvice.planText}`,
+                gamePlanContextForAdvice.toneLabel && `【戦略トーン】${gamePlanContextForAdvice.toneLabel}`,
+              ].filter(Boolean).join('\n') || null
+            : null
+        }
       />
       </div>
 

@@ -1,10 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
-import { AlertTriangle, ClipboardList, MessageCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { AlertTriangle, ClipboardList, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { GamePlan } from '@/features/game-plan/types';
 import { RISK_LEVEL_LABELS } from '@/features/game-plan/types';
 import type { Score } from '@/features/score/types';
+
+export interface ManagementBandContext {
+  planText: string | null;
+  alertText: string | null;
+  tone: Tone | null;
+  toneLabel: string | null;
+}
 
 interface ManagementBandProps {
   gamePlans: GamePlan[];
@@ -12,7 +19,7 @@ interface ManagementBandProps {
   scores: Map<number, Score>;
   targetScore: number | null;
   holeOrder: number[];
-  onAdviceTap?: () => void;
+  onAdviceTap?: (context: ManagementBandContext) => void;
 }
 
 type Tone = 'normal' | 'attack' | 'defense';
@@ -37,7 +44,6 @@ function calculateTone(
   const currentIdx = holeOrder.indexOf(currentHole);
   if (currentIdx === -1) return null;
 
-  // 完了済みホールのスコア合計
   const completedHoles = holeOrder.slice(0, currentIdx);
   let actualTotal = 0;
   let targetTotal = 0;
@@ -85,6 +91,8 @@ export function ManagementBand({
   holeOrder,
   onAdviceTap,
 }: ManagementBandProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   const plan = useMemo(
     () => gamePlans.find(p => p.hole_number === currentHole),
     [gamePlans, currentHole],
@@ -95,13 +103,36 @@ export function ManagementBand({
     [scores, gamePlans, targetScore, currentHole, holeOrder],
   );
 
-  // プラン未登録ホールでは非表示
   if (!plan) return null;
 
   const riskTone: Tone = plan.risk_level === 'high' ? 'defense' : plan.risk_level === 'medium' ? 'attack' : 'normal';
   const riskStyle = TONE_STYLES[riskTone];
-
   const toneStyle = toneInfo ? TONE_STYLES[toneInfo.tone] : null;
+
+  const handleAdviceTap = () => {
+    onAdviceTap?.({
+      planText: plan.plan_text,
+      alertText: plan.alert_text,
+      tone: toneInfo?.tone ?? null,
+      toneLabel: toneInfo?.label ?? null,
+    });
+  };
+
+  // 折りたたみ時: トーン色帯のみ表示
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        className={`w-full rounded-lg border border-gray-700 px-3 py-2 flex items-center justify-between transition-all duration-200 ${toneStyle?.bg ?? riskStyle.bg}`}
+        aria-label="マネジメントバンドを展開"
+      >
+        <p className={`text-sm font-semibold ${toneStyle?.text ?? riskStyle.text}`}>
+          {toneInfo ? `${toneStyle!.icon} ${toneInfo.label}` : plan.alert_text?.slice(0, 20) ?? 'プラン'}
+        </p>
+        <ChevronDown className="h-4 w-4 text-gray-400" />
+      </button>
+    );
+  }
 
   return (
     <div
@@ -109,6 +140,15 @@ export function ManagementBand({
       role="status"
       aria-live="polite"
     >
+      {/* 折りたたみボタン */}
+      <button
+        onClick={() => setCollapsed(true)}
+        className="w-full flex items-center justify-end"
+        aria-label="マネジメントバンドを折りたたむ"
+      >
+        <ChevronUp className="h-4 w-4 text-gray-400" />
+      </button>
+
       {/* 弱点アラート */}
       {plan.alert_text && (
         <div className="flex items-start gap-2">
@@ -144,7 +184,7 @@ export function ManagementBand({
 
       {/* AIに相談ボタン */}
       <button
-        onClick={onAdviceTap}
+        onClick={handleAdviceTap}
         className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 text-sm text-gray-300 hover:text-white transition-colors"
       >
         <MessageCircle className="h-4 w-4" />
