@@ -53,6 +53,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
+  const shotRecorderRef = useRef<HTMLDivElement>(null);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -395,10 +396,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           targetScore={targetScore}
           holeOrder={holeOrder}
           onAdviceTap={() => {
-            const scoreSection = document.getElementById('shot-recorder-section');
-            if (scoreSection) {
-              scoreSection.scrollIntoView({ behavior: 'smooth' });
-            }
+            shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
         />
       )}
@@ -527,7 +525,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       </div>
 
       {/* ショット記録 */}
-      <div id="shot-recorder-section">
+      <div ref={shotRecorderRef}>
       <ShotRecorder
         roundId={roundId}
         holeNumber={currentHole}

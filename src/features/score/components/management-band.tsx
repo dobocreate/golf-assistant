@@ -98,9 +98,8 @@ export function ManagementBand({
   // プラン未登録ホールでは非表示
   if (!plan) return null;
 
-  const riskStyle = plan.risk_level
-    ? TONE_STYLES[plan.risk_level === 'high' ? 'defense' : plan.risk_level === 'medium' ? 'attack' : 'normal']
-    : TONE_STYLES['normal'];
+  const riskTone: Tone = plan.risk_level === 'high' ? 'defense' : plan.risk_level === 'medium' ? 'attack' : 'normal';
+  const riskStyle = TONE_STYLES[riskTone];
 
   const toneStyle = toneInfo ? TONE_STYLES[toneInfo.tone] : null;
 
