@@ -1,4 +1,5 @@
 import { getGamePlanSetWithHoles } from '@/actions/game-plan-set';
+import { getCourseWithHoles } from '@/actions/course';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -17,6 +18,8 @@ export default async function GamePlanSetEditPage({
   const planSet = await getGamePlanSetWithHoles(setId);
   if (!planSet) notFound();
 
+  const { holes } = await getCourseWithHoles(planSet.course_id);
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <Link
@@ -27,7 +30,7 @@ export default async function GamePlanSetEditPage({
         ゲームプラン一覧
       </Link>
 
-      <GamePlanSetEditor planSet={planSet} />
+      <GamePlanSetEditor planSet={planSet} courseHoles={holes} />
     </div>
   );
 }
