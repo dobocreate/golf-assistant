@@ -110,6 +110,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           bunkerCount: 0,
           penaltyCount: 0,
           firstPuttDistance: existing?.first_putt_distance ?? null,
+          firstPuttDistanceM: existing?.first_putt_distance_m ?? null,
           windDirection: wd,
           windStrength: ws,
         }).catch(() => {});
@@ -170,6 +171,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       strokes: s,
       putts: p,
       first_putt_distance: existingScore?.first_putt_distance ?? null,
+      first_putt_distance_m: existingScore?.first_putt_distance_m ?? null,
       fairway_hit: null,
       green_in_reg: gir,
       tee_shot_lr: null,
@@ -205,6 +207,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         bunkerCount: 0,
         penaltyCount: 0,
         firstPuttDistance: existingScore?.first_putt_distance ?? null,
+        firstPuttDistanceM: existingScore?.first_putt_distance_m ?? null,
         windDirection: wd,
         windStrength: ws,
       });

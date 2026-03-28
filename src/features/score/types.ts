@@ -17,6 +17,23 @@ export const FIRST_PUTT_DISTANCE_LABELS: Record<FirstPuttDistance, string> = {
   very_long: '10m〜',
 };
 
+/** 数値（メートル）からカテゴリに変換
+ * short: < 2m, mid: 2m〜5m未満, long: 5m〜10m未満, very_long: 10m以上 */
+export function distanceToCategory(meters: number): FirstPuttDistance {
+  if (meters >= 10) return 'very_long';
+  if (meters >= 5) return 'long';
+  if (meters >= 2) return 'mid';
+  return 'short';
+}
+
+/** カテゴリから中央値（メートル）に変換（旧データのフォールバック用） */
+export const FIRST_PUTT_DISTANCE_MIDPOINTS: Record<FirstPuttDistance, number> = {
+  short: 1.0,
+  mid: 3.5,
+  long: 7.5,
+  very_long: 12.0,
+};
+
 export interface Score {
   id: string;
   round_id: string;
@@ -24,6 +41,7 @@ export interface Score {
   strokes: number;
   putts: number | null;
   first_putt_distance: FirstPuttDistance | null;
+  first_putt_distance_m: number | null;
   fairway_hit: boolean | null;
   green_in_reg: boolean | null;
   tee_shot_lr: TeeShotLR | null;
@@ -81,6 +99,7 @@ export interface ShotFormState {
   remainingDistance: number | null;
   note: string | null;
   puttDistanceCategory: FirstPuttDistance | null;
+  puttDistanceMeters: number | null;
   windDirection: WindDirection | null;
   windStrength: WindStrength | null;
 }

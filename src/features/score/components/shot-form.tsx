@@ -3,8 +3,8 @@
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
 import { AdvicePanel } from '@/features/score/components/advice-panel';
-import type { Shot, ShotFormState, FirstPuttDistance } from '@/features/score/types';
-import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
+import type { Shot, ShotFormState } from '@/features/score/types';
+import { distanceToCategory } from '@/features/score/types';
 import type { FormsAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
 
@@ -39,25 +39,55 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         {/* ===== 状況セクション ===== */}
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">パット状況</p>
 
-        {/* ファーストパット距離（4択） */}
-        <div className="space-y-1">
-          <label className="block text-xs text-gray-400">パット距離</label>
-          <div className="flex items-center justify-center gap-2">
-            {(Object.entries(FIRST_PUTT_DISTANCE_LABELS) as [FirstPuttDistance, string][]).map(([key, label]) => (
+        {/* ファーストパット距離（数値入力 + プリセット） */}
+        <div className="space-y-2">
+          <label className="block text-xs text-gray-400">パット距離 (m)</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={50}
+            step={1}
+            placeholder="距離を入力"
+            value={form.puttDistanceMeters ?? ''}
+            onChange={e => {
+              const parsed = parseInt(e.target.value, 10);
+              const val = e.target.value === '' || Number.isNaN(parsed) ? null : Math.min(Math.max(parsed, 0), 50);
+              dispatch({
+                type: 'UPDATE_FIELD',
+                index: slot.index,
+                updater: f => ({
+                  ...f,
+                  puttDistanceMeters: val,
+                  puttDistanceCategory: val !== null ? distanceToCategory(val) : null,
+                }),
+              });
+            }}
+            className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-base border-0 focus:ring-2 focus:ring-green-600"
+          />
+          <div className="grid grid-cols-6 gap-1.5">
+            {[1, 3, 5, 7, 10, 15].map(preset => (
               <button
-                key={key}
+                key={preset}
                 onClick={() => dispatch({
                   type: 'UPDATE_FIELD',
                   index: slot.index,
-                  updater: f => ({ ...f, puttDistanceCategory: f.puttDistanceCategory === key ? null : key }),
+                  updater: f => {
+                    const newVal = f.puttDistanceMeters === preset ? null : preset;
+                    return {
+                      ...f,
+                      puttDistanceMeters: newVal,
+                      puttDistanceCategory: newVal !== null ? distanceToCategory(newVal) : null,
+                    };
+                  },
                 })}
-                className={`min-h-[48px] px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                  form.puttDistanceCategory === key
+                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
+                  form.puttDistanceMeters === preset
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {label}
+                {preset}m
               </button>
             ))}
           </div>
