@@ -34,12 +34,15 @@ export interface Round {
   user_id: string;
   course_id: string;
   played_at: string;
-  context_snapshot: Record<string, unknown> | null;
+  /** jsonbカラムにフォーマット済みテキスト(string)を保存。AIアドバイス用キャッシュ。 */
+  context_snapshot: string | Record<string, unknown> | null;
   total_score: number | null;
   status: RoundStatus;
+  created_at: string;
   starting_course: StartingCourse;
   weather: Weather | null;
   wind: WindStrength | null;
+  target_score: number | null;
 }
 
 export interface RoundCourse {
