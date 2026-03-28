@@ -55,6 +55,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRound = usePlayRoundOptional();
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice, setGamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
+  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: boolean }>({ saveCurrentHole: () => {}, hasPendingShots: false });
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -238,11 +239,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    if (!hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength)) {
+    const scoreChanged = hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength);
+    const shotsChanged = shotActionsRef.current.hasPendingShots;
+    if (!scoreChanged && !shotsChanged) {
       showToast('変更なし', 'info');
       return;
     }
-    saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id);
+    if (scoreChanged) {
+      saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id);
+    }
+    if (shotsChanged) {
+      shotActionsRef.current.saveCurrentHole();
+    }
+    if (!scoreChanged && shotsChanged) {
+      showToast('ショット記録を保存しました', 'success');
+    }
   }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id, saveHole, hasChanges, showToast]);
 
   // スコアMapへの参照（switchHoleでの同期用）
@@ -548,6 +559,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               ].filter(Boolean).join('\n') || null
             : null
         }
+        onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>
 
