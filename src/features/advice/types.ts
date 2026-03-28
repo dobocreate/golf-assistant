@@ -20,4 +20,5 @@ export interface AdviceContext {
   holes: Record<string, unknown>[];
   hole_notes: Record<string, unknown>[];
   recent_rounds: Record<string, unknown>[];
+  knowledge: Record<string, unknown>[];
 }

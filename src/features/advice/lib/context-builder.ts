@@ -36,7 +36,7 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
     .single();
 
   // 残りを並列でデータ取得
-  const [clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult] = await Promise.all([
+  const [clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult, knowledgeResult] = await Promise.all([
     // クラブ一覧
     profile?.id
       ? supabase
@@ -75,6 +75,14 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
       .eq('status', 'completed')
       .order('played_at', { ascending: false })
       .limit(5),
+
+    // ナレッジベース（最新20件に制限）
+    supabase
+      .from('knowledge')
+      .select('title, content, category, tags')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(20),
   ]);
 
   return {
@@ -84,6 +92,7 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
     holes: holesResult.data ?? [],
     hole_notes: holeNotesResult.data ?? [],
     recent_rounds: recentRoundsResult.data ?? [],
+    knowledge: knowledgeResult.data ?? [],
   };
 }
 
@@ -152,6 +161,25 @@ export function formatContextForPrompt(context: AdviceContext): string {
       let line = `- Hole ${holes.hole_number}:`;
       if (hn.strategy) line += ` 戦略: ${hn.strategy}`;
       if (hn.note) line += ` メモ: ${hn.note}`;
+      lines.push(line);
+    }
+    sections.push(lines.join('\n'));
+  }
+
+  // ナレッジベース
+  if (context.knowledge.length > 0) {
+    const MAX_KNOWLEDGE_CONTENT = 500;
+    const lines = ['## ナレッジベース（プレーヤーが蓄積した知識）'];
+    for (const k of context.knowledge as Record<string, unknown>[]) {
+      const tags = (k.tags as string[]) ?? [];
+      const content = String(k.content ?? '');
+      const truncated = content.length > MAX_KNOWLEDGE_CONTENT
+        ? content.substring(0, MAX_KNOWLEDGE_CONTENT) + '…'
+        : content;
+      let line = `- ${k.title}`;
+      if (k.category) line += `（${k.category}）`;
+      if (tags.length > 0) line += ` [${tags.join(', ')}]`;
+      line += `\n${truncated}`;
       lines.push(line);
     }
     sections.push(lines.join('\n'));
