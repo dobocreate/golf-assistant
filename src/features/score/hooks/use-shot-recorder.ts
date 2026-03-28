@@ -219,6 +219,13 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     };
   }, []);
 
+  // --- 新規スロット表示管理 ---
+  const [showNewSlot, setShowNewSlot] = useState(false);
+  // ホール切替時に新規スロットを非表示にリセット
+  useEffect(() => {
+    setShowNewSlot(false);
+  }, [holeNumber]);
+
   // --- スロット一覧 ---
   const nextShotNumber = shots.length > 0
     ? Math.max(...shots.map(s => s.shot_number)) + 1
@@ -239,18 +246,18 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
       hasAdvice: !!shot.advice_text,
       isSkipped: shot.result === null && shot.club === null && shot.shot_type === null,
     })),
-    {
+    ...(showNewSlot ? [{
       index: shots.length,
       shotNumber: nextShotNumber,
       isNew: true,
-      shot: null,
-      club: null,
-      shotTypeLabel: null,
-      distance: null,
-      lieLabel: null,
+      shot: null as Shot | null,
+      club: null as string | null,
+      shotTypeLabel: null as string | null,
+      distance: null as number | null,
+      lieLabel: null as string | null,
       hasAdvice: false,
       isSkipped: false,
-    },
+    }] : []),
   ];
 
   const displaySlots = [...allSlots].reverse();
@@ -265,6 +272,7 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
   }, []);
 
   const handleAddShot = useCallback(() => {
+    setShowNewSlot(true);
     setExpandedIndex(shots.length);
   }, [shots.length]);
 
