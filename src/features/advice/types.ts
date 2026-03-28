@@ -13,6 +13,13 @@ export interface Situation {
   notes?: string;
 }
 
+export interface KnowledgeContext {
+  title: string;
+  content: string;
+  category: string | null;
+  tags: string[];
+}
+
 export interface AdviceContext {
   profile: Record<string, unknown>;
   clubs: Record<string, unknown>[];
@@ -20,5 +27,5 @@ export interface AdviceContext {
   holes: Record<string, unknown>[];
   hole_notes: Record<string, unknown>[];
   recent_rounds: Record<string, unknown>[];
-  knowledge: Record<string, unknown>[];
+  knowledge: KnowledgeContext[];
 }

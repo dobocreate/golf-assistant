@@ -230,9 +230,9 @@ export function formatContextForPrompt(context: AdviceContext): string {
   if (context.knowledge.length > 0) {
     const MAX_KNOWLEDGE_CONTENT = 500;
     const lines = ['## ナレッジベース（プレーヤーが蓄積した知識）'];
-    for (const k of context.knowledge as Record<string, unknown>[]) {
-      const tags = (k.tags as string[]) ?? [];
-      const content = String(k.content ?? '');
+    for (const k of context.knowledge) {
+      const tags = k.tags ?? [];
+      const content = k.content ?? '';
       const truncated = content.length > MAX_KNOWLEDGE_CONTENT
         ? content.substring(0, MAX_KNOWLEDGE_CONTENT) + '…'
         : content;
