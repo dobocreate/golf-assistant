@@ -3,6 +3,7 @@ import { getShots, saveShotsForHole } from '@/actions/shot';
 import { updateFirstPuttDistance } from '@/actions/score';
 import { emptyShotForm, shotToForm, hasFormChanged, shouldSaveForm } from '@/features/score/shot-constants';
 import type { Shot, ShotFormState } from '@/features/score/types';
+import { distanceToCategory } from '@/features/score/types';
 import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
 
 // --- Reducer ---
@@ -110,14 +111,17 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
       setSaveStatus('saved');
       saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
 
-      // パットショットのputtDistanceCategoryをscores.first_putt_distanceに同期
+      // パットショットのパット距離をscoresテーブルに同期
       const allForms = snapshotState.forms;
       for (const [, form] of allForms) {
-        if (form.shotType === 'putt' && form.puttDistanceCategory) {
+        if (form.shotType === 'putt' && (form.puttDistanceMeters != null || form.puttDistanceCategory)) {
+          const meters = form.puttDistanceMeters;
+          const category = meters != null ? distanceToCategory(meters) : form.puttDistanceCategory;
           updateFirstPuttDistance({
             roundId: payload.roundId,
             holeNumber: forHoleNumber,
-            firstPuttDistance: form.puttDistanceCategory,
+            firstPuttDistance: category,
+            firstPuttDistanceM: meters,
           }).catch(() => {});
           break; // ファーストパットのみ同期
         }

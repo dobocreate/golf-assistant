@@ -29,6 +29,7 @@ export async function upsertScore(data: {
   bunkerCount: number;
   penaltyCount: number;
   firstPuttDistance: string | null;
+  firstPuttDistanceM?: number | null;
   windDirection: string | null;
   windStrength: string | null;
 }): Promise<{ error?: string }> {
@@ -47,6 +48,7 @@ export async function upsertScore(data: {
     validateIntRange(data.bunkerCount, 0, 10, 'バンカー数') ??
     validateIntRange(data.penaltyCount, 0, 10, 'ペナルティ数') ??
     validateEnum(data.firstPuttDistance, ['short', 'mid', 'long', 'very_long'], 'ファーストパット距離') ??
+    (data.firstPuttDistanceM != null && (typeof data.firstPuttDistanceM !== 'number' || data.firstPuttDistanceM < 0 || data.firstPuttDistanceM > 50) ? 'パット距離（数値）が不正です。' : null) ??
     validateEnum(data.windDirection, ['head', 'tail', 'left', 'right'], '風向き') ??
     validateEnum(data.windStrength, ['calm', 'light', 'moderate', 'strong'], '風の強さ');
   if (validationError) return { error: validationError };
@@ -80,6 +82,7 @@ export async function upsertScore(data: {
         bunker_count: data.bunkerCount,
         penalty_count: data.penaltyCount,
         first_putt_distance: data.firstPuttDistance,
+        first_putt_distance_m: data.firstPuttDistanceM ?? null,
         wind_direction: data.windDirection,
         wind_strength: data.windStrength,
       },
@@ -113,6 +116,7 @@ export async function updateFirstPuttDistance(data: {
   roundId: string;
   holeNumber: number;
   firstPuttDistance: string | null;
+  firstPuttDistanceM: number | null;
 }): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -121,11 +125,27 @@ export async function updateFirstPuttDistance(data: {
   if (data.firstPuttDistance !== null && !['short', 'mid', 'long', 'very_long'].includes(data.firstPuttDistance)) {
     return { error: 'パット距離が不正です。' };
   }
+  if (data.firstPuttDistanceM !== null && (typeof data.firstPuttDistanceM !== 'number' || data.firstPuttDistanceM < 0 || data.firstPuttDistanceM > 50)) {
+    return { error: 'パット距離（数値）が不正です。' };
+  }
 
   const supabase = await createClient();
+
+  // ラウンドの所有確認
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('id', data.roundId)
+    .eq('user_id', user.id)
+    .single();
+  if (!round) return { error: 'ラウンドが見つかりません。' };
+
   const { error } = await supabase
     .from('scores')
-    .update({ first_putt_distance: data.firstPuttDistance })
+    .update({
+      first_putt_distance: data.firstPuttDistance,
+      first_putt_distance_m: data.firstPuttDistanceM,
+    })
     .eq('round_id', data.roundId)
     .eq('hole_number', data.holeNumber);
 

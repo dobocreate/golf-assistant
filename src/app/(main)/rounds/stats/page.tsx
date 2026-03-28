@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Score, FirstPuttDistance } from '@/features/score/types';
-import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
+import { FIRST_PUTT_DISTANCE_LABELS, FIRST_PUTT_DISTANCE_MIDPOINTS, distanceToCategory } from '@/features/score/types';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -195,19 +195,30 @@ export default async function RoundStatsPage() {
     })
     .filter(Boolean) as { playedAt: string; rate: number }[];
 
-  // 6. First putt distance stats
-  const puttDistData: Record<FirstPuttDistance, { count: number; totalPutts: number; threePutts: number }> = {
-    short: { count: 0, totalPutts: 0, threePutts: 0 },
-    mid: { count: 0, totalPutts: 0, threePutts: 0 },
-    long: { count: 0, totalPutts: 0, threePutts: 0 },
-    very_long: { count: 0, totalPutts: 0, threePutts: 0 },
+  // 6. First putt distance stats (数値データ優先、旧カテゴリはフォールバック)
+  const puttDistData: Record<FirstPuttDistance, { count: number; totalPutts: number; threePutts: number; totalDistanceM: number }> = {
+    short: { count: 0, totalPutts: 0, threePutts: 0, totalDistanceM: 0 },
+    mid: { count: 0, totalPutts: 0, threePutts: 0, totalDistanceM: 0 },
+    long: { count: 0, totalPutts: 0, threePutts: 0, totalDistanceM: 0 },
+    very_long: { count: 0, totalPutts: 0, threePutts: 0, totalDistanceM: 0 },
   };
   for (const s of scores) {
-    if (s.first_putt_distance && s.putts !== null) {
-      const d = s.first_putt_distance as FirstPuttDistance;
-      puttDistData[d].count++;
-      puttDistData[d].totalPutts += s.putts;
-      if (s.putts >= 3) puttDistData[d].threePutts++;
+    if (s.putts === null) continue;
+    // 数値データ優先 → カテゴリフォールバック
+    let category: FirstPuttDistance | null = null;
+    let distanceM: number | null = null;
+    if (s.first_putt_distance_m != null) {
+      distanceM = s.first_putt_distance_m;
+      category = distanceToCategory(distanceM);
+    } else if (s.first_putt_distance) {
+      category = s.first_putt_distance as FirstPuttDistance;
+      distanceM = FIRST_PUTT_DISTANCE_MIDPOINTS[category];
+    }
+    if (category) {
+      puttDistData[category].count++;
+      puttDistData[category].totalPutts += s.putts;
+      puttDistData[category].totalDistanceM += distanceM!;
+      if (s.putts >= 3) puttDistData[category].threePutts++;
     }
   }
   const hasPuttDistData = Object.values(puttDistData).some(d => d.count > 0);
@@ -399,7 +410,10 @@ export default async function RoundStatsPage() {
                   </div>
                   <CssBar value={avgPutts} max={4} color={avgPutts >= 2.5 ? 'bg-red-500' : avgPutts >= 2 ? 'bg-yellow-500' : 'bg-green-500'} />
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-400">{d.count}ホール</p>
+                    <p className="text-xs text-gray-400">
+                      {d.count}ホール
+                      {d.totalDistanceM > 0 && ` (平均${(d.totalDistanceM / d.count).toFixed(1)}m)`}
+                    </p>
                     <p className={`text-xs font-bold ${threePuttRate > 20 ? 'text-red-500' : 'text-gray-400'}`}>
                       3パット率: {threePuttRate}%
                     </p>

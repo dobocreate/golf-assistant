@@ -8,6 +8,7 @@ import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
+import { distanceToCategory } from '@/features/score/types';
 
 export default async function RoundReviewPage({
   params,
@@ -40,10 +41,12 @@ export default async function RoundReviewPage({
   const girTotal = scores.filter(s => s.green_in_reg !== null).length;
   const totalPutts = scores.reduce((sum, s) => sum + (s.putts ?? 0), 0);
   const puttsCount = scores.filter(s => s.putts !== null).length;
-  // ファーストパット距離の集計
-  const puttDistScores = scores.filter(s => s.first_putt_distance !== null);
+  // ファーストパット距離の集計（数値データ優先）
+  const puttDistScores = scores.filter(s => s.first_putt_distance_m != null || s.first_putt_distance !== null);
   const puttDistCounts = puttDistScores.reduce((acc, s) => {
-    const d = s.first_putt_distance as FirstPuttDistance;
+    const d: FirstPuttDistance = s.first_putt_distance_m != null
+      ? distanceToCategory(s.first_putt_distance_m)
+      : s.first_putt_distance as FirstPuttDistance;
     acc[d] = (acc[d] ?? 0) + 1;
     return acc;
   }, {} as Record<FirstPuttDistance, number>);
