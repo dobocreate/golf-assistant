@@ -275,6 +275,17 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     }
   }, []);
 
+  /** 現在のホールのショットを明示的に保存（保存ボタンから呼ばれる） */
+  const saveCurrentHole = useCallback(() => {
+    batchSave(holeNumberRef.current, stateRef.current);
+  }, [batchSave]);
+
+  /** 現在のホールに未保存の変更があるか（呼び出し時に計算） */
+  const hasPendingShots = useCallback(() => {
+    const payload = collectPendingShotsSync(stateRef.current, holeNumberRef.current, roundIdRef.current);
+    return payload.shots.length > 0;
+  }, []);
+
   return {
     displaySlots,
     expandedIndex,
@@ -287,6 +298,8 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     handleAddShot,
     shots,
     loading: state.loading,
+    saveCurrentHole,
+    hasPendingShots,
   };
 }
 

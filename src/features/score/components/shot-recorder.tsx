@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Plus, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
@@ -13,9 +14,11 @@ interface ShotRecorderProps {
   windStrength?: string | null;
   weather?: string | null;
   gamePlanContext?: string | null;
+  /** 親に saveCurrentHole / hasPendingShots を公開するコールバック */
+  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -28,7 +31,14 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     handleAddShot,
     shots,
     loading,
+    saveCurrentHole,
+    hasPendingShots,
   } = useShotRecorder(roundId, holeNumber);
+
+  // 親コンポーネントにショット保存関数を公開
+  useEffect(() => {
+    onShotActionsReady?.({ saveCurrentHole, hasPendingShots });
+  }, [saveCurrentHole, hasPendingShots, onShotActionsReady]);
 
   if (loading) {
     return (
