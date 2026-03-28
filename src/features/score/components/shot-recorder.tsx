@@ -15,7 +15,7 @@ interface ShotRecorderProps {
   weather?: string | null;
   gamePlanContext?: string | null;
   /** 親に saveCurrentHole / hasPendingShots を公開するコールバック */
-  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: boolean }) => void;
+  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean }) => void;
 }
 
 export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, onShotActionsReady }: ShotRecorderProps) {

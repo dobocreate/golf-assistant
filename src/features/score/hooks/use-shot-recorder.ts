@@ -280,11 +280,11 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     batchSave(holeNumberRef.current, stateRef.current);
   }, [batchSave]);
 
-  /** 現在のホールに未保存の変更があるか */
-  const hasPendingShots = useMemo(() => {
-    const payload = collectPendingShotsSync(state, holeNumber, roundId);
+  /** 現在のホールに未保存の変更があるか（呼び出し時に計算） */
+  const hasPendingShots = useCallback(() => {
+    const payload = collectPendingShotsSync(stateRef.current, holeNumberRef.current, roundIdRef.current);
     return payload.shots.length > 0;
-  }, [state, holeNumber, roundId]);
+  }, []);
 
   return {
     displaySlots,
