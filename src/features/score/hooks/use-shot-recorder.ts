@@ -1,36 +1,96 @@
-import { useReducer, useState, useEffect, useCallback, useRef } from 'react';
-import { getShots, saveShotsForHole } from '@/actions/shot';
+import { useReducer, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { getShotsForRound, saveShotsForHole } from '@/actions/shot';
 import { updateFirstPuttDistance } from '@/actions/score';
 import { emptyShotForm, shotToForm, hasFormChanged, shouldSaveForm } from '@/features/score/shot-constants';
 import type { Shot, ShotFormState } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
 import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
 
-// --- Reducer ---
-
-export type FormsAction =
-  | { type: 'INIT'; shots: Shot[] }
-  | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
-  | { type: 'CLEAR_ALL' };
+// --- State & Reducer ---
 
 interface FormsState {
-  forms: Map<number, ShotFormState>;
-  shots: Shot[];
+  cache: Map<number, Shot[]>;
+  formsByHole: Map<number, Map<number, ShotFormState>>;
+  adviceByHole: Map<number, Map<number, string>>;
+  saveVersionByHole: Map<number, number>;
+  loading: boolean;
 }
+
+/** shot-form.tsx から dispatch される型（holeNumber なし） */
+export type ShotFormAction =
+  | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState };
+
+type FormsAction =
+  | { type: 'INIT_ROUND'; allShots: Shot[] }
+  | { type: 'UPDATE_FIELD'; holeNumber: number; index: number; updater: (prev: ShotFormState) => ShotFormState }
+  | { type: 'SET_ADVICE'; holeNumber: number; index: number; text: string }
+  | { type: 'UPDATE_CACHE'; holeNumber: number; shots: Shot[]; version: number }
+  | { type: 'INCREMENT_SAVE_VERSION'; holeNumber: number }
+  | { type: 'CLEAR_ALL' };
+
+function groupByHole(shots: Shot[]): Map<number, Shot[]> {
+  const map = new Map<number, Shot[]>();
+  for (const shot of shots) {
+    const arr = map.get(shot.hole_number) ?? [];
+    arr.push(shot);
+    map.set(shot.hole_number, arr);
+  }
+  return map;
+}
+
+const INITIAL_STATE: FormsState = {
+  cache: new Map(),
+  formsByHole: new Map(),
+  adviceByHole: new Map(),
+  saveVersionByHole: new Map(),
+  loading: true,
+};
 
 function formsReducer(state: FormsState, action: FormsAction): FormsState {
   switch (action.type) {
-    case 'INIT':
-      return { forms: new Map(), shots: action.shots };
+    case 'INIT_ROUND':
+      return { ...state, cache: groupByHole(action.allShots), loading: false };
+
     case 'UPDATE_FIELD': {
-      const next = new Map(state.forms);
-      const current = state.forms.get(action.index)
-        ?? (action.index < state.shots.length ? shotToForm(state.shots[action.index]) : emptyShotForm());
-      next.set(action.index, action.updater(current));
-      return { ...state, forms: next };
+      const holeForms = new Map(state.formsByHole.get(action.holeNumber) ?? new Map());
+      const holeShots = state.cache.get(action.holeNumber) ?? [];
+      const current = holeForms.get(action.index)
+        ?? (action.index < holeShots.length ? shotToForm(holeShots[action.index]) : emptyShotForm());
+      holeForms.set(action.index, action.updater(current));
+      const next = new Map(state.formsByHole);
+      next.set(action.holeNumber, holeForms);
+      return { ...state, formsByHole: next };
     }
+
+    case 'SET_ADVICE': {
+      const holeAdvice = new Map(state.adviceByHole.get(action.holeNumber) ?? new Map());
+      holeAdvice.set(action.index, action.text);
+      const next = new Map(state.adviceByHole);
+      next.set(action.holeNumber, holeAdvice);
+      return { ...state, adviceByHole: next };
+    }
+
+    case 'UPDATE_CACHE': {
+      const currentVersion = state.saveVersionByHole.get(action.holeNumber) ?? 0;
+      if (action.version < currentVersion) return state; // 古いレスポンスは無視
+      const newCache = new Map(state.cache);
+      newCache.set(action.holeNumber, action.shots);
+      // 保存成功後、そのホールのformsをクリア（キャッシュが最新になったため）
+      const newForms = new Map(state.formsByHole);
+      newForms.delete(action.holeNumber);
+      const newAdvice = new Map(state.adviceByHole);
+      newAdvice.delete(action.holeNumber);
+      return { ...state, cache: newCache, formsByHole: newForms, adviceByHole: newAdvice };
+    }
+
+    case 'INCREMENT_SAVE_VERSION': {
+      const newVersions = new Map(state.saveVersionByHole);
+      newVersions.set(action.holeNumber, (newVersions.get(action.holeNumber) ?? 0) + 1);
+      return { ...state, saveVersionByHole: newVersions };
+    }
+
     case 'CLEAR_ALL':
-      return { forms: new Map(), shots: state.shots };
+      return { ...state, formsByHole: new Map(), adviceByHole: new Map() };
   }
 }
 
@@ -52,54 +112,53 @@ export interface ShotSlot {
 // --- Hook ---
 
 export function useShotRecorder(roundId: string, holeNumber: number) {
-  const [state, dispatch] = useReducer(formsReducer, { forms: new Map(), shots: [] });
+  const [state, dispatch] = useReducer(formsReducer, INITIAL_STATE);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [adviceMap, setAdviceMap] = useState<Map<number, string>>(new Map());
 
-  const { shots } = state;
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ホール変更時の自動保存 + データ取得
+  const saveVersionRef = useRef(new Map<number, number>());
   const prevHoleRef = useRef(holeNumber);
   const stateRef = useRef(state);
-  const adviceMapRef = useRef(adviceMap);
   useEffect(() => { stateRef.current = state; }, [state]);
-  useEffect(() => { adviceMapRef.current = adviceMap; }, [adviceMap]);
-
-  // アンマウント時にタイマークリーンアップ + 未保存データの保存
-  const holeNumberRef = useRef(holeNumber);
-  useEffect(() => { holeNumberRef.current = holeNumber; }, [holeNumber]);
   const roundIdRef = useRef(roundId);
   useEffect(() => { roundIdRef.current = roundId; }, [roundId]);
+  const holeNumberRef = useRef(holeNumber);
+  useEffect(() => { holeNumberRef.current = holeNumber; }, [holeNumber]);
 
+  // 現在のホールのショット（キャッシュから派生）
+  const shots = useMemo(() => state.cache.get(holeNumber) ?? [], [state.cache, holeNumber]);
+
+  // --- 一括読み込み（mount時に1回だけ） ---
   useEffect(() => {
-    return () => {
-      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      // アンマウント時: 現在のホールの未保存データを fire-and-forget で保存
-      const snapshot = stateRef.current;
-      const adviceSnapshot = adviceMapRef.current;
-      const hole = holeNumberRef.current;
-      const rid = roundIdRef.current;
-      const payload = collectPendingShotsSync(snapshot, adviceSnapshot, rid, hole);
-      if (payload.shots.length > 0) {
-        saveShotsForHole(payload).catch(() => {});
+    let cancelled = false;
+    getShotsForRound(roundId).then(allShots => {
+      if (!cancelled) {
+        dispatch({ type: 'INIT_ROUND', allShots });
       }
-    };
-  }, []);
-
-  const collectPendingShots = useCallback((
-    snapshotState: FormsState,
-    snapshotAdvice: Map<number, string>,
-    forHoleNumber: number,
-  ) => {
-    return collectPendingShotsSync(snapshotState, snapshotAdvice, roundId, forHoleNumber);
+    }).catch(() => {
+      if (!cancelled) setError('ショット記録の取得に失敗しました。');
+    });
+    return () => { cancelled = true; };
   }, [roundId]);
 
-  const batchSave = useCallback(async (forHoleNumber: number, snapshotState: FormsState, snapshotAdvice: Map<number, string>) => {
-    const payload = collectPendingShots(snapshotState, snapshotAdvice, forHoleNumber);
+  // expandedIndex: loading完了時またはホール切替時に更新
+  useEffect(() => {
+    if (!state.loading) {
+      setExpandedIndex(shots.length);
+    }
+  }, [state.loading, shots.length]);
+
+  // --- batchSave ---
+  const batchSave = useCallback(async (forHoleNumber: number, snapshot: FormsState) => {
+    const payload = collectPendingShotsSync(snapshot, forHoleNumber, roundIdRef.current);
     if (payload.shots.length === 0) return;
+
+    // バージョンをインクリメント（ref経由で一意に管理、snapshotの古さに依存しない）
+    const version = (saveVersionRef.current.get(forHoleNumber) ?? 0) + 1;
+    saveVersionRef.current.set(forHoleNumber, version);
+    dispatch({ type: 'INCREMENT_SAVE_VERSION', holeNumber: forHoleNumber });
 
     setSaveStatus('saving');
     if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
@@ -111,57 +170,62 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
       setSaveStatus('saved');
       saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
 
-      // パットショットのパット距離をscoresテーブルに同期
-      const allForms = snapshotState.forms;
-      for (const [, form] of allForms) {
-        if (form.shotType === 'putt' && (form.puttDistanceMeters != null || form.puttDistanceCategory)) {
-          const meters = form.puttDistanceMeters;
-          const category = meters != null ? distanceToCategory(meters) : form.puttDistanceCategory;
-          updateFirstPuttDistance({
-            roundId: payload.roundId,
-            holeNumber: forHoleNumber,
-            firstPuttDistance: category,
-            firstPuttDistanceM: meters,
-          }).catch(() => {});
-          break; // ファーストパットのみ同期
+      // キャッシュ更新（サーバー発行IDを反映）
+      if (result.shots) {
+        dispatch({ type: 'UPDATE_CACHE', holeNumber: forHoleNumber, shots: result.shots, version });
+      }
+
+      // パット距離同期
+      const holeForms = snapshot.formsByHole.get(forHoleNumber);
+      if (holeForms) {
+        for (const [, form] of holeForms) {
+          if (form.shotType === 'putt' && (form.puttDistanceMeters != null || form.puttDistanceCategory)) {
+            const meters = form.puttDistanceMeters;
+            const category = meters != null ? distanceToCategory(meters) : form.puttDistanceCategory;
+            updateFirstPuttDistance({
+              roundId: payload.roundId,
+              holeNumber: forHoleNumber,
+              firstPuttDistance: category,
+              firstPuttDistanceM: meters,
+            }).catch(() => {});
+            break;
+          }
         }
       }
     }
-  }, [collectPendingShots]);
+  }, []);
 
-  // ホール変更検知: 前ホールのデータをスナップショットして保存、新ホールを取得
+  // --- ホール切替: 前ホール保存のみ（読込はキャッシュから自動） ---
+  // batchSave は useCallback([], []) で安定しているため直接参照可能
   useEffect(() => {
     if (prevHoleRef.current !== holeNumber) {
-      // スナップショットを取得（stateが更新される前に）
-      const snapshotState = stateRef.current;
-      const snapshotAdvice = adviceMapRef.current;
       const prevHole = prevHoleRef.current;
       prevHoleRef.current = holeNumber;
-
-      // 前ホールを非同期保存
-      batchSave(prevHole, snapshotState, snapshotAdvice);
+      batchSave(prevHole, stateRef.current);
     }
+  }, [holeNumber, batchSave]);
 
-    // 新ホールのデータ取得
-    let cancelled = false;
-    setError(null);
-    setAdviceMap(new Map());
-    getShots(roundId, holeNumber).then(data => {
-      if (!cancelled) {
-        dispatch({ type: 'INIT', shots: data });
-        setExpandedIndex(data.length);
+  // --- アンマウント時: 現在のホールの未保存データを fire-and-forget で保存 ---
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      const snapshot = stateRef.current;
+      const hole = holeNumberRef.current;
+      const rid = roundIdRef.current;
+      const payload = collectPendingShotsSync(snapshot, hole, rid);
+      if (payload.shots.length > 0) {
+        saveShotsForHole(payload).catch(() => {});
       }
-    }).catch(() => {
-      if (!cancelled) setError('ショット記録の取得に失敗しました。');
-    });
-    return () => { cancelled = true; };
-  }, [roundId, holeNumber, batchSave]);
+    };
+  }, []);
 
+  // --- スロット一覧 ---
   const nextShotNumber = shots.length > 0
     ? Math.max(...shots.map(s => s.shot_number)) + 1
     : 1;
 
-  // スロット一覧を構築
+  const holeForms = state.formsByHole.get(holeNumber);
+
   const allSlots: ShotSlot[] = [
     ...shots.map((shot, i) => ({
       index: i,
@@ -192,38 +256,51 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
   const displaySlots = [...allSlots].reverse();
 
   const getForm = useCallback((index: number): ShotFormState => {
-    return state.forms.get(index)
+    return holeForms?.get(index)
       ?? (index < shots.length ? shotToForm(shots[index]) : emptyShotForm());
-  }, [state.forms, shots]);
+  }, [holeForms, shots]);
 
   const handleAdviceReceived = useCallback((index: number, text: string) => {
-    setAdviceMap(prev => new Map(prev).set(index, text));
+    dispatch({ type: 'SET_ADVICE', holeNumber: holeNumberRef.current, index, text });
   }, []);
 
   const handleAddShot = useCallback(() => {
     setExpandedIndex(shots.length);
   }, [shots.length]);
 
+  // dispatch ラッパー: shot-form からの action に holeNumber を自動付与
+  const dispatchWithHole = useCallback((action: ShotFormAction) => {
+    if (action.type === 'UPDATE_FIELD') {
+      dispatch({ ...action, holeNumber: holeNumberRef.current });
+    }
+  }, []);
+
   return {
     displaySlots,
     expandedIndex,
     setExpandedIndex,
     getForm,
-    dispatch,
+    dispatch: dispatchWithHole,
     error,
     saveStatus,
     handleAdviceReceived,
     handleAddShot,
     shots,
+    loading: state.loading,
   };
 }
 
+// --- collectPendingShotsSync ---
+
 function collectPendingShotsSync(
-  snapshotState: FormsState,
-  snapshotAdvice: Map<number, string>,
-  roundId: string,
+  state: FormsState,
   forHoleNumber: number,
+  roundId: string,
 ) {
+  const holeShots = state.cache.get(forHoleNumber) ?? [];
+  const holeForms = state.formsByHole.get(forHoleNumber) ?? new Map<number, ShotFormState>();
+  const holeAdvice = state.adviceByHole.get(forHoleNumber) ?? new Map<number, string>();
+
   const pending: Array<{
     id?: string;
     shotNumber: number;
@@ -245,10 +322,10 @@ function collectPendingShotsSync(
   }> = [];
 
   // 既存ショットで変更があるもの
-  for (let i = 0; i < snapshotState.shots.length; i++) {
-    const form = snapshotState.forms.get(i);
-    const advice = snapshotAdvice.get(i);
-    const shot = snapshotState.shots[i];
+  for (let i = 0; i < holeShots.length; i++) {
+    const form = holeForms.get(i);
+    const advice = holeAdvice.get(i);
+    const shot = holeShots[i];
     const adviceChanged = advice !== undefined && advice !== (shot.advice_text ?? null);
     if (form && (hasFormChanged(form, shot) || adviceChanged)) {
       pending.push({
@@ -260,18 +337,18 @@ function collectPendingShotsSync(
     }
   }
 
-  // 新規スロット（全キーを走査し、値が入力済みのもの）
-  const formKeys = Array.from(snapshotState.forms.keys()).filter(k => k >= snapshotState.shots.length).sort((a, b) => a - b);
+  // 新規スロット
+  const formKeys = Array.from(holeForms.keys()).filter(k => k >= holeShots.length).sort((a, b) => a - b);
   for (const i of formKeys) {
-    const form = snapshotState.forms.get(i)!;
+    const form = holeForms.get(i)!;
     if (!shouldSaveForm(form)) continue;
-    const nextShotNum = snapshotState.shots.length > 0
-      ? Math.max(...snapshotState.shots.map(s => s.shot_number)) + 1 + (i - snapshotState.shots.length)
+    const nextShotNum = holeShots.length > 0
+      ? Math.max(...holeShots.map(s => s.shot_number)) + 1 + (i - holeShots.length)
       : i + 1;
     pending.push({
       shotNumber: nextShotNum,
       ...formToPayload(form),
-      adviceText: snapshotAdvice.get(i) ?? null,
+      adviceText: holeAdvice.get(i) ?? null,
     });
   }
 

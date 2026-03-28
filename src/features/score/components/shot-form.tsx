@@ -5,7 +5,7 @@ import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } fr
 import { AdvicePanel } from '@/features/score/components/advice-panel';
 import type { Shot, ShotFormState } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
-import type { FormsAction } from '@/features/score/hooks/use-shot-recorder';
+import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
 
 interface ShotFormProps {
@@ -17,7 +17,7 @@ interface ShotFormProps {
     isSkipped: boolean;
   };
   form: ShotFormState;
-  dispatch: React.Dispatch<FormsAction>;
+  dispatch: React.Dispatch<ShotFormAction>;
   clubs: ClubOption[];
   roundId: string;
   holeNumber: number;

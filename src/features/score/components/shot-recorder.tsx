@@ -27,7 +27,27 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     handleAdviceReceived,
     handleAddShot,
     shots,
+    loading,
   } = useShotRecorder(roundId, holeNumber);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-bold text-gray-200">ショット記録</label>
+        </div>
+        <div className="space-y-2">
+          {[1, 2].map(i => (
+            <div key={i} className="rounded-lg border border-gray-700 overflow-hidden">
+              <div className="p-3 bg-gray-800 animate-pulse">
+                <div className="h-5 bg-gray-700 rounded w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

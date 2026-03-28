@@ -264,6 +264,32 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
   return (data as Shot[]) ?? [];
 }
 
+/** ラウンド全体のショットを一括取得（クライアントサイドキャッシュ用） */
+export async function getShotsForRound(roundId: string): Promise<Shot[]> {
+  const user = await getAuthenticatedUser();
+  if (!user) return [];
+  if (!isValidUUID(roundId)) return [];
+
+  const supabase = await createClient();
+
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .single();
+  if (!round) return [];
+
+  const { data } = await supabase
+    .from('shots')
+    .select('*')
+    .eq('round_id', roundId)
+    .order('hole_number')
+    .order('shot_number');
+
+  return (data as Shot[]) ?? [];
+}
+
 export async function updateShotAdvice(data: {
   roundId: string;
   holeNumber: number;
