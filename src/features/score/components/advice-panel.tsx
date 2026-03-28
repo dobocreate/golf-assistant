@@ -145,7 +145,7 @@ export function AdvicePanel({
         {hasSavedAdvice && (
           <button
             onClick={() => setShowSavedAdvice(true)}
-            className="min-h-[52px] min-w-[52px] flex items-center justify-center rounded-lg bg-blue-700 text-white hover:bg-blue-600 transition-colors"
+            className="min-h-[52px] min-w-[52px] flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors"
             aria-label="保存済みアドバイスを確認"
           >
             <Eye className="h-5 w-5" />
