@@ -11,6 +11,13 @@ function validateIntRange(value: number, min: number, max: number, label: string
   return null;
 }
 
+function validateFirstPuttDistanceM(value: number | null | undefined): string | null {
+  if (value != null && (typeof value !== 'number' || value < 0 || value > 50)) {
+    return 'パット距離（数値）が不正です。';
+  }
+  return null;
+}
+
 function validateEnum(value: string | null, allowed: string[], label: string): string | null {
   if (value !== null && !allowed.includes(value)) return `${label}が不正です。`;
   return null;
@@ -48,7 +55,7 @@ export async function upsertScore(data: {
     validateIntRange(data.bunkerCount, 0, 10, 'バンカー数') ??
     validateIntRange(data.penaltyCount, 0, 10, 'ペナルティ数') ??
     validateEnum(data.firstPuttDistance, ['short', 'mid', 'long', 'very_long'], 'ファーストパット距離') ??
-    (data.firstPuttDistanceM != null && (typeof data.firstPuttDistanceM !== 'number' || data.firstPuttDistanceM < 0 || data.firstPuttDistanceM > 50) ? 'パット距離（数値）が不正です。' : null) ??
+    validateFirstPuttDistanceM(data.firstPuttDistanceM) ??
     validateEnum(data.windDirection, ['head', 'tail', 'left', 'right'], '風向き') ??
     validateEnum(data.windStrength, ['calm', 'light', 'moderate', 'strong'], '風の強さ');
   if (validationError) return { error: validationError };
@@ -125,9 +132,8 @@ export async function updateFirstPuttDistance(data: {
   if (data.firstPuttDistance !== null && !['short', 'mid', 'long', 'very_long'].includes(data.firstPuttDistance)) {
     return { error: 'パット距離が不正です。' };
   }
-  if (data.firstPuttDistanceM !== null && (typeof data.firstPuttDistanceM !== 'number' || data.firstPuttDistanceM < 0 || data.firstPuttDistanceM > 50)) {
-    return { error: 'パット距離（数値）が不正です。' };
-  }
+  const distMError = validateFirstPuttDistanceM(data.firstPuttDistanceM);
+  if (distMError) return { error: distMError };
 
   const supabase = await createClient();
 

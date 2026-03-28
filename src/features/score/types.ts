@@ -17,12 +17,13 @@ export const FIRST_PUTT_DISTANCE_LABELS: Record<FirstPuttDistance, string> = {
   very_long: '10m〜',
 };
 
-/** 数値（メートル）からカテゴリに変換 */
+/** 数値（メートル）からカテゴリに変換
+ * short: < 2m, mid: 2m〜5m未満, long: 5m〜10m未満, very_long: 10m以上 */
 export function distanceToCategory(meters: number): FirstPuttDistance {
-  if (meters <= 2) return 'short';
-  if (meters <= 5) return 'mid';
-  if (meters <= 10) return 'long';
-  return 'very_long';
+  if (meters >= 10) return 'very_long';
+  if (meters >= 5) return 'long';
+  if (meters >= 2) return 'mid';
+  return 'short';
 }
 
 /** カテゴリから中央値（メートル）に変換（旧データのフォールバック用） */
