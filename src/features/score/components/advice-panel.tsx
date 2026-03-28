@@ -109,7 +109,7 @@ export function AdvicePanel({
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="補足（風向き等）"
+          placeholder="追加情報"
           maxLength={500}
           rows={3}
           className="flex-1 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-base border-0 focus:ring-2 focus:ring-blue-600 resize-none"
