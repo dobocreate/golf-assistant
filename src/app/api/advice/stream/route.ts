@@ -1,7 +1,7 @@
 import { streamText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createClient } from '@/lib/supabase/server';
-import { buildAdviceContext, formatContextForPrompt, buildScoreContext } from '@/features/advice/lib/context-builder';
+import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
 import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
 
@@ -71,17 +71,16 @@ export async function POST(request: Request) {
       return jsonError('左右傾斜が不正です。', 400);
     }
 
-    // コンテキスト構築
-    const context = await buildAdviceContext(body.roundId);
-    if (!context) return jsonError('ラウンド情報の取得に失敗しました。', 404);
-
-    const [contextText, scoreContext] = await Promise.all([
-      Promise.resolve(formatContextForPrompt(context)),
-      buildScoreContext(body.roundId),
+    // コンテキスト構築（2回目以降はスナップショットから1クエリで取得）
+    const [snapshotResult, scoreContext] = await Promise.all([
+      getOrBuildContextSnapshot(body.roundId, user.id),
+      buildScoreContext(body.roundId, user.id),
     ]);
+    if (!snapshotResult) return jsonError('ラウンド情報の取得に失敗しました。', 404);
+
     const fullContext = scoreContext
-      ? `${contextText}\n\n${scoreContext}`
-      : contextText;
+      ? `${snapshotResult.contextText}\n\n${scoreContext}`
+      : snapshotResult.contextText;
     const systemPrompt = createSystemPrompt(fullContext);
     const userPrompt = createUserPrompt({
       holeNumber: body.holeNumber,

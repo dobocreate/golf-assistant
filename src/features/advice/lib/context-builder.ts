@@ -5,6 +5,53 @@ import type { AdviceContext } from '../types';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * スナップショットからコンテキストテキストを取得、なければ構築してキャッシュする
+ * 2回目以降のアドバイスリクエストでは1クエリで済む
+ */
+export async function getOrBuildContextSnapshot(
+  roundId: string,
+  userId: string,
+): Promise<{ contextText: string; courseId: string } | null> {
+  if (!UUID_RE.test(roundId)) return null;
+
+  const supabase = await createClient();
+
+  // snapshot + course_id を1クエリで取得
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('course_id, context_snapshot')
+    .eq('id', roundId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!round) return null;
+
+  // キャッシュヒット: snapshotがstring（フォーマット済みテキスト）ならそのまま返す
+  if (typeof round.context_snapshot === 'string' && round.context_snapshot.length > 0) {
+    return { contextText: round.context_snapshot, courseId: round.course_id };
+  }
+
+  // キャッシュミス: コンテキストを構築（course_idは取得済みなので渡す）
+  const context = await buildAdviceContextInternal(roundId, userId, supabase, round.course_id);
+  if (!context) return null;
+
+  const contextText = formatContextForPrompt(context);
+
+  // snapshotに保存（失敗してもフォールバック）
+  const { error } = await supabase
+    .from('rounds')
+    .update({ context_snapshot: contextText })
+    .eq('id', roundId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('context_snapshot save failed:', error.message);
+  }
+
+  return { contextText, courseId: round.course_id };
+}
+
+/**
  * ラウンド開始時にAIアドバイス用コンテキストを構築する
  * - プロファイル（飛距離、ミス傾向等）
  * - クラブ一覧
@@ -17,22 +64,35 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
   if (!user || !UUID_RE.test(roundId)) return null;
 
   const supabase = await createClient();
+  return buildAdviceContextInternal(roundId, user.id, supabase);
+}
 
-  // ラウンド情報を取得
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id, course_id')
-    .eq('id', roundId)
-    .eq('user_id', user.id)
-    .single();
+async function buildAdviceContextInternal(
+  roundId: string,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  knownCourseId?: string,
+): Promise<AdviceContext | null> {
 
-  if (!round) return null;
+  // course_idが未知の場合のみラウンド情報を取得
+  let courseId = knownCourseId;
+  if (!courseId) {
+    const { data: round } = await supabase
+      .from('rounds')
+      .select('id, course_id')
+      .eq('id', roundId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!round) return null;
+    courseId = round.course_id;
+  }
 
   // まずプロファイルを取得（クラブ取得にprofile.idが必要）
   const { data: profile } = await supabase
     .from('profiles')
     .select('id, handicap, play_style, miss_tendency, fatigue_note, favorite_shot, favorite_distance, situation_notes')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .single();
 
   // 残りを並列でデータ取得
@@ -50,28 +110,28 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
     supabase
       .from('courses')
       .select('name, prefecture, address')
-      .eq('id', round.course_id)
+      .eq('id', courseId)
       .single(),
 
     // ホール情報
     supabase
       .from('holes')
       .select('hole_number, par, distance, hdcp, dogleg, elevation, hazard, ob, description')
-      .eq('course_id', round.course_id)
+      .eq('course_id', courseId)
       .order('hole_number'),
 
     // ホール別メモ（攻略法）
     supabase
       .from('hole_notes')
       .select('note, strategy, holes!inner(hole_number, course_id)')
-      .eq('user_id', user.id)
-      .eq('holes.course_id', round.course_id),
+      .eq('user_id', userId)
+      .eq('holes.course_id', courseId),
 
     // 直近5ラウンドの傾向
     supabase
       .from('rounds')
       .select('played_at, total_score, courses(name)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'completed')
       .order('played_at', { ascending: false })
       .limit(5),
@@ -80,7 +140,7 @@ export async function buildAdviceContext(roundId: string): Promise<AdviceContext
     supabase
       .from('knowledge')
       .select('title, content, category, tags')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(20),
   ]);
@@ -210,9 +270,15 @@ export function formatContextForPrompt(context: AdviceContext): string {
  * - 各ホールのスコアとパーとの差分
  * - 疲労・連続ボギー検出による警告ノート
  */
-export async function buildScoreContext(roundId: string): Promise<string> {
-  const user = await getAuthenticatedUser();
-  if (!user || !UUID_RE.test(roundId)) return '';
+export async function buildScoreContext(roundId: string, userId?: string): Promise<string> {
+  if (!UUID_RE.test(roundId)) return '';
+
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const user = await getAuthenticatedUser();
+    if (!user) return '';
+    resolvedUserId = user.id;
+  }
 
   const supabase = await createClient();
 
@@ -221,7 +287,7 @@ export async function buildScoreContext(roundId: string): Promise<string> {
     .from('rounds')
     .select('course_id')
     .eq('id', roundId)
-    .eq('user_id', user.id)
+    .eq('user_id', resolvedUserId)
     .single();
 
   if (!round) return '';

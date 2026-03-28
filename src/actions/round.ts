@@ -83,7 +83,7 @@ export async function getRound(roundId: string): Promise<Round | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('*')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -99,7 +99,7 @@ export async function getRoundWithCourse(roundId: string): Promise<RoundWithCour
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('*, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, courses(id, name, prefecture)')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -114,7 +114,7 @@ export async function getActiveRound(): Promise<RoundWithCourse | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('*, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, courses(id, name, prefecture)')
     .eq('user_id', user.id)
     .eq('status', 'in_progress')
     .order('created_at', { ascending: false })
@@ -159,12 +159,13 @@ export async function completeRound(
 
   const totalScore = (scores ?? []).reduce((sum, s) => sum + s.strokes, 0);
 
-  // ラウンドを完了に更新
+  // ラウンドを完了に更新（context_snapshotもクリア）
   const { error } = await supabase
     .from('rounds')
     .update({
       status: 'completed',
       total_score: totalScore > 0 ? totalScore : null,
+      context_snapshot: null,
     })
     .eq('id', roundId)
     .eq('user_id', user.id);
