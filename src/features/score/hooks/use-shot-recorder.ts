@@ -195,18 +195,15 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
     }
   }, []);
 
-  // batchSave を ref 経由で参照（useEffect の依存配列から除外するため）
-  const batchSaveRef = useRef(batchSave);
-  useEffect(() => { batchSaveRef.current = batchSave; }, [batchSave]);
-
   // --- ホール切替: 前ホール保存のみ（読込はキャッシュから自動） ---
+  // batchSave は useCallback([], []) で安定しているため直接参照可能
   useEffect(() => {
     if (prevHoleRef.current !== holeNumber) {
       const prevHole = prevHoleRef.current;
       prevHoleRef.current = holeNumber;
-      batchSaveRef.current(prevHole, stateRef.current);
+      batchSave(prevHole, stateRef.current);
     }
-  }, [holeNumber]);
+  }, [holeNumber, batchSave]);
 
   // --- アンマウント時: 現在のホールの未保存データを fire-and-forget で保存 ---
   useEffect(() => {
@@ -259,11 +256,9 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
   const displaySlots = [...allSlots].reverse();
 
   const getForm = useCallback((index: number): ShotFormState => {
-    const forms = stateRef.current.formsByHole.get(holeNumberRef.current);
-    const holeShots = stateRef.current.cache.get(holeNumberRef.current) ?? [];
-    return forms?.get(index)
-      ?? (index < holeShots.length ? shotToForm(holeShots[index]) : emptyShotForm());
-  }, [holeForms, shots]); // eslint-disable-line react-hooks/exhaustive-deps
+    return holeForms?.get(index)
+      ?? (index < shots.length ? shotToForm(shots[index]) : emptyShotForm());
+  }, [holeForms, shots]);
 
   const handleAdviceReceived = useCallback((index: number, text: string) => {
     dispatch({ type: 'SET_ADVICE', holeNumber: holeNumberRef.current, index, text });
