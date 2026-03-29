@@ -68,22 +68,21 @@ export default async function PlayMainPage({
       {/* ゲームプラン選択 */}
       <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={appliedPlanName} />
 
-      {/* アクションボタン */}
-      <div className="space-y-3">
-        <Link
-          href={`/play/${roundId}/score`}
-          className="min-h-[56px] w-full flex items-center justify-center gap-3 rounded-lg bg-green-600 px-6 py-4 text-xl font-bold text-white hover:bg-green-500 transition-colors"
-        >
-          <Pencil className="h-6 w-6" />
-          スコア入力
-        </Link>
-
+      {/* フローティングアクションボタン */}
+      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3 flex gap-2">
         <Link
           href={`/play/${roundId}/complete`}
-          className="min-h-[48px] w-full flex items-center justify-center gap-3 rounded-lg bg-gray-700 px-6 py-3 text-lg font-bold text-gray-200 hover:bg-gray-600 transition-colors"
+          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-gray-700 px-5 py-3 text-sm font-bold text-gray-200 shadow-lg hover:bg-gray-600 transition-colors"
         >
-          <CheckCircle className="h-5 w-5" />
-          ラウンド完了
+          <CheckCircle className="h-4 w-4" />
+          完了
+        </Link>
+        <Link
+          href={`/play/${roundId}/score`}
+          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
+        >
+          <Pencil className="h-4 w-4" />
+          スコア入力
         </Link>
       </div>
     </div>
