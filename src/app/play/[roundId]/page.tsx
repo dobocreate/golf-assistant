@@ -1,5 +1,6 @@
 import { getRoundWithCourse } from '@/actions/round';
 import { getCompanions } from '@/actions/companion';
+import { getGamePlanSetsByCourse } from '@/actions/game-plan-set';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -7,6 +8,7 @@ import { Pencil, CheckCircle } from 'lucide-react';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
 import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
 import { WeatherWindSetting } from '@/features/round/components/weather-wind-setting';
+import { GamePlanSelector } from '@/features/round/components/game-plan-selector';
 
 export default async function PlayMainPage({
   params,
@@ -23,6 +25,10 @@ export default async function PlayMainPage({
   ]);
 
   if (!round) notFound();
+
+  const gamePlanSets = round.course_id
+    ? await getGamePlanSetsByCourse(round.course_id)
+    : [];
 
   const course = round.courses;
 
@@ -48,6 +54,9 @@ export default async function PlayMainPage({
 
       {/* 同伴者管理 */}
       <CompanionManager roundId={roundId} initialCompanions={companions} />
+
+      {/* ゲームプラン選択 */}
+      <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={null} />
 
       {/* アクションボタン */}
       <div className="space-y-3">
