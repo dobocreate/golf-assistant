@@ -1,6 +1,7 @@
 import { getRoundWithCourse } from '@/actions/round';
 import { getCompanions } from '@/actions/companion';
 import { getGamePlanSetsByCourse } from '@/actions/game-plan-set';
+import { getGamePlans } from '@/actions/game-plan';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -26,9 +27,18 @@ export default async function PlayMainPage({
 
   if (!round) notFound();
 
-  const gamePlanSets = round.course_id
-    ? await getGamePlanSetsByCourse(round.course_id)
-    : [];
+  const [gamePlanSets, appliedPlans] = await Promise.all([
+    round.course_id ? getGamePlanSetsByCourse(round.course_id) : Promise.resolve([]),
+    getGamePlans(roundId),
+  ]);
+
+  // 適用済みプランを特定（game_plansにデータがあれば適用済み）
+  const appliedPlanName = appliedPlans.length > 0
+    ? gamePlanSets.find(s => {
+        // セットの目標スコアとラウンドのtarget_scoreが一致すればそのセット
+        return s.target_score === round.target_score;
+      })?.name ?? '適用済み'
+    : null;
 
   const course = round.courses;
 
@@ -56,7 +66,7 @@ export default async function PlayMainPage({
       <CompanionManager roundId={roundId} initialCompanions={companions} />
 
       {/* ゲームプラン選択 */}
-      <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={null} />
+      <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={appliedPlanName} />
 
       {/* アクションボタン */}
       <div className="space-y-3">
