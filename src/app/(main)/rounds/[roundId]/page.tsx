@@ -123,7 +123,7 @@ export default async function RoundReviewPage({
       {/* スコア分析（折りたたみ） */}
       {completedHoles > 0 && (
         <details className="group">
-          <summary className="flex items-center justify-between cursor-pointer list-none border-b border-gray-200 dark:border-gray-700 pb-2">
+          <summary className="flex items-center justify-between cursor-pointer list-none">
             <div className="flex items-center gap-1">
               <ChevronRight className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90" />
               <h2 className="text-lg font-bold">スコア分析</h2>
