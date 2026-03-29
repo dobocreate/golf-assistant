@@ -55,7 +55,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRound = usePlayRoundOptional();
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice, setGamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
-  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean }>({ saveCurrentHole: () => {}, hasPendingShots: () => false });
+  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const [currentHole, setCurrentHole] = useState(() => {
@@ -137,9 +137,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [windDirection, setWindDirection] = useState<WindDirection | null>(score?.wind_direction ?? null);
   const [windStrength, setWindStrength] = useState<WindStrength | null>(score?.wind_strength ?? null);
   const [greenInReg, setGreenInReg] = useState<boolean | null>(score?.green_in_reg ?? null);
+  const [obCount, setObCount] = useState<number>(score?.ob_count ?? 0);
+  const [bunkerCount, setBunkerCount] = useState<number>(score?.bunker_count ?? 0);
   // ユーザーが明示的にスコアを操作したかどうか（デフォルト値の自動保存防止用）
   const [userTouched, setUserTouched] = useState(score !== undefined);
-  // penaltyCount / obCount / bunkerCount は廃止（ショット単位の landing に移行）。DB互換のため 0 固定で送信
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
@@ -163,7 +164,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     wd: WindDirection | null,
     ws: WindStrength | null,
     existingId?: string,
+    overrideOb?: number,
+    overrideBunker?: number,
   ) => {
+    // プレー中: ショット記録から自動集計、編集モード: 手動値を使用
+    const landing = shotActionsRef.current.getLandingCounts();
+    const finalOb = overrideOb ?? landing.ob;
+    const finalBunker = overrideBunker ?? landing.bunker;
+
     const existingScore = scoresRef.current.get(holeNum);
     const newScore: Score = {
       id: existingId ?? '',
@@ -177,8 +185,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       green_in_reg: gir,
       tee_shot_lr: null,
       tee_shot_fb: null,
-      ob_count: 0,
-      bunker_count: 0,
+      ob_count: finalOb,
+      bunker_count: finalBunker,
       penalty_count: 0,
       wind_direction: wd,
       wind_strength: ws,
@@ -204,8 +212,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         greenInReg: gir,
         teeShotLr: null,
         teeShotFb: null,
-        obCount: 0,
-        bunkerCount: 0,
+        obCount: finalOb,
+        bunkerCount: finalBunker,
         penaltyCount: 0,
         firstPuttDistance: existingScore?.first_putt_distance ?? null,
         firstPuttDistanceM: existingScore?.first_putt_distance_m ?? null,
@@ -241,20 +249,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (strokes === null) return;
     const scoreChanged = hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength);
     const shotsChanged = shotActionsRef.current.hasPendingShots();
-    if (!scoreChanged && !shotsChanged) {
+    // バンカー/OBの変更も検知
+    const existingScore = scoresRef.current.get(currentHole);
+    const countsChanged = (existingScore?.ob_count ?? 0) !== obCount || (existingScore?.bunker_count ?? 0) !== bunkerCount;
+    if (!scoreChanged && !shotsChanged && !countsChanged) {
       showToast('変更なし', 'info');
       return;
     }
-    if (scoreChanged) {
-      saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id);
+    if (scoreChanged || countsChanged) {
+      saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id, editMode ? obCount : undefined, editMode ? bunkerCount : undefined);
     }
     if (shotsChanged) {
       shotActionsRef.current.saveCurrentHole();
     }
-    if (!scoreChanged && shotsChanged) {
+    if (!scoreChanged && !countsChanged && shotsChanged) {
       showToast('ショット記録を保存しました', 'success');
     }
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id, saveHole, hasChanges, showToast]);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -284,6 +295,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setWindDirection(s?.wind_direction ?? null);
     setWindStrength(s?.wind_strength ?? null);
     setGreenInReg(s?.green_in_reg ?? null);
+    setObCount(s?.ob_count ?? 0);
+    setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
     setGamePlanContextForAdvice(null);
   }, [saveHole, hasChanges, roundId]);
@@ -538,6 +551,46 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* バンカー・OBカウント */}
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1">
+          <label className="block text-xs font-bold text-gray-300 text-center">OB</label>
+          {editMode ? (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => { setObCount(Math.max(0, obCount - 1)); setUserTouched(true); }}
+                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
+              >−</button>
+              <span className="text-2xl font-bold min-w-[32px] text-center">{obCount}</span>
+              <button
+                onClick={() => { setObCount(Math.min(10, obCount + 1)); setUserTouched(true); }}
+                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
+              >+</button>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().ob}</p>
+          )}
+        </div>
+        <div className="flex-1 space-y-1">
+          <label className="block text-xs font-bold text-gray-300 text-center">バンカー</label>
+          {editMode ? (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => { setBunkerCount(Math.max(0, bunkerCount - 1)); setUserTouched(true); }}
+                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
+              >−</button>
+              <span className="text-2xl font-bold min-w-[32px] text-center">{bunkerCount}</span>
+              <button
+                onClick={() => { setBunkerCount(Math.min(10, bunkerCount + 1)); setUserTouched(true); }}
+                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
+              >+</button>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().bunker}</p>
+          )}
         </div>
       </div>
 
