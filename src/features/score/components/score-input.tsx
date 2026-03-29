@@ -415,23 +415,24 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* スコアラベル（ホール番号の右横） */}
-          {strokes !== null && (
-            <span className={`px-2 py-1 rounded text-xs font-bold ${getScoreBgColor(strokes, hole.par)}`}>
-              {getScoreLabel(strokes, hole.par)}
-            </span>
-          )}
-          <button
-            onClick={() => nextHole !== null && switchHole(nextHole)}
-            disabled={nextHole === null}
-            className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-            aria-label="次のホール"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        </div>
+        <button
+          onClick={() => nextHole !== null && switchHole(nextHole)}
+          disabled={nextHole === null}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
+          aria-label="次のホール"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
       </div>
+
+      {/* スコアラベル（ホール情報の直下・中央バッジ） */}
+      {strokes !== null && (
+        <div className="flex justify-center">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getScoreBgColor(strokes, hole.par)}`}>
+            {getScoreLabel(strokes, hole.par)}
+          </span>
+        </div>
+      )}
 
       {/* マネジメントバンド */}
       {gamePlans.length > 0 && (
