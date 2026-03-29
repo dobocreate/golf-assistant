@@ -72,16 +72,27 @@ export default async function RoundReviewPage({
   }, {} as Record<FirstPuttDistance, number>);
   const topPuttDist = Object.entries(puttDistCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FirstPuttDistance | undefined;
 
-  // スコア分析
-  const birdies = scores.filter(s => { const p = parMap.get(s.hole_number) ?? 0; return p > 0 && s.strokes < p; }).length;
-  const pars = scores.filter(s => { const p = parMap.get(s.hole_number) ?? 0; return p > 0 && s.strokes === p; }).length;
-  const bogeys = scores.filter(s => { const p = parMap.get(s.hole_number) ?? 0; return p > 0 && s.strokes === p + 1; }).length;
-  const doublePlus = scores.filter(s => { const p = parMap.get(s.hole_number) ?? 0; return p > 0 && s.strokes >= p + 2; }).length;
+  // スコア分析（1回の走査でまとめて計算）
+  const { birdies, pars, bogeys, doublePlus, outStrokes, inStrokes } = scores.reduce((acc, s) => {
+    if (s.hole_number <= 9) acc.outStrokes += s.strokes;
+    else acc.inStrokes += s.strokes;
+    const p = parMap.get(s.hole_number) ?? 0;
+    if (p > 0) {
+      const diff = s.strokes - p;
+      if (diff < 0) acc.birdies++;
+      else if (diff === 0) acc.pars++;
+      else if (diff === 1) acc.bogeys++;
+      else if (diff >= 2) acc.doublePlus++;
+    }
+    return acc;
+  }, { birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, outStrokes: 0, inStrokes: 0 });
   const parSaves = birdies + pars;
-  const outStrokes = scores.filter(s => s.hole_number <= 9).reduce((sum, s) => sum + s.strokes, 0);
-  const inStrokes = scores.filter(s => s.hole_number > 9).reduce((sum, s) => sum + s.strokes, 0);
-  const outPar = holes.filter(h => h.hole_number <= 9 && scoreMap.has(h.hole_number)).reduce((sum, h) => sum + h.par, 0);
-  const inPar = holes.filter(h => h.hole_number > 9 && scoreMap.has(h.hole_number)).reduce((sum, h) => sum + h.par, 0);
+  const { outPar, inPar } = holes.reduce((acc, h) => {
+    if (!scoreMap.has(h.hole_number)) return acc;
+    if (h.hole_number <= 9) acc.outPar += h.par;
+    else acc.inPar += h.par;
+    return acc;
+  }, { outPar: 0, inPar: 0 });
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
