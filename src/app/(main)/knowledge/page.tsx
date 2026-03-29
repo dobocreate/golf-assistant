@@ -23,16 +23,16 @@ export default async function KnowledgePage({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">ナレッジベース</h1>
-        <Link
-          href="/knowledge/new"
-          className="inline-flex items-center gap-1.5 min-h-[48px] rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-500 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          新規追加
-        </Link>
-      </div>
+      <h1 className="text-2xl font-bold">ナレッジベース</h1>
+
+      {/* フローティング新規追加ボタン */}
+      <Link
+        href="/knowledge/new"
+        className="fixed bottom-6 right-4 z-40 min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
+      >
+        <Plus className="h-4 w-4" />
+        新規追加
+      </Link>
 
       <CategoryTabs />
 
