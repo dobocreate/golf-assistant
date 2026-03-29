@@ -322,6 +322,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return 'text-red-400';
   };
 
+  const getScoreBgColor = (s: number, par: number) => {
+    const diff = s - par;
+    if (diff <= -2) return 'bg-yellow-500 text-white';
+    if (diff === -1) return 'bg-blue-500 text-white';
+    if (diff === 0) return 'bg-green-600 text-white';
+    if (diff === 1) return 'bg-red-500 text-white';
+    return 'bg-red-700 text-white';
+  };
+
   // 合計スコア計算（入力済みホールのみ）
   const completedHoleNumbers = new Set(scores.keys());
   const totalStrokes = Array.from(scores.values()).reduce((sum, s) => sum + s.strokes, 0);
@@ -406,22 +415,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           </p>
         </div>
 
-        <button
-          onClick={() => nextHole !== null && switchHole(nextHole)}
-          disabled={nextHole === null}
-          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-          aria-label="次のホール"
-        >
-          <ChevronRight className="h-6 w-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* スコアラベル（ホール番号の右横） */}
+          {strokes !== null && (
+            <span className={`px-2 py-1 rounded text-xs font-bold ${getScoreBgColor(strokes, hole.par)}`}>
+              {getScoreLabel(strokes, hole.par)}
+            </span>
+          )}
+          <button
+            onClick={() => nextHole !== null && switchHole(nextHole)}
+            disabled={nextHole === null}
+            className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
+            aria-label="次のホール"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </div>
       </div>
-
-      {/* スコアラベル（ホール情報の直下） */}
-      {strokes !== null && (
-        <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
-          {getScoreLabel(strokes, hole.par)}
-        </p>
-      )}
 
       {/* マネジメントバンド */}
       {gamePlans.length > 0 && (
