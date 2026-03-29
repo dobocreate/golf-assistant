@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { AlertTriangle, ClipboardList, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
 import type { GamePlan } from '@/features/game-plan/types';
 import { RISK_LEVEL_LABELS } from '@/features/game-plan/types';
 import type { Score } from '@/features/score/types';
@@ -19,7 +19,6 @@ interface ManagementBandProps {
   scores: Map<number, Score>;
   targetScore: number | null;
   holeOrder: number[];
-  onAdviceTap?: (context: ManagementBandContext) => void;
 }
 
 type Tone = 'normal' | 'attack' | 'defense';
@@ -95,7 +94,6 @@ export function ManagementBand({
   scores,
   targetScore,
   holeOrder,
-  onAdviceTap,
 }: ManagementBandProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -114,15 +112,6 @@ export function ManagementBand({
   const riskTone: Tone = plan.risk_level === 'high' ? 'defense' : plan.risk_level === 'medium' ? 'attack' : 'normal';
   const riskStyle = TONE_STYLES[riskTone];
   const toneStyle = toneInfo ? TONE_STYLES[toneInfo.tone] : null;
-
-  const handleAdviceTap = () => {
-    onAdviceTap?.({
-      planText: plan.plan_text,
-      alertText: plan.alert_text,
-      tone: toneInfo?.tone ?? null,
-      toneLabel: toneInfo?.label ?? null,
-    });
-  };
 
   // 折りたたみ時: トーン色帯のみ表示
   if (collapsed) {
@@ -188,14 +177,6 @@ export function ManagementBand({
         </div>
       )}
 
-      {/* AIに相談ボタン */}
-      <button
-        onClick={handleAdviceTap}
-        className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 text-sm text-gray-300 hover:text-white transition-colors"
-      >
-        <MessageCircle className="h-4 w-4" />
-        AIに相談
-      </button>
     </div>
   );
 }
