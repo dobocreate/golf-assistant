@@ -123,8 +123,8 @@ export default async function RoundReviewPage({
       {/* スコア分析（折りたたみ） */}
       {completedHoles > 0 && (
         <details className="group">
-          <summary className="flex items-center justify-between cursor-pointer list-none min-h-[48px] rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
-            <span className="text-lg font-bold">スコア分析</span>
+          <summary className="flex items-center justify-between cursor-pointer list-none">
+            <h2 className="text-lg font-bold">スコア分析</h2>
             <span className="text-xs text-gray-500">
               {totalStrokes}打（{totalStrokes - totalPar >= 0 ? '+' : ''}{totalStrokes - totalPar}）
             </span>
