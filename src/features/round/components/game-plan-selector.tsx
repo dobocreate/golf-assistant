@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Target, Check } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { applyGamePlanSetToRound } from '@/actions/game-plan-set';
 import type { GamePlanSet } from '@/features/game-plan/types';
 
@@ -12,19 +12,22 @@ interface GamePlanSelectorProps {
 }
 
 export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSelectorProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [appliedName, setAppliedName] = useState<string | null>(currentPlanName);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const handleApply = (plan: GamePlanSet) => {
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (!id) return;
     setError(null);
-    setSelectedId(plan.id);
+
+    const plan = plans.find(p => p.id === id);
+    if (!plan) return;
+
     startTransition(async () => {
-      const result = await applyGamePlanSetToRound({ setId: plan.id, roundId });
+      const result = await applyGamePlanSetToRound({ setId: id, roundId });
       if (result.error) {
         setError(result.error);
-        setSelectedId(null);
       } else {
         setAppliedName(plan.name);
       }
@@ -39,35 +42,20 @@ export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSe
         <Target className="h-4 w-4" />
         ゲームプラン
       </label>
-      {appliedName && (
-        <div className="flex items-center gap-2 rounded-lg bg-green-900/30 border border-green-700 px-3 py-2">
-          <Check className="h-4 w-4 text-green-400 shrink-0" />
-          <p className="text-sm text-green-300">{appliedName} 適用中</p>
-        </div>
-      )}
-      <div className="space-y-1">
-        {plans.map(plan => {
-          const isApplied = appliedName === plan.name;
-          const isLoading = isPending && selectedId === plan.id;
-          return (
-            <button
-              key={plan.id}
-              onClick={() => handleApply(plan)}
-              disabled={isPending}
-              className={`w-full min-h-[48px] flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isApplied
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              } disabled:opacity-50`}
-            >
-              <span>{plan.name}</span>
-              <span className="text-xs text-gray-400">
-                {isLoading ? '適用中...' : plan.target_score ? `目標${plan.target_score}` : ''}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <select
+        onChange={handleChange}
+        disabled={isPending}
+        defaultValue=""
+        className="w-full min-h-[48px] rounded-lg bg-gray-800 border border-gray-700 px-3 py-2.5 text-sm text-white disabled:opacity-50"
+      >
+        <option value="">{appliedName ? `${appliedName}（適用中）` : '選択してください'}</option>
+        {plans.map(plan => (
+          <option key={plan.id} value={plan.id}>
+            {plan.name}{plan.target_score ? ` (目標${plan.target_score})` : ''}
+          </option>
+        ))}
+      </select>
+      {isPending && <p className="text-xs text-gray-400">適用中...</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
