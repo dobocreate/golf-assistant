@@ -1,16 +1,8 @@
-import { streamText } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createClient } from '@/lib/supabase/server';
 import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
+import { jsonError, createGeminiStream } from '@/lib/llm';
 import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
-
-function jsonError(message: string, status: number): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export async function POST(request: Request) {
   try {
@@ -19,8 +11,7 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return jsonError('ログインが必要です。', 401);
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return jsonError('Gemini APIが設定されていません。', 503);
+    if (!process.env.GEMINI_API_KEY) return jsonError('Gemini APIが設定されていません。', 503);
 
     let body: {
       roundId: string;
@@ -95,16 +86,7 @@ export async function POST(request: Request) {
       weather: body.weather,
     });
 
-    // Gemini API ストリーミング
-    const googleAI = createGoogleGenerativeAI({ apiKey });
-    const result = streamText({
-      model: googleAI(process.env.GEMINI_MODEL || 'gemini-2.5-flash'),
-      system: systemPrompt,
-      prompt: userPrompt,
-      maxOutputTokens: 8192,
-    });
-
-    return result.toTextStreamResponse();
+    return createGeminiStream(systemPrompt, userPrompt);
   } catch (error) {
     console.error('Advice API Error:', error);
     return jsonError('サーバー内部でエラーが発生しました。', 500);

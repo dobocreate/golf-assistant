@@ -43,6 +43,7 @@ export interface Round {
   weather: Weather | null;
   wind: WindStrength | null;
   target_score: number | null;
+  review_note: string | null;
 }
 
 export interface RoundCourse {

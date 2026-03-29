@@ -136,11 +136,12 @@ async function buildAdviceContextInternal(
       .order('played_at', { ascending: false })
       .limit(5),
 
-    // ナレッジベース（最新20件に制限）
+    // ナレッジベース（最新20件に制限、練習法はプレー中除外）
     supabase
       .from('knowledge')
       .select('title, content, category, tags')
       .eq('user_id', userId)
+      .or('category.is.null,category.neq.練習法')
       .order('updated_at', { ascending: false })
       .limit(20),
   ]);
