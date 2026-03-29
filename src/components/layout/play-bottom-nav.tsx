@@ -18,13 +18,13 @@ export function PlayBottomNav() {
 
   const navItems = roundId
     ? [
-        { href: `/play/${roundId}`, label: 'プレー', icon: Flag, exact: true },
+        { href: `/play/${roundId}`, label: '設定', icon: Flag, exact: true },
         { href: `/play/${roundId}/score${holeParam}`, label: 'スコア', icon: Pencil, exact: false },
         { href: `/play/${roundId}/scorecard`, label: 'カード', icon: Grid3x3, exact: false },
         { href: '/', label: '戻る', icon: Home, exact: true },
       ]
     : [
-        { href: '/play', label: 'プレー', icon: Flag, exact: true },
+        { href: '/play', label: '設定', icon: Flag, exact: true },
         { href: '/', label: '戻る', icon: Home, exact: true },
       ];
 
