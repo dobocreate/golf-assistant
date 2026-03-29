@@ -49,7 +49,7 @@ export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSe
         className="w-full min-h-[48px] rounded-lg bg-gray-800 border border-gray-700 px-3 py-2.5 text-sm text-white disabled:opacity-50"
       >
         <option value="">{appliedName ? `${appliedName}（適用中）` : '選択してください'}</option>
-        {plans.map(plan => (
+        {plans.filter(plan => plan.name !== appliedName).map(plan => (
           <option key={plan.id} value={plan.id}>
             {plan.name}{plan.target_score ? ` (目標${plan.target_score})` : ''}
           </option>
