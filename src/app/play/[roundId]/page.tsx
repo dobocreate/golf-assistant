@@ -71,18 +71,18 @@ export default async function PlayMainPage({
       {/* フローティングアクションボタン */}
       <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3 flex gap-2">
         <Link
-          href={`/play/${roundId}/complete`}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-gray-700 px-5 py-3 text-sm font-bold text-gray-200 shadow-lg hover:bg-gray-600 transition-colors"
-        >
-          <CheckCircle className="h-4 w-4" />
-          完了
-        </Link>
-        <Link
           href={`/play/${roundId}/score`}
           className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
         >
           <Pencil className="h-4 w-4" />
           スコア入力
+        </Link>
+        <Link
+          href={`/play/${roundId}/complete`}
+          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-gray-700 px-5 py-3 text-sm font-bold text-gray-200 shadow-lg hover:bg-gray-600 transition-colors"
+        >
+          <CheckCircle className="h-4 w-4" />
+          完了
         </Link>
       </div>
     </div>
