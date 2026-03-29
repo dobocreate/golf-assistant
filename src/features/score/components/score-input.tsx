@@ -441,17 +441,19 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* スコアサマリー */}
       {completedHoles > 0 && (
         <div className="rounded-lg bg-gray-800 border border-gray-700 overflow-hidden">
-          <div className="grid grid-cols-2 divide-x divide-gray-700 py-3">
+          <div className="grid grid-cols-2 divide-x divide-gray-700 py-2">
             <div className="text-center">
-              <p className="text-xs text-gray-400 mb-1">スコア</p>
-              <p className="text-2xl font-bold tabular-nums">{totalStrokes}</p>
-              <p className={`text-sm font-bold ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
-                {totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar}
+              <p className="text-xs text-gray-400 mb-0.5">スコア</p>
+              <p className="text-lg font-bold tabular-nums">
+                {totalStrokes}
+                <span className={`ml-1 text-sm ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
+                  ({totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar})
+                </span>
               </p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-gray-400 mb-1">パット</p>
-              <p className="text-2xl font-bold tabular-nums">{totalPutts}</p>
+              <p className="text-xs text-gray-400 mb-0.5">パット</p>
+              <p className="text-lg font-bold tabular-nums">{totalPutts}</p>
             </div>
           </div>
         </div>
