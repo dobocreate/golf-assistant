@@ -113,70 +113,53 @@ export function ManagementBand({
   const riskStyle = TONE_STYLES[riskTone];
   const toneStyle = toneInfo ? TONE_STYLES[toneInfo.tone] : null;
 
-  // 折りたたみ時: トーン色帯のみ表示
-  if (collapsed) {
-    return (
-      <button
-        onClick={() => setCollapsed(false)}
-        className={`w-full rounded-lg border border-gray-700 px-3 py-2 flex items-center justify-between transition-all duration-200 ${toneStyle?.bg ?? riskStyle.bg}`}
-        aria-label="マネジメントバンドを展開"
-      >
-        <p className={`text-sm font-semibold ${toneStyle?.text ?? riskStyle.text}`}>
-          {toneInfo ? `${toneStyle!.icon} ${toneInfo.label}` : plan.alert_text?.slice(0, 20) ?? 'プラン'}
-        </p>
-        <ChevronDown className="h-4 w-4 text-gray-400" />
-      </button>
-    );
-  }
-
   return (
     <div
       className={`rounded-lg border border-gray-700 p-3 space-y-1.5 transition-colors duration-300 ${toneStyle?.bg ?? riskStyle.bg}`}
       role="status"
       aria-live="polite"
     >
-      {/* 折りたたみボタン */}
+      {/* トーン行（常に表示、タップで開閉） */}
       <button
-        onClick={() => setCollapsed(true)}
-        className="w-full flex items-center justify-end"
-        aria-label="マネジメントバンドを折りたたむ"
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center justify-between"
       >
-        <ChevronUp className="h-4 w-4 text-gray-400" />
+        <p className={`text-sm font-semibold ${toneStyle?.text ?? riskStyle.text}`}>
+          {toneInfo && toneStyle ? `${toneStyle.icon} ${toneInfo.label}` : plan.alert_text?.slice(0, 25) ?? 'プラン'}
+        </p>
+        <div className="flex items-center gap-2">
+          {toneInfo && <span className="text-xs text-gray-400">{toneInfo.paceText}</span>}
+          {collapsed ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronUp className="h-4 w-4 text-gray-400" />}
+        </div>
       </button>
 
-      {/* 弱点アラート */}
-      {plan.alert_text && (
-        <div className="flex items-start gap-2">
-          <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${riskStyle.text}`} />
-          <p className="text-base font-bold text-gray-100 leading-snug">
-            {plan.alert_text}
-            {plan.risk_level && (
-              <span className={`ml-2 text-xs font-normal ${riskStyle.text}`}>
-                ({RISK_LEVEL_LABELS[plan.risk_level]})
-              </span>
-            )}
-          </p>
-        </div>
-      )}
+      {/* 詳細（展開時のみ） */}
+      {!collapsed && (
+        <>
+          {/* 弱点アラート */}
+          {plan.alert_text && (
+            <div className="flex items-start gap-2">
+              <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${riskStyle.text}`} />
+              <p className="text-base font-bold text-gray-100 leading-snug">
+                {plan.alert_text}
+                {plan.risk_level && (
+                  <span className={`ml-2 text-xs font-normal ${riskStyle.text}`}>
+                    ({RISK_LEVEL_LABELS[plan.risk_level]})
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
 
-      {/* ゲームプラン */}
-      {plan.plan_text && (
-        <div className="flex items-start gap-2">
-          <ClipboardList className="h-4 w-4 mt-0.5 shrink-0 text-gray-400" />
-          <p className="text-sm text-gray-300 leading-snug">{plan.plan_text}</p>
-        </div>
+          {/* ゲームプラン */}
+          {plan.plan_text && (
+            <div className="flex items-start gap-2">
+              <ClipboardList className="h-4 w-4 mt-0.5 shrink-0 text-gray-400" />
+              <p className="text-sm text-gray-300 leading-snug">{plan.plan_text}</p>
+            </div>
+          )}
+        </>
       )}
-
-      {/* 動的トーン + ペース */}
-      {toneInfo && toneStyle && (
-        <div className="flex items-center justify-between">
-          <p className={`text-sm font-semibold ${toneStyle.text}`}>
-            {toneStyle.icon} {toneInfo.label}
-          </p>
-          <p className="text-xs text-gray-400">{toneInfo.paceText}</p>
-        </div>
-      )}
-
     </div>
   );
 }
