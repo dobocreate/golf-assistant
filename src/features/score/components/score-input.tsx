@@ -444,16 +444,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <div className="grid grid-cols-2 divide-x divide-gray-700 py-2">
             <div className="text-center">
               <p className="text-xs text-gray-400 mb-0.5">スコア</p>
-              <p className="text-lg font-bold tabular-nums">
-                {totalStrokes}
-                <span className={`ml-1 text-sm ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
+              <p className="font-bold tabular-nums">
+                <span className="text-xl">{totalStrokes}</span>
+                <span className={`ml-1.5 text-sm ${totalStrokes - totalPar > 0 ? 'text-red-400' : totalStrokes - totalPar < 0 ? 'text-blue-400' : 'text-green-400'}`}>
                   ({totalStrokes - totalPar > 0 ? '+' : ''}{totalStrokes - totalPar === 0 ? 'E' : totalStrokes - totalPar})
                 </span>
               </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-400 mb-0.5">パット</p>
-              <p className="text-lg font-bold tabular-nums">{totalPutts}</p>
+              <p className="text-xl font-bold tabular-nums">{totalPutts}</p>
             </div>
           </div>
         </div>
@@ -522,42 +522,50 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       </div>
 
       {/* バンカー・OBカウント（総打数・パットの直下） */}
-      <div className="flex gap-3">
-        <div className="flex-1 space-y-1">
-          <label className="block text-xs font-bold text-gray-300 text-center">OB</label>
-          {editMode ? (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => { setObCount(Math.max(0, obCount - 1)); setUserTouched(true); }}
-                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
-              >−</button>
-              <span className="text-2xl font-bold min-w-[32px] text-center">{obCount}</span>
-              <button
-                onClick={() => { setObCount(Math.min(10, obCount + 1)); setUserTouched(true); }}
-                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
-              >+</button>
-            </div>
-          ) : (
-            <p className="text-2xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().ob}</p>
-          )}
-        </div>
-        <div className="flex-1 space-y-1">
-          <label className="block text-xs font-bold text-gray-300 text-center">バンカー</label>
-          {editMode ? (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => { setBunkerCount(Math.max(0, bunkerCount - 1)); setUserTouched(true); }}
-                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
-              >−</button>
-              <span className="text-2xl font-bold min-w-[32px] text-center">{bunkerCount}</span>
-              <button
-                onClick={() => { setBunkerCount(Math.min(10, bunkerCount + 1)); setUserTouched(true); }}
-                className="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white hover:bg-gray-700"
-              >+</button>
-            </div>
-          ) : (
-            <p className="text-2xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().bunker}</p>
-          )}
+      <div className="space-y-2">
+        <div className="flex gap-3">
+          {/* OB */}
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-bold text-gray-300 text-center">OB</label>
+            {editMode ? (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => { setObCount(Math.max(0, obCount - 1)); setUserTouched(true); }}
+                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                >−</button>
+                <span className="text-3xl font-bold min-w-[40px] text-center">{obCount}</span>
+                <button
+                  onClick={() => { setObCount(Math.min(10, obCount + 1)); setUserTouched(true); }}
+                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                >+</button>
+              </div>
+            ) : (
+              <p className="text-3xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().ob}</p>
+            )}
+          </div>
+
+          {/* 区切り */}
+          <div className="w-px bg-gray-700 self-stretch mt-5" />
+
+          {/* バンカー */}
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-bold text-gray-300 text-center">バンカー</label>
+            {editMode ? (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => { setBunkerCount(Math.max(0, bunkerCount - 1)); setUserTouched(true); }}
+                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                >−</button>
+                <span className="text-3xl font-bold min-w-[40px] text-center">{bunkerCount}</span>
+                <button
+                  onClick={() => { setBunkerCount(Math.min(10, bunkerCount + 1)); setUserTouched(true); }}
+                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
+                >+</button>
+              </div>
+            ) : (
+              <p className="text-3xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().bunker}</p>
+            )}
+          </div>
         </div>
       </div>
 
