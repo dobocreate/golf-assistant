@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Save, Check, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
@@ -12,7 +12,6 @@ import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
-import { GamePlanEditorModal } from '@/features/score/components/game-plan-editor-modal';
 
 interface ClubOption {
   name: string;
@@ -56,8 +55,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRound = usePlayRoundOptional();
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice, setGamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
-  const [localGamePlans, setLocalGamePlans] = useState<GamePlan[]>(gamePlans);
-  const [showPlanEditor, setShowPlanEditor] = useState(false);
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
@@ -435,51 +432,17 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </button>
       </div>
 
-      {/* マネジメントバンド + プラン設定 */}
-      {localGamePlans.find(p => p.hole_number === currentHole) ? (
-        <div className="space-y-1">
-          <ManagementBand
-            gamePlans={localGamePlans}
-            currentHole={currentHole}
-            scores={scores}
-            targetScore={targetScore}
-            holeOrder={holeOrder}
-            onAdviceTap={(ctx) => {
-              setGamePlanContextForAdvice(ctx);
-              shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          />
-          <button
-            onClick={() => setShowPlanEditor(true)}
-            className="w-full flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-300 py-1"
-          >
-            <Settings className="h-3 w-3" />
-            プラン編集
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowPlanEditor(true)}
-          className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg border border-dashed border-gray-700 text-sm text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors"
-        >
-          <Settings className="h-4 w-4" />
-          ゲームプランを設定
-        </button>
-      )}
-
-      {/* ゲームプラン編集モーダル */}
-      {showPlanEditor && (
-        <GamePlanEditorModal
-          roundId={roundId}
-          holeNumber={currentHole}
-          holePar={hole.par}
-          plan={localGamePlans.find(p => p.hole_number === currentHole) ?? null}
-          onClose={() => setShowPlanEditor(false)}
-          onSaved={(saved) => {
-            setLocalGamePlans(prev => {
-              const filtered = prev.filter(p => p.hole_number !== saved.hole_number);
-              return [...filtered, saved];
-            });
+      {/* マネジメントバンド */}
+      {gamePlans.length > 0 && (
+        <ManagementBand
+          gamePlans={gamePlans}
+          currentHole={currentHole}
+          scores={scores}
+          targetScore={targetScore}
+          holeOrder={holeOrder}
+          onAdviceTap={(ctx) => {
+            setGamePlanContextForAdvice(ctx);
+            shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
         />
       )}
