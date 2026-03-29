@@ -53,7 +53,13 @@ function calculateTone(
     const s = scores.get(h);
     if (s?.strokes) actualTotal += s.strokes;
     const plan = planMap.get(h);
-    targetTotal += plan?.target_strokes ?? Math.round(targetScore / 18);
+    if (plan?.target_strokes) {
+      targetTotal += plan.target_strokes;
+    } else {
+      // 目標打数未設定のホールはスキップ（差分計算に含めない）
+      const s2 = scores.get(h);
+      if (s2?.strokes) targetTotal += s2.strokes;
+    }
   }
 
   const diff = actualTotal - targetTotal;
@@ -65,13 +71,13 @@ function calculateTone(
   let label: string;
   if (diff <= -1) {
     tone = 'attack';
-    label = `攻めチャンス（目標${diff}）`;
+    label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
   } else if (diff >= 2) {
     tone = 'defense';
-    label = `守り重視（目標+${diff}、残り${remainingHoles}H）`;
+    label = `守り重視（目標より+${diff}打）`;
   } else {
     tone = 'normal';
-    label = `通常（目標${diff > 0 ? '+' : ''}${diff === 0 ? '±0' : diff}）`;
+    label = diff === 0 ? '通常（目標ペース）' : `通常（目標より${diff > 0 ? '+' : ''}${diff}打）`;
   }
 
   return { tone, label, diff, remainingHoles, paceText };
