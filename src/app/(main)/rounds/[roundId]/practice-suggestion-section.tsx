@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { usePracticeStream } from '@/hooks/use-practice-stream';
 import { savePracticeSuggestion } from '@/actions/round';
 import { Sparkles, RefreshCw, Loader2 } from 'lucide-react';
@@ -10,6 +11,7 @@ import type { Components } from 'react-markdown';
 const mdComponents: Components = {
   a: (props) => <a target="_blank" rel="noopener noreferrer" {...props} />,
 };
+const mdPlugins = [remarkGfm];
 
 interface PracticeSuggestionSectionProps {
   roundId: string;
@@ -107,7 +109,7 @@ export function PracticeSuggestionSection({
             <span className="text-sm text-gray-500">分析中...</span>
           </div>
           <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown components={mdComponents}>{text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{text}</ReactMarkdown>
           </div>
         </div>
       )}
