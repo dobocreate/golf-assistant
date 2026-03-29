@@ -4,7 +4,7 @@ import { getMemos } from '@/actions/memo';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Flag, Pencil } from 'lucide-react';
+import { ArrowLeft, Flag, Pencil, ChevronRight } from 'lucide-react';
 import { ReviewNoteSection } from './review-note-section';
 import { PracticeSuggestionSection } from './practice-suggestion-section';
 import { DeleteRoundButton } from './delete-round-button';
@@ -123,8 +123,11 @@ export default async function RoundReviewPage({
       {/* スコア分析（折りたたみ） */}
       {completedHoles > 0 && (
         <details className="group">
-          <summary className="flex items-center justify-between cursor-pointer list-none">
-            <h2 className="text-lg font-bold">スコア分析</h2>
+          <summary className="flex items-center justify-between cursor-pointer list-none border-b border-gray-200 dark:border-gray-700 pb-2">
+            <div className="flex items-center gap-1">
+              <ChevronRight className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90" />
+              <h2 className="text-lg font-bold">スコア分析</h2>
+            </div>
             <span className="text-xs text-gray-500">
               {totalStrokes}打（{totalStrokes - totalPar >= 0 ? '+' : ''}{totalStrokes - totalPar}）
             </span>
