@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
-import { createSystemPrompt, createUserPrompt } from '@/features/advice/lib/prompt-template';
+import { createSystemPrompt, createUserPrompt, MAX_ADVICE_TOKENS } from '@/features/advice/lib/prompt-template';
 import { jsonError, createGeminiStream } from '@/lib/llm';
 import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
 
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       weather: body.weather,
     });
 
-    return createGeminiStream(systemPrompt, userPrompt);
+    return createGeminiStream(systemPrompt, userPrompt, MAX_ADVICE_TOKENS);
   } catch (error) {
     console.error('Advice API Error:', error);
     return jsonError('サーバー内部でエラーが発生しました。', 500);

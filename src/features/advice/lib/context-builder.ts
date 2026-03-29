@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { AdviceContext } from '../types';
+import type { StartingCourse } from '@/features/round/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,10 +17,10 @@ export async function getOrBuildContextSnapshot(
 
   const supabase = await createClient();
 
-  // snapshot + course_id を1クエリで取得
+  // snapshot + course_id + starting_course を1クエリで取得
   const { data: round } = await supabase
     .from('rounds')
-    .select('course_id, context_snapshot')
+    .select('course_id, context_snapshot, starting_course')
     .eq('id', roundId)
     .eq('user_id', userId)
     .single();
@@ -31,8 +32,8 @@ export async function getOrBuildContextSnapshot(
     return { contextText: round.context_snapshot, courseId: round.course_id };
   }
 
-  // キャッシュミス: コンテキストを構築（course_idは取得済みなので渡す）
-  const context = await buildAdviceContextInternal(roundId, userId, supabase, round.course_id);
+  // キャッシュミス: コンテキストを構築（course_id, starting_courseは取得済みなので渡す）
+  const context = await buildAdviceContextInternal(roundId, userId, supabase, round.course_id, round.starting_course);
   if (!context) return null;
 
   const contextText = formatContextForPrompt(context);
@@ -72,20 +73,23 @@ async function buildAdviceContextInternal(
   userId: string,
   supabase: Awaited<ReturnType<typeof createClient>>,
   knownCourseId?: string,
+  knownStartingCourse?: string,
 ): Promise<AdviceContext | null> {
 
   // course_idが未知の場合のみラウンド情報を取得
   let courseId = knownCourseId;
+  let startingCourse: StartingCourse | null = (knownStartingCourse as StartingCourse) ?? null;
   if (!courseId) {
     const { data: round } = await supabase
       .from('rounds')
-      .select('id, course_id')
+      .select('id, course_id, starting_course')
       .eq('id', roundId)
       .eq('user_id', userId)
       .single();
 
     if (!round) return null;
     courseId = round.course_id;
+    startingCourse = round.starting_course as StartingCourse;
   }
 
   // まずプロファイルを取得（クラブ取得にprofile.idが必要）
@@ -154,6 +158,7 @@ async function buildAdviceContextInternal(
     hole_notes: holeNotesResult.data ?? [],
     recent_rounds: recentRoundsResult.data ?? [],
     knowledge: knowledgeResult.data ?? [],
+    starting_course: startingCourse,
   };
 }
 
@@ -194,7 +199,9 @@ export function formatContextForPrompt(context: AdviceContext): string {
   // コース
   const course = context.course as Record<string, unknown>;
   if (course.name) {
-    sections.push(`## コース\n${course.name}（${course.prefecture ?? ''}）`);
+    const STARTING_COURSE_LABELS: Record<string, string> = { out: 'OUTスタート', in: 'INスタート' };
+    const startLabel = (context.starting_course && STARTING_COURSE_LABELS[context.starting_course]) ?? '';
+    sections.push(`## コース\n${course.name}（${course.prefecture ?? ''}）${startLabel ? ` ${startLabel}` : ''}`);
   }
 
   // ホール情報
