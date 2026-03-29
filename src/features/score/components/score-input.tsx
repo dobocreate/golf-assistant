@@ -407,29 +407,29 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <ChevronLeft className="h-6 w-6" />
         </button>
 
-        <div className="text-center">
-          <p className="text-3xl font-bold">Hole {currentHole}</p>
-          <p className="text-lg text-gray-300">
-            Par {hole.par}
-            {hole.distance && ` ・ ${hole.distance}y`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 min-w-[48px] justify-end">
+        <div className="flex items-center gap-2">
+          <div className="text-center">
+            <p className="text-3xl font-bold">Hole {currentHole}</p>
+            <p className="text-lg text-gray-300">
+              Par {hole.par}
+              {hole.distance && ` ・ ${hole.distance}y`}
+            </p>
+          </div>
           {strokes !== null && (
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getScoreBgColor(strokes, hole.par)}`}>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold self-start mt-1 ${getScoreBgColor(strokes, hole.par)}`}>
               {getScoreLabel(strokes, hole.par)}
             </span>
           )}
-          <button
-            onClick={() => nextHole !== null && switchHole(nextHole)}
-            disabled={nextHole === null}
-            className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-            aria-label="次のホール"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
         </div>
+
+        <button
+          onClick={() => nextHole !== null && switchHole(nextHole)}
+          disabled={nextHole === null}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
+          aria-label="次のホール"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
       </div>
 
       {/* マネジメントバンド */}
