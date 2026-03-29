@@ -416,6 +416,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </button>
       </div>
 
+      {/* スコアラベル（ホール情報の直下） */}
+      {strokes !== null && (
+        <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
+          {getScoreLabel(strokes, hole.par)}
+        </p>
+      )}
+
       {/* マネジメントバンド */}
       {gamePlans.length > 0 && (
         <ManagementBand
@@ -510,51 +517,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           </div>
         </div>
 
-        {/* スコアラベル */}
-        {strokes !== null && (
-          <p className={`text-center text-sm font-bold ${getScoreColor(strokes, hole.par)}`}>
-            {getScoreLabel(strokes, hole.par)}
-          </p>
-        )}
       </div>
 
-      {/* 風（ホール単位） */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <p className="text-xs text-gray-400 mb-1">風向き</p>
-          <div className="grid grid-cols-2 gap-1">
-            {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => { setWindDirection(windDirection === key ? null : key); setUserTouched(true); }}
-                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                  windDirection === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1">
-          <p className="text-xs text-gray-400 mb-1">風の強さ</p>
-          <div className="grid grid-cols-2 gap-1">
-            {(Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => { setWindStrength(windStrength === key ? null : key); setUserTouched(true); }}
-                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                  windStrength === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* バンカー・OBカウント */}
+      {/* バンカー・OBカウント（総打数・パットの直下） */}
       <div className="flex gap-3">
         <div className="flex-1 space-y-1">
           <label className="block text-xs font-bold text-gray-300 text-center">OB</label>
@@ -591,6 +556,42 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           ) : (
             <p className="text-2xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().bunker}</p>
           )}
+        </div>
+      </div>
+
+      {/* 風（ホール単位） */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風向き</p>
+          <div className="grid grid-cols-2 gap-1">
+            {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setWindDirection(windDirection === key ? null : key); setUserTouched(true); }}
+                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
+                  windDirection === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風の強さ</p>
+          <div className="grid grid-cols-2 gap-1">
+            {(Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setWindStrength(windStrength === key ? null : key); setUserTouched(true); }}
+                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
+                  windStrength === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
