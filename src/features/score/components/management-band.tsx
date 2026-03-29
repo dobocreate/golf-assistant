@@ -43,26 +43,29 @@ function calculateTone(
   const currentIdx = holeOrder.indexOf(currentHole);
   if (currentIdx === -1) return null;
 
-  const completedHoles = holeOrder.slice(0, currentIdx);
+  const previousHoles = holeOrder.slice(0, currentIdx);
   let actualTotal = 0;
   let targetTotal = 0;
+  let scoredHoles = 0;
   const planMap = new Map(gamePlans.map(p => [p.hole_number, p]));
 
-  for (const h of completedHoles) {
+  for (const h of previousHoles) {
     const s = scores.get(h);
-    if (s?.strokes) actualTotal += s.strokes;
+    if (!s?.strokes) continue; // スコア未入力のホールはスキップ
+    scoredHoles++;
+    actualTotal += s.strokes;
     const plan = planMap.get(h);
     if (plan?.target_strokes) {
       targetTotal += plan.target_strokes;
     } else {
-      // 目標打数未設定のホールはスキップ（差分計算に含めない）
-      const s2 = scores.get(h);
-      if (s2?.strokes) targetTotal += s2.strokes;
+      targetTotal += s.strokes; // 目標未設定はイーブン扱い
     }
   }
 
+  if (scoredHoles === 0) return null; // スコア入力なしではトーン非表示
+
   const diff = actualTotal - targetTotal;
-  const remainingHoles = holeOrder.length - currentIdx;
+  const remainingHoles = holeOrder.length - scoredHoles;
   const remainingTarget = targetScore - actualTotal;
   const paceText = `残り${remainingHoles}Hで${remainingTarget}打`;
 
