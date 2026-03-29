@@ -6,6 +6,9 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
+import { ReviewNoteSection } from './review-note-section';
+import { PracticeSuggestionSection } from './practice-suggestion-section';
+import { getPracticeSuggestion } from '@/actions/round';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
@@ -22,9 +25,10 @@ export default async function RoundReviewPage({
   const round = await getRoundWithCourse(roundId);
   if (!round) notFound();
 
-  const [data, memos] = await Promise.all([
+  const [data, memos, practiceSuggestion] = await Promise.all([
     getScoresWithHoles(roundId),
     getMemos(roundId),
+    round.status === 'completed' ? getPracticeSuggestion(roundId) : Promise.resolve(null),
   ]);
 
   const holes = data?.holes ?? [];
@@ -137,6 +141,20 @@ export default async function RoundReviewPage({
             ))}
           </div>
         </div>
+      )}
+
+      {/* 総括メモ（completedのみ） */}
+      {round.status === 'completed' && (
+        <ReviewNoteSection roundId={roundId} initialNote={round.review_note} />
+      )}
+
+      {/* AI練習提案（completedのみ） */}
+      {round.status === 'completed' && (
+        <PracticeSuggestionSection
+          roundId={roundId}
+          initialSuggestion={practiceSuggestion}
+          hasReviewNote={!!round.review_note}
+        />
       )}
 
       {/* アクションリンク */}

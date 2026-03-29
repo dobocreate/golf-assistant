@@ -83,7 +83,7 @@ export async function getRound(roundId: string): Promise<Round | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -99,7 +99,7 @@ export async function getRoundWithCourse(roundId: string): Promise<RoundWithCour
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, courses(id, name, prefecture)')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -114,7 +114,7 @@ export async function getActiveRound(): Promise<RoundWithCourse | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, courses(id, name, prefecture)')
     .eq('user_id', user.id)
     .eq('status', 'in_progress')
     .order('created_at', { ascending: false })
@@ -239,5 +239,64 @@ export async function updateWind(roundId: string, wind: string | null): Promise<
     .eq('user_id', user.id);
 
   if (error) return { error: '風の変更に失敗しました。' };
+  return {};
+}
+
+/** 総括メモを保存（completedラウンドのみ） */
+export async function saveReviewNote(roundId: string, reviewNote: string): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (reviewNote.length > 2000) return { error: '総括は2000文字以内で入力してください。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .update({ review_note: reviewNote || null })
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .eq('status', 'completed');
+
+  if (error) return { error: '総括の保存に失敗しました。' };
+
+  revalidatePath(`/rounds/${roundId}`);
+  return {};
+}
+
+/** 練習提案を取得 */
+export async function getPracticeSuggestion(roundId: string): Promise<string | null> {
+  const user = await getAuthenticatedUser();
+  if (!user) return null;
+  if (!isValidUUID(roundId)) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('practice_suggestions')
+    .select('content')
+    .eq('round_id', roundId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  return data?.content ?? null;
+}
+
+/** 練習提案を保存（upsert） */
+export async function savePracticeSuggestion(roundId: string, content: string): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+  if (content.length > 10000) return { error: '練習提案が長すぎます。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('practice_suggestions')
+    .upsert(
+      { round_id: roundId, user_id: user.id, content, created_at: new Date().toISOString() },
+      { onConflict: 'round_id' },
+    );
+
+  if (error) return { error: '練習提案の保存に失敗しました。' };
+
+  revalidatePath(`/rounds/${roundId}`);
   return {};
 }
