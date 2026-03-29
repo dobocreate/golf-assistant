@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { usePracticeStream } from '@/hooks/use-practice-stream';
 import { savePracticeSuggestion } from '@/actions/round';
 import { Sparkles, RefreshCw, Loader2 } from 'lucide-react';
@@ -100,7 +101,9 @@ export function PracticeSuggestionSection({
             <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
             <span className="text-sm text-gray-500">分析中...</span>
           </div>
-          <div className="text-sm whitespace-pre-wrap">{text}</div>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{text}</ReactMarkdown>
+          </div>
         </div>
       )}
 
@@ -110,7 +113,9 @@ export function PracticeSuggestionSection({
 
       {!isStreaming && displayText && !showConfirm && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <div className="text-sm whitespace-pre-wrap">{displayText}</div>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{displayText}</ReactMarkdown>
+          </div>
         </div>
       )}
 
