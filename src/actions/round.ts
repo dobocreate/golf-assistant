@@ -300,3 +300,22 @@ export async function savePracticeSuggestion(roundId: string, content: string): 
   revalidatePath(`/rounds/${roundId}`);
   return {};
 }
+
+/** ラウンドを削除（関連データはCASCADE DELETEで自動削除） */
+export async function deleteRound(roundId: string): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .delete()
+    .eq('id', roundId)
+    .eq('user_id', user.id);
+
+  if (error) return { error: 'ラウンドの削除に失敗しました。' };
+
+  revalidatePath('/rounds');
+  redirect('/rounds');
+}

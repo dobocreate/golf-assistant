@@ -8,6 +8,7 @@ import { ArrowLeft, Flag, Pencil } from 'lucide-react';
 import { CopyScoreButton } from './copy-score-button';
 import { ReviewNoteSection } from './review-note-section';
 import { PracticeSuggestionSection } from './practice-suggestion-section';
+import { DeleteRoundButton } from './delete-round-button';
 import { getPracticeSuggestion } from '@/actions/round';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
@@ -234,13 +235,16 @@ export default async function RoundReviewPage({
         </Link>
       )}
       {round.status === 'completed' && (
-        <Link
-          href={`/play/${roundId}/score?edit=1`}
-          className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-lg bg-blue-600 px-6 py-3 text-lg font-bold text-white hover:bg-blue-500 transition-colors"
-        >
-          <Pencil className="h-5 w-5" />
-          スコアを編集
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/play/${roundId}/score?edit=1`}
+            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-lg bg-blue-600 px-6 py-3 text-lg font-bold text-white hover:bg-blue-500 transition-colors"
+          >
+            <Pencil className="h-5 w-5" />
+            スコアを編集
+          </Link>
+          <DeleteRoundButton roundId={roundId} />
+        </div>
       )}
     </div>
   );
