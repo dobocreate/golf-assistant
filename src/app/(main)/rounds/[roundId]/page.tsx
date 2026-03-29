@@ -212,14 +212,16 @@ export default async function RoundReviewPage({
           プレーに戻る
         </Link>
       )}
+
+      {/* フローティングアクションボタン（completedのみ） */}
       {round.status === 'completed' && (
-        <div className="flex flex-wrap gap-3">
+        <div className="fixed bottom-6 right-4 z-40 flex gap-2">
           <Link
             href={`/play/${roundId}/score?edit=1`}
-            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-lg bg-blue-600 px-6 py-3 text-lg font-bold text-white hover:bg-blue-500 transition-colors"
+            className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-500 transition-colors"
           >
-            <Pencil className="h-5 w-5" />
-            スコアを編集
+            <Pencil className="h-4 w-4" />
+            編集
           </Link>
           <DeleteRoundButton roundId={roundId} />
         </div>
