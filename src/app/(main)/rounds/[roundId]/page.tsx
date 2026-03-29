@@ -120,48 +120,56 @@ export default async function RoundReviewPage({
         </div>
       </div>
 
-      {/* 統計サマリー */}
+      {/* スコア分析（折りたたみ） */}
       {completedHoles > 0 && (
-        <div className="space-y-4">
-          {/* スコア */}
-          <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">スコア</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="合計スコア" value={`${totalStrokes}`} sub={`${totalStrokes - totalPar >= 0 ? '+' : ''}${totalStrokes - totalPar}`} />
-              <StatCard label="OUT / IN" value={`${outStrokes} / ${inStrokes}`} sub={`${outStrokes - outPar >= 0 ? '+' : ''}${outStrokes - outPar} / ${inStrokes - inPar >= 0 ? '+' : ''}${inStrokes - inPar}`} />
-              <StatCard label="パーセーブ率" value={`${Math.round((parSaves / completedHoles) * 100)}%`} sub={`${parSaves}/${completedHoles}`} />
-              <StatCard label="バーディー" value={`${birdies}`} sub={`ボギー${bogeys} / ダボ以上${doublePlus}`} />
+        <details className="group">
+          <summary className="flex items-center justify-between cursor-pointer list-none min-h-[48px] rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
+            <span className="text-lg font-bold">スコア分析</span>
+            <span className="text-xs text-gray-500">
+              {totalStrokes}打（{totalStrokes - totalPar >= 0 ? '+' : ''}{totalStrokes - totalPar}）
+            </span>
+          </summary>
+          <div className="mt-3 space-y-4">
+            {/* スコア */}
+            <div>
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">スコア</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="合計スコア" value={`${totalStrokes}`} sub={`${totalStrokes - totalPar >= 0 ? '+' : ''}${totalStrokes - totalPar}`} />
+                <StatCard label="OUT / IN" value={`${outStrokes} / ${inStrokes}`} sub={`${outStrokes - outPar >= 0 ? '+' : ''}${outStrokes - outPar} / ${inStrokes - inPar >= 0 ? '+' : ''}${inStrokes - inPar}`} />
+                <StatCard label="パーセーブ率" value={`${Math.round((parSaves / completedHoles) * 100)}%`} sub={`${parSaves}/${completedHoles}`} />
+                <StatCard label="バーディー" value={`${birdies}`} sub={`ボギー${bogeys} / ダボ以上${doublePlus}`} />
+              </div>
             </div>
-          </div>
 
-          {/* ティーショット */}
-          <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">ティーショット</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {fwTotal > 0 && <StatCard label="FWキープ率" value={`${Math.round((fwHits / fwTotal) * 100)}%`} sub={`${fwHits}/${fwTotal}`} />}
-              {teeDirTotal > 0 && <StatCard label="ティーショット方向" value={`←${teeLeft} ↑${teeCenter} →${teeRight}`} sub={`${teeDirTotal}ホール記録`} />}
+            {/* ティーショット */}
+            <div>
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">ティーショット</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {fwTotal > 0 && <StatCard label="FWキープ率" value={`${Math.round((fwHits / fwTotal) * 100)}%`} sub={`${fwHits}/${fwTotal}`} />}
+                {teeDirTotal > 0 && <StatCard label="ティーショット方向" value={`←${teeLeft} ↑${teeCenter} →${teeRight}`} sub={`${teeDirTotal}ホール記録`} />}
+              </div>
             </div>
-          </div>
 
-          {/* アプローチ */}
-          <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">アプローチ</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {girTotal > 0 && <StatCard label="パーオン率" value={`${Math.round((girHits / girTotal) * 100)}%`} sub={`${girHits}/${girTotal}`} />}
-              {nonGirHoles.length > 0 && <StatCard label="リカバリー率" value={`${Math.round((recoveryHoles.length / nonGirHoles.length) * 100)}%`} sub={`${recoveryHoles.length}/${nonGirHoles.length}`} />}
+            {/* アプローチ */}
+            <div>
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">アプローチ</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {girTotal > 0 && <StatCard label="パーオン率" value={`${Math.round((girHits / girTotal) * 100)}%`} sub={`${girHits}/${girTotal}`} />}
+                {nonGirHoles.length > 0 && <StatCard label="リカバリー率" value={`${Math.round((recoveryHoles.length / nonGirHoles.length) * 100)}%`} sub={`${recoveryHoles.length}/${nonGirHoles.length}`} />}
+              </div>
             </div>
-          </div>
 
-          {/* パッティング */}
-          <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">パッティング</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {puttsCount > 0 && <StatCard label="平均パット" value={`${(totalPutts / puttsCount).toFixed(1)}`} sub={`計${totalPutts}`} />}
-              <StatCard label="3パット" value={`${threePutts}回`} sub={threePutts === 0 ? 'なし' : `${completedHoles}ホール中`} />
-              {topPuttDist && <StatCard label="最多パット距離" value={FIRST_PUTT_DISTANCE_LABELS[topPuttDist]} sub={`${puttDistScores.length}ホール記録`} />}
+            {/* パッティング */}
+            <div>
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">パッティング</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {puttsCount > 0 && <StatCard label="平均パット" value={`${(totalPutts / puttsCount).toFixed(1)}`} sub={`計${totalPutts}`} />}
+                <StatCard label="3パット" value={`${threePutts}回`} sub={threePutts === 0 ? 'なし' : `${completedHoles}ホール中`} />
+                {topPuttDist && <StatCard label="最多パット距離" value={FIRST_PUTT_DISTANCE_LABELS[topPuttDist]} sub={`${puttDistScores.length}ホール記録`} />}
+              </div>
             </div>
           </div>
-        </div>
+        </details>
       )}
 
       {/* スコアテーブル */}
