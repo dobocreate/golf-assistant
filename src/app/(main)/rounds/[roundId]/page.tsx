@@ -39,13 +39,29 @@ export default async function RoundReviewPage({
   const totalPar = holes.reduce((sum, h) => sum + (scoreMap.has(h.hole_number) ? h.par : 0), 0);
   const completedHoles = scores.length;
 
+  const parMap = new Map(holes.map(h => [h.hole_number, h.par]));
+
+  // ティーショット
   const fwHits = scores.filter(s => s.fairway_hit === true).length;
   const fwTotal = scores.filter(s => s.fairway_hit !== null).length;
+  const teeLeft = scores.filter(s => s.tee_shot_lr === 'left').length;
+  const teeCenter = scores.filter(s => s.tee_shot_lr === 'center').length;
+  const teeRight = scores.filter(s => s.tee_shot_lr === 'right').length;
+  const teeDirTotal = teeLeft + teeCenter + teeRight;
+
+  // アプローチ
   const girHits = scores.filter(s => s.green_in_reg === true).length;
   const girTotal = scores.filter(s => s.green_in_reg !== null).length;
+  const nonGirHoles = scores.filter(s => s.green_in_reg === false);
+  const recoveryHoles = nonGirHoles.filter(s => {
+    const par = parMap.get(s.hole_number) ?? 0;
+    return par > 0 && s.strokes <= par;
+  });
+
+  // パッティング
   const totalPutts = scores.reduce((sum, s) => sum + (s.putts ?? 0), 0);
   const puttsCount = scores.filter(s => s.putts !== null).length;
-  // ファーストパット距離の集計（数値データ優先）
+  const threePutts = scores.filter(s => (s.putts ?? 0) >= 3).length;
   const puttDistScores = scores.filter(s => s.first_putt_distance_m != null || s.first_putt_distance !== null);
   const puttDistCounts = puttDistScores.reduce((acc, s) => {
     const d: FirstPuttDistance = s.first_putt_distance_m != null
@@ -54,8 +70,29 @@ export default async function RoundReviewPage({
     acc[d] = (acc[d] ?? 0) + 1;
     return acc;
   }, {} as Record<FirstPuttDistance, number>);
-  // 最も多い距離帯
   const topPuttDist = Object.entries(puttDistCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as FirstPuttDistance | undefined;
+
+  // スコア分析（1回の走査でまとめて計算）
+  const { birdies, pars, bogeys, doublePlus, outStrokes, inStrokes } = scores.reduce((acc, s) => {
+    if (s.hole_number <= 9) acc.outStrokes += s.strokes;
+    else acc.inStrokes += s.strokes;
+    const p = parMap.get(s.hole_number) ?? 0;
+    if (p > 0) {
+      const diff = s.strokes - p;
+      if (diff < 0) acc.birdies++;
+      else if (diff === 0) acc.pars++;
+      else if (diff === 1) acc.bogeys++;
+      else if (diff >= 2) acc.doublePlus++;
+    }
+    return acc;
+  }, { birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, outStrokes: 0, inStrokes: 0 });
+  const parSaves = birdies + pars;
+  const { outPar, inPar } = holes.reduce((acc, h) => {
+    if (!scoreMap.has(h.hole_number)) return acc;
+    if (h.hole_number <= 9) acc.outPar += h.par;
+    else acc.inPar += h.par;
+    return acc;
+  }, { outPar: 0, inPar: 0 });
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -85,13 +122,45 @@ export default async function RoundReviewPage({
 
       {/* 統計サマリー */}
       {completedHoles > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="合計スコア" value={`${totalStrokes}`} sub={`${totalStrokes - totalPar >= 0 ? '+' : ''}${totalStrokes - totalPar}`} />
-          <StatCard label="入力ホール" value={`${completedHoles}/18`} />
-          {fwTotal > 0 && <StatCard label="FWキープ率" value={`${Math.round((fwHits / fwTotal) * 100)}%`} sub={`${fwHits}/${fwTotal}`} />}
-          {puttsCount > 0 && <StatCard label="平均パット" value={`${(totalPutts / puttsCount).toFixed(1)}`} sub={`計${totalPutts}`} />}
-          {girTotal > 0 && <StatCard label="パーオン率" value={`${Math.round((girHits / girTotal) * 100)}%`} sub={`${girHits}/${girTotal}`} />}
-          {topPuttDist && <StatCard label="最多パット距離" value={FIRST_PUTT_DISTANCE_LABELS[topPuttDist]} sub={`${puttDistScores.length}ホール記録`} />}
+        <div className="space-y-4">
+          {/* スコア */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">スコア</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="合計スコア" value={`${totalStrokes}`} sub={`${totalStrokes - totalPar >= 0 ? '+' : ''}${totalStrokes - totalPar}`} />
+              <StatCard label="OUT / IN" value={`${outStrokes} / ${inStrokes}`} sub={`${outStrokes - outPar >= 0 ? '+' : ''}${outStrokes - outPar} / ${inStrokes - inPar >= 0 ? '+' : ''}${inStrokes - inPar}`} />
+              <StatCard label="パーセーブ率" value={`${Math.round((parSaves / completedHoles) * 100)}%`} sub={`${parSaves}/${completedHoles}`} />
+              <StatCard label="バーディー" value={`${birdies}`} sub={`ボギー${bogeys} / ダボ以上${doublePlus}`} />
+            </div>
+          </div>
+
+          {/* ティーショット */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">ティーショット</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {fwTotal > 0 && <StatCard label="FWキープ率" value={`${Math.round((fwHits / fwTotal) * 100)}%`} sub={`${fwHits}/${fwTotal}`} />}
+              {teeDirTotal > 0 && <StatCard label="ティーショット方向" value={`←${teeLeft} ↑${teeCenter} →${teeRight}`} sub={`${teeDirTotal}ホール記録`} />}
+            </div>
+          </div>
+
+          {/* アプローチ */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">アプローチ</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {girTotal > 0 && <StatCard label="パーオン率" value={`${Math.round((girHits / girTotal) * 100)}%`} sub={`${girHits}/${girTotal}`} />}
+              {nonGirHoles.length > 0 && <StatCard label="リカバリー率" value={`${Math.round((recoveryHoles.length / nonGirHoles.length) * 100)}%`} sub={`${recoveryHoles.length}/${nonGirHoles.length}`} />}
+            </div>
+          </div>
+
+          {/* パッティング */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">パッティング</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {puttsCount > 0 && <StatCard label="平均パット" value={`${(totalPutts / puttsCount).toFixed(1)}`} sub={`計${totalPutts}`} />}
+              <StatCard label="3パット" value={`${threePutts}回`} sub={threePutts === 0 ? 'なし' : `${completedHoles}ホール中`} />
+              {topPuttDist && <StatCard label="最多パット距離" value={FIRST_PUTT_DISTANCE_LABELS[topPuttDist]} sub={`${puttDistScores.length}ホール記録`} />}
+            </div>
+          </div>
         </div>
       )}
 
