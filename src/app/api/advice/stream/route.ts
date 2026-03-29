@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       weather: body.weather,
     });
 
-    return createGeminiStream(systemPrompt, userPrompt);
+    return createGeminiStream(systemPrompt, userPrompt, 1024);
   } catch (error) {
     console.error('Advice API Error:', error);
     return jsonError('サーバー内部でエラーが発生しました。', 500);
