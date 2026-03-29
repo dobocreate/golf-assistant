@@ -54,7 +54,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
   const shotRecorderRef = useRef<HTMLDivElement>(null);
-  const [gamePlanContextForAdvice, setGamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
+  const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
@@ -298,7 +298,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setObCount(s?.ob_count ?? 0);
     setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
-    setGamePlanContextForAdvice(null);
   }, [saveHole, hasChanges, roundId]);
 
 
@@ -440,10 +439,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           scores={scores}
           targetScore={targetScore}
           holeOrder={holeOrder}
-          onAdviceTap={(ctx) => {
-            setGamePlanContextForAdvice(ctx);
-            shotRecorderRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }}
         />
       )}
 
