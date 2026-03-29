@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Save, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
@@ -567,7 +567,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       <div className="h-32" />
 
       {/* フローティング保存ボタン（ナビバーの上・右寄せ） */}
-      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3">
+      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3 flex gap-2">
         <button
           onClick={handleSave}
           disabled={strokes === null || isPending}
@@ -576,6 +576,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <Save className="h-4 w-4" />
           {isPending ? '保存中...' : '保存'}
         </button>
+        {editMode && (
+          <Link
+            href={`/rounds/${roundId}`}
+            className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-500 transition-colors"
+          >
+            <CheckCircle className="h-4 w-4" />
+            完了
+          </Link>
+        )}
       </div>
     </div>
   );
