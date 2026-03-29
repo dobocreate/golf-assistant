@@ -8,7 +8,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* メインコンテンツ: PC時はサイドバー分のマージン */}
       <main className="md:pl-[var(--sidebar-width)]">
-        <div className="mx-auto max-w-4xl px-4 py-6">{children}</div>
+        <div className="mx-auto max-w-4xl px-4 pt-16 pb-6 md:pt-6">{children}</div>
       </main>
 
       <MobileBottomNav />

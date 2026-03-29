@@ -18,15 +18,20 @@ export function MobileBottomNav() {
 
   return (
     <div className="md:hidden">
-      {/* ハンバーガーボタン */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-3 left-3 z-50 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md"
-        aria-label={isOpen ? 'メニューを閉じる' : 'メニューを開く'}
-      >
-        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </button>
+      {/* ヘッダーバー */}
+      <header className="fixed top-0 inset-x-0 z-50 h-12 flex items-center px-3 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label={isOpen ? 'メニューを閉じる' : 'メニューを開く'}
+        >
+          {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+        <Link href="/" className="ml-1 text-base font-bold text-primary">
+          Golf Assistant
+        </Link>
+      </header>
 
       {/* オーバーレイ */}
       {isOpen && (
@@ -38,17 +43,11 @@ export function MobileBottomNav() {
 
       {/* サイドバー */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-200 ease-in-out ${
+        className={`fixed top-12 bottom-0 left-0 z-40 w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-200 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center h-14 px-4 border-b border-gray-200 dark:border-gray-800 ml-12">
-            <Link href="/" className="text-lg font-bold text-primary" onClick={() => setIsOpen(false)}>
-              Golf Assistant
-            </Link>
-          </div>
-
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto" aria-label="モバイルナビゲーション">
             {mainNavItems.map((item) => {
               const isActive = pathname === item.href;
