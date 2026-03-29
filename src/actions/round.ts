@@ -291,7 +291,7 @@ export async function savePracticeSuggestion(roundId: string, content: string): 
   const { error } = await supabase
     .from('practice_suggestions')
     .upsert(
-      { round_id: roundId, user_id: user.id, content, created_at: new Date().toISOString() },
+      { round_id: roundId, user_id: user.id, content },
       { onConflict: 'round_id' },
     );
 

@@ -81,7 +81,10 @@ export async function buildPracticeContext(
   }
 
   // ラウンド情報
-  const courseName = (round.courses as unknown as { name: string } | null)?.name ?? '不明';
+  const courseRaw = round.courses as unknown;
+  const courseName = (courseRaw && typeof courseRaw === 'object' && 'name' in courseRaw)
+    ? String((courseRaw as { name: unknown }).name)
+    : '不明';
   const lines = ['## ラウンド情報'];
   lines.push(`- コース: ${courseName}`);
   lines.push(`- プレー日: ${round.played_at}`);

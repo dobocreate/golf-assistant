@@ -19,11 +19,15 @@ export function PracticeSuggestionSection({
   const [savedSuggestion, setSavedSuggestion] = useState(initialSuggestion);
   const [isSaving, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const onComplete = useCallback((text: string) => {
+    setSaveError(null);
     startTransition(async () => {
       const result = await savePracticeSuggestion(roundId, text);
-      if (!result.error) {
+      if (result.error) {
+        setSaveError(result.error);
+      } else {
         setSavedSuggestion(text);
       }
     });
@@ -110,8 +114,8 @@ export function PracticeSuggestionSection({
         </div>
       )}
 
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
+      {(error || saveError) && (
+        <p className="text-sm text-red-600">{error || saveError}</p>
       )}
 
       {!hasReviewNote && !savedSuggestion && (

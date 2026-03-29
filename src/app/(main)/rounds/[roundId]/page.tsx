@@ -143,18 +143,16 @@ export default async function RoundReviewPage({
         </div>
       )}
 
-      {/* 総括メモ（completedのみ） */}
+      {/* 総括メモ & AI練習提案（completedのみ） */}
       {round.status === 'completed' && (
-        <ReviewNoteSection roundId={roundId} initialNote={round.review_note} />
-      )}
-
-      {/* AI練習提案（completedのみ） */}
-      {round.status === 'completed' && (
-        <PracticeSuggestionSection
-          roundId={roundId}
-          initialSuggestion={practiceSuggestion}
-          hasReviewNote={!!round.review_note}
-        />
+        <>
+          <ReviewNoteSection roundId={roundId} initialNote={round.review_note} />
+          <PracticeSuggestionSection
+            roundId={roundId}
+            initialSuggestion={practiceSuggestion}
+            hasReviewNote={!!round.review_note}
+          />
+        </>
       )}
 
       {/* アクションリンク */}
