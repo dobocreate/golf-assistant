@@ -54,7 +54,7 @@ export async function buildPracticeContext(
     // ナレッジ（練習法カテゴリのみ）
     supabase
       .from('knowledge')
-      .select('title, content, category, tags')
+      .select('title, content, category, tags, source_url')
       .eq('user_id', userId)
       .eq('category', '練習法')
       .order('updated_at', { ascending: false })
@@ -183,6 +183,7 @@ export async function buildPracticeContext(
       const truncated = content.length > 800 ? content.substring(0, 800) + '…' : content;
       let line = `### ${k.title}`;
       if (k.tags && (k.tags as string[]).length > 0) line += ` [${(k.tags as string[]).join(', ')}]`;
+      if (k.source_url) line += `\n参考動画: ${k.source_url}`;
       line += `\n${truncated}`;
       knLines.push(line);
     }
