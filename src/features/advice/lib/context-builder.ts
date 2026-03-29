@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { AdviceContext } from '../types';
+import type { StartingCourse } from '@/features/round/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -77,7 +78,7 @@ async function buildAdviceContextInternal(
 
   // course_idが未知の場合のみラウンド情報を取得
   let courseId = knownCourseId;
-  let startingCourse = knownStartingCourse ?? null;
+  let startingCourse: StartingCourse | null = (knownStartingCourse as StartingCourse) ?? null;
   if (!courseId) {
     const { data: round } = await supabase
       .from('rounds')
@@ -88,7 +89,7 @@ async function buildAdviceContextInternal(
 
     if (!round) return null;
     courseId = round.course_id;
-    startingCourse = round.starting_course;
+    startingCourse = round.starting_course as StartingCourse;
   }
 
   // まずプロファイルを取得（クラブ取得にprofile.idが必要）
@@ -198,7 +199,8 @@ export function formatContextForPrompt(context: AdviceContext): string {
   // コース
   const course = context.course as Record<string, unknown>;
   if (course.name) {
-    const startLabel = context.starting_course === 'out' ? 'OUTスタート' : context.starting_course === 'in' ? 'INスタート' : '';
+    const STARTING_COURSE_LABELS: Record<string, string> = { out: 'OUTスタート', in: 'INスタート' };
+    const startLabel = (context.starting_course && STARTING_COURSE_LABELS[context.starting_course]) ?? '';
     sections.push(`## コース\n${course.name}（${course.prefecture ?? ''}）${startLabel ? ` ${startLabel}` : ''}`);
   }
 

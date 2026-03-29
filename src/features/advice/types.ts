@@ -1,4 +1,5 @@
 import type { ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
+import type { StartingCourse } from '@/features/round/types';
 
 export type SlopeFB = ShotSlopeFB;
 export type SlopeLR = ShotSlopeLR;
@@ -28,5 +29,5 @@ export interface AdviceContext {
   hole_notes: Record<string, unknown>[];
   recent_rounds: Record<string, unknown>[];
   knowledge: KnowledgeContext[];
-  starting_course: string | null;
+  starting_course: StartingCourse | null;
 }
