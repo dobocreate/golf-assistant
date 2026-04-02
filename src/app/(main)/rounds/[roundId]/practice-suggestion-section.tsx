@@ -68,7 +68,7 @@ export function PracticeSuggestionSection({
             type="button"
             onClick={handleRequest}
             disabled={isSaving}
-            className="inline-flex items-center gap-1 min-h-[48px] text-sm text-emerald-600 hover:text-emerald-500 disabled:opacity-50"
+            className="inline-flex items-center gap-1 min-h-[48px] text-sm text-emerald-600 hover:text-emerald-500 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 rounded"
           >
             {savedSuggestion ? (
               <>
@@ -125,7 +125,7 @@ export function PracticeSuggestionSection({
 
       {!isStreaming && displayText && !showConfirm && (
         <details className="group">
-          <summary className="flex items-center gap-2 cursor-pointer list-none text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <summary className="flex items-center gap-2 cursor-pointer list-none text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 rounded">
             <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
             <span className="group-open:hidden">{summaryText}</span>
             <span className="hidden group-open:inline">提案を閉じる</span>
@@ -143,7 +143,7 @@ export function PracticeSuggestionSection({
       )}
 
       {!hasReviewNote && !savedSuggestion && (
-        <p className="text-sm text-gray-400">総括を記入すると、AIによる練習提案を受けられます</p>
+        <p className="text-sm text-gray-500">総括を記入すると、AIによる練習提案を受けられます</p>
       )}
     </div>
   );

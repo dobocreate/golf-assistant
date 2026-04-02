@@ -98,21 +98,21 @@ export default async function RoundReviewPage({
   const diffColor = diff < 0 ? 'text-blue-600' : diff === 0 ? 'text-green-600' : 'text-red-500';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="max-w-2xl mx-auto space-y-6 pb-24">
       <Link
         href="/rounds"
-        className="inline-flex items-center gap-1 min-h-[48px] text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+        className="inline-flex items-center gap-1 min-h-[48px] text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 rounded"
       >
         <ArrowLeft className="h-4 w-4" />
         ラウンド一覧
       </Link>
 
       {/* ヘッダーカード */}
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-5">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-6">
         <div className="flex items-start gap-3">
           <Flag className="h-6 w-6 text-green-600 mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold truncate">{round.courses?.name ?? '不明なコース'}</h1>
+            <h1 className="text-2xl font-bold truncate">{round.courses?.name ?? '不明なコース'}</h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-sm text-gray-500">{round.played_at}</p>
               <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${
@@ -130,7 +130,7 @@ export default async function RoundReviewPage({
         {completedHoles > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-end gap-6">
             <div>
-              <p className="text-xs text-gray-400">トータル</p>
+              <p className="text-xs text-gray-500">トータル</p>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-bold tabular-nums">{totalStrokes}</span>
                 <span className={`text-lg font-bold ${diffColor}`}>
@@ -150,7 +150,7 @@ export default async function RoundReviewPage({
       {/* スコア詳細テーブル */}
       {holes.length > 0 && (
         <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
-          <h2 className="text-sm font-semibold text-gray-500 px-4 pt-4 pb-2">スコア詳細</h2>
+          <h2 className="text-base font-semibold text-gray-600 dark:text-gray-300 px-4 pt-4 pb-2">スコア詳細</h2>
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             <ScoreTable label="OUT" holes={holes.filter(h => h.hole_number <= 9)} scoreMap={scoreMap} />
             <ScoreTable label="IN" holes={holes.filter(h => h.hole_number > 9)} scoreMap={scoreMap} />
@@ -162,12 +162,12 @@ export default async function RoundReviewPage({
       {completedHoles > 0 && (
         <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer list-none px-4 py-3.5">
+            <summary className="flex items-center justify-between cursor-pointer list-none px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 rounded-lg">
               <div className="flex items-center gap-1.5">
                 <ChevronRight className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90" />
-                <h2 className="text-sm font-semibold text-gray-500">スコア分析</h2>
+                <h2 className="text-base font-semibold text-gray-600 dark:text-gray-300">スコア分析</h2>
               </div>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 パーセーブ {Math.round((parSaves / completedHoles) * 100)}% / FW {fwTotal > 0 ? Math.round((fwHits / fwTotal) * 100) : '-'}%
               </span>
             </summary>
@@ -213,12 +213,12 @@ export default async function RoundReviewPage({
       {memos.length > 0 && (
         <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer list-none px-4 py-3.5">
+            <summary className="flex items-center justify-between cursor-pointer list-none px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 rounded-lg">
               <div className="flex items-center gap-1.5">
                 <ChevronRight className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90" />
-                <h2 className="text-sm font-semibold text-gray-500">メモ</h2>
+                <h2 className="text-base font-semibold text-gray-600 dark:text-gray-300">メモ</h2>
               </div>
-              <span className="text-xs text-gray-400">{memos.length}件</span>
+              <span className="text-xs text-gray-500">{memos.length}件</span>
             </summary>
             <div className="px-4 pb-4 space-y-2">
               {memos.map(memo => (
@@ -286,7 +286,7 @@ export default async function RoundReviewPage({
 function StatGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{label}</h3>
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {children}
       </div>
@@ -299,7 +299,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
     <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
       <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
       <p className="text-xl font-bold mt-0.5">{value}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
