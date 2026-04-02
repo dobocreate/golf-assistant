@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Save, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
@@ -13,11 +13,35 @@ interface CompanionScoreEditorProps {
   onSaved?: (holeNumber: number, scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => void;
 }
 
+type HoleInputs = Map<string, { strokes: string; putts: string }>;
+
 function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   if (startingCourse === 'in') {
     return [...Array.from({ length: 9 }, (_, i) => i + 10), ...Array.from({ length: 9 }, (_, i) => i + 1)];
   }
   return Array.from({ length: 18 }, (_, i) => i + 1);
+}
+
+function buildAllInputs(companionData: CompanionWithScores[]): Map<number, HoleInputs> {
+  const map = new Map<number, HoleInputs>();
+  for (let h = 1; h <= 18; h++) {
+    const holeMap = new Map<string, { strokes: string; putts: string }>();
+    for (const { companion, scores } of companionData) {
+      const s = scores.find(sc => sc.hole_number === h);
+      holeMap.set(companion.id, {
+        strokes: s?.strokes?.toString() ?? '',
+        putts: s?.putts?.toString() ?? '',
+      });
+    }
+    map.set(h, holeMap);
+  }
+  return map;
+}
+
+function parseScore(value: string): number | null {
+  if (value === '') return null;
+  const n = parseInt(value, 10);
+  return !isNaN(n) ? n : null;
 }
 
 export function CompanionScoreEditor({ companionData, roundId, startingCourse = 'out', onSaved }: CompanionScoreEditorProps) {
@@ -27,67 +51,172 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
   const [isPending, startTransition] = useTransition();
   const [saveResult, setSaveResult] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  // スコア画面のcurrentHole が変わったら同期
+  // --- メモリ管理 ---
+  const [allInputs, setAllInputs] = useState(() => buildAllInputs(companionData));
+  const savedBaselineRef = useRef(buildAllInputs(companionData));
+  const dirtyHolesRef = useRef(new Set<number>());
+  const savingHolesRef = useRef(new Set<number>());
+
+  // --- Ref群（stale closure回避） ---
+  const allInputsRef = useRef(allInputs);
+  useEffect(() => { allInputsRef.current = allInputs; }, [allInputs]);
+
+  const editingHoleRef = useRef(editingHole);
+  useEffect(() => { editingHoleRef.current = editingHole; }, [editingHole]);
+
+  const roundIdRef = useRef(roundId);
+  useEffect(() => { roundIdRef.current = roundId; }, [roundId]);
+
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- companionData更新時のマージ（dirtyでないホールのみ同期） ---
   useEffect(() => {
-    if (playRound?.currentHole) setEditingHole(playRound.currentHole);
-  }, [playRound?.currentHole]);
+    const newBaseline = buildAllInputs(companionData);
+    // dirtyでないホールのみbaselineを更新（クライアント保存済みの値を保護）
+    for (const [hole, inputs] of newBaseline) {
+      if (!dirtyHolesRef.current.has(hole)) {
+        savedBaselineRef.current.set(hole, inputs);
+      }
+    }
+    setAllInputs(prev => {
+      const next = new Map(prev);
+      for (const [hole, inputs] of newBaseline) {
+        if (!dirtyHolesRef.current.has(hole)) {
+          next.set(hole, inputs);
+        }
+      }
+      return next;
+    });
+  }, [companionData]);
+
+  // --- 現在ホールのinputs（描画用） ---
+  const inputs = allInputs.get(editingHole) ?? new Map<string, { strokes: string; putts: string }>();
 
   const currentIndex = holeOrder.indexOf(editingHole);
   const prevHole = currentIndex > 0 ? holeOrder[currentIndex - 1] : null;
   const nextHole = currentIndex < holeOrder.length - 1 ? holeOrder[currentIndex + 1] : null;
 
-  // 各同伴者の打数・パット入力値
-  const [inputs, setInputs] = useState<Map<string, { strokes: string; putts: string }>>(new Map());
-
-  // editingHole 変更時に DB 値で入力値をリセット
-  useEffect(() => {
-    const newInputs = new Map<string, { strokes: string; putts: string }>();
-    for (const { companion, scores } of companionData) {
-      const s = scores.find(sc => sc.hole_number === editingHole);
-      newInputs.set(companion.id, {
-        strokes: s?.strokes?.toString() ?? '',
-        putts: s?.putts?.toString() ?? '',
-      });
+  // --- 変更検知（savedBaselineと双方向比較） ---
+  const hasChanges = useCallback((holeNumber: number): boolean => {
+    const holeInputs = allInputsRef.current.get(holeNumber);
+    const baseline = savedBaselineRef.current.get(holeNumber);
+    if (!holeInputs || !baseline) return false;
+    // サイズが異なれば変更あり（同伴者追加/削除）
+    if (holeInputs.size !== baseline.size) return true;
+    for (const [companionId, input] of holeInputs) {
+      const saved = baseline.get(companionId);
+      if (!saved) return true;
+      if (input.strokes !== saved.strokes || input.putts !== saved.putts) return true;
     }
-    setInputs(newInputs);
-    setSaveResult('idle');
-  }, [editingHole, companionData]);
+    return false;
+  }, []);
 
-  if (companionData.length === 0) return null;
+  // --- ホール単位のDB保存（競合防止付き） ---
+  const saveHole = useCallback((holeNumber: number) => {
+    if (savingHolesRef.current.has(holeNumber)) return;
+    if (!hasChanges(holeNumber)) return;
 
-  const handleSave = () => {
-    const scoreData = companionData.map(({ companion }) => {
-      const input = inputs.get(companion.id) ?? { strokes: '', putts: '' };
-      const strokes = input.strokes === '' ? null : parseInt(input.strokes, 10);
-      const putts = input.putts === '' ? null : parseInt(input.putts, 10);
-      return {
-        companionId: companion.id,
-        strokes: strokes !== null && !isNaN(strokes) ? strokes : null,
-        putts: putts !== null && !isNaN(putts) ? putts : null,
-      };
-    });
+    const holeInputs = allInputsRef.current.get(holeNumber);
+    if (!holeInputs) return;
+
+    const scoreData = [...holeInputs].map(([companionId, input]) => ({
+      companionId,
+      strokes: parseScore(input.strokes),
+      putts: parseScore(input.putts),
+    }));
+
+    savingHolesRef.current.add(holeNumber);
 
     startTransition(async () => {
       const result = await upsertCompanionScoresBatch({
-        roundId,
-        holeNumber: editingHole,
+        roundId: roundIdRef.current,
+        holeNumber,
         scores: scoreData,
       });
+      savingHolesRef.current.delete(holeNumber);
       if (result.error) {
         setSaveResult('error');
       } else {
+        const currentInputs = allInputsRef.current.get(holeNumber);
+        if (currentInputs) {
+          savedBaselineRef.current.set(holeNumber, new Map(currentInputs));
+        }
+        dirtyHolesRef.current.delete(holeNumber);
+        onSaved?.(holeNumber, scoreData);
         setSaveResult('saved');
-        onSaved?.(editingHole, scoreData);
-        setTimeout(() => setSaveResult('idle'), 3000);
+        if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+        saveStatusTimerRef.current = setTimeout(() => setSaveResult('idle'), 3000);
       }
     });
-  };
+  }, [hasChanges, onSaved]);
+
+  // --- ホール切替（保存→切替） ---
+  const switchHole = useCallback((newHole: number) => {
+    const currentHole = editingHoleRef.current;
+    if (currentHole !== newHole) {
+      saveHole(currentHole);
+    }
+    setEditingHole(newHole);
+    setSaveResult('idle');
+  }, [saveHole]);
+
+  // --- Context連動（スコア画面のホール変更に追従、初回/同値ガード付き） ---
+  const prevContextHoleRef = useRef(playRound?.currentHole);
+  useEffect(() => {
+    const incoming = playRound?.currentHole;
+    if (incoming && incoming !== prevContextHoleRef.current) {
+      prevContextHoleRef.current = incoming;
+      if (incoming !== editingHoleRef.current) {
+        saveHole(editingHoleRef.current);
+        setEditingHole(incoming);
+        setSaveResult('idle');
+      }
+    }
+  }, [playRound?.currentHole, saveHole]);
+
+  // --- アンマウント時: 全dirtyホールをfire-and-forget保存 ---
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      // 現在ホールのdirty判定
+      const current = editingHoleRef.current;
+      const currentInputs = allInputsRef.current.get(current);
+      const currentBaseline = savedBaselineRef.current.get(current);
+      if (currentInputs && currentBaseline) {
+        for (const [cid, input] of currentInputs) {
+          const saved = currentBaseline.get(cid);
+          if (!saved || input.strokes !== saved.strokes || input.putts !== saved.putts) {
+            dirtyHolesRef.current.add(current);
+            break;
+          }
+        }
+      }
+      // 全dirtyホールを保存
+      for (const hole of dirtyHolesRef.current) {
+        const holeInputs = allInputsRef.current.get(hole);
+        if (!holeInputs) continue;
+        const scoreData = [...holeInputs].map(([companionId, input]) => ({
+          companionId,
+          strokes: parseScore(input.strokes),
+          putts: parseScore(input.putts),
+        }));
+        upsertCompanionScoresBatch({
+          roundId: roundIdRef.current,
+          holeNumber: hole,
+          scores: scoreData,
+        }).catch(() => {});
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (companionData.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden">
       <div className="bg-gray-800 px-2 py-2 flex items-center justify-between">
         <button
-          onClick={() => prevHole && setEditingHole(prevHole)}
+          onClick={() => prevHole && switchHole(prevHole)}
           disabled={prevHole === null}
           className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
           aria-label="前のホール"
@@ -110,7 +239,7 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
           </span>
         )}
         <button
-          onClick={() => nextHole && setEditingHole(nextHole)}
+          onClick={() => nextHole && switchHole(nextHole)}
           disabled={nextHole === null}
           className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
           aria-label="次のホール"
@@ -135,11 +264,15 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
                   value={input.strokes}
                   onFocus={e => e.target.select()}
                   onChange={e => {
-                    setInputs(prev => {
+                    const value = e.target.value;
+                    setAllInputs(prev => {
                       const next = new Map(prev);
-                      next.set(companion.id, { ...input, strokes: e.target.value });
+                      const holeMap = new Map(next.get(editingHole) ?? new Map<string, { strokes: string; putts: string }>());
+                      holeMap.set(companion.id, { ...input, strokes: value });
+                      next.set(editingHole, holeMap);
                       return next;
                     });
+                    dirtyHolesRef.current.add(editingHole);
                     setSaveResult('idle');
                   }}
                   className="w-14 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 text-center text-base font-bold border-0 focus:ring-2 focus:ring-green-600"
@@ -155,11 +288,15 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
                   value={input.putts}
                   onFocus={e => e.target.select()}
                   onChange={e => {
-                    setInputs(prev => {
+                    const value = e.target.value;
+                    setAllInputs(prev => {
                       const next = new Map(prev);
-                      next.set(companion.id, { ...input, putts: e.target.value });
+                      const holeMap = new Map(next.get(editingHole) ?? new Map<string, { strokes: string; putts: string }>());
+                      holeMap.set(companion.id, { ...input, putts: value });
+                      next.set(editingHole, holeMap);
                       return next;
                     });
+                    dirtyHolesRef.current.add(editingHole);
                     setSaveResult('idle');
                   }}
                   className="w-14 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 text-center text-base font-bold border-0 focus:ring-2 focus:ring-green-600"
@@ -174,7 +311,7 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
       {/* フローティング保存ボタン */}
       <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3">
         <button
-          onClick={handleSave}
+          onClick={() => saveHole(editingHole)}
           disabled={isPending}
           className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
