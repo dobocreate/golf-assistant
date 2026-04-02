@@ -345,8 +345,8 @@ function ScoreTable({
             {holes.map(h => {
               const s = scoreMap.get(h.hole_number);
               if (!s) return <td key={h.hole_number} className="px-1 py-2.5 text-center text-gray-300 dark:text-gray-600">-</td>;
-              const d = s.strokes - h.par;
-              const color = d < 0 ? 'text-blue-600 dark:text-blue-400' : d === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
+              const scoreDiff = s.strokes - h.par;
+              const color = scoreDiff < 0 ? 'text-blue-600 dark:text-blue-400' : scoreDiff === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
               return <td key={h.hole_number} className={`px-1 py-2.5 text-center ${color}`}>{s.strokes}</td>;
             })}
             <td className="px-2 py-2.5 text-center">
