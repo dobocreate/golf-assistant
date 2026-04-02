@@ -30,7 +30,7 @@ export default async function KnowledgePage({
         <h1 className="text-2xl font-bold">ナレッジベース</h1>
         <Link
           href="/knowledge/new"
-          className="inline-flex items-center gap-1.5 min-h-[44px] rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
+          className="inline-flex items-center gap-1.5 min-h-[48px] rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
         >
           <Plus className="h-4 w-4" />
           追加

@@ -4,19 +4,26 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, X, ChevronRight, Plus } from 'lucide-react';
-import { KNOWLEDGE_CATEGORIES, type Knowledge } from '@/features/knowledge/types';
+import { KNOWLEDGE_CATEGORIES, type Knowledge, type KnowledgeCategory } from '@/features/knowledge/types';
 
 const ALL_TAB = 'すべて';
 const ITEMS_PER_PAGE = 10;
 
-const CATEGORY_COLORS: Record<string, { border: string; bg: string; text: string; dot: string }> = {
+type CategoryColor = { border: string; bg: string; text: string; dot: string };
+
+const CATEGORY_COLORS: Record<KnowledgeCategory, CategoryColor> = {
   'スイング技術': { border: 'border-l-green-500', bg: 'bg-green-50 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },
   'コースマネジメント': { border: 'border-l-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
   'メンタル': { border: 'border-l-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
   '練習法': { border: 'border-l-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', dot: 'bg-purple-500' },
 };
 
-const DEFAULT_COLOR = { border: 'border-l-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', dot: 'bg-gray-400' };
+const DEFAULT_COLOR: CategoryColor = { border: 'border-l-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', dot: 'bg-gray-400' };
+
+function getCategoryColor(category: string | null): CategoryColor {
+  if (!category) return DEFAULT_COLOR;
+  return (CATEGORY_COLORS as Record<string, CategoryColor>)[category] || DEFAULT_COLOR;
+}
 
 function getCategoryCounts(items: Knowledge[]) {
   const counts: Record<string, number> = {};
@@ -55,12 +62,12 @@ function groupByCategory(items: Knowledge[]) {
 }
 
 function KnowledgeCard({ item }: { item: Knowledge }) {
-  const colors = item.category ? (CATEGORY_COLORS[item.category] || DEFAULT_COLOR) : DEFAULT_COLOR;
+  const colors = getCategoryColor(item.category);
 
   return (
     <Link
       href={`/knowledge/${item.id}`}
-      className={`group flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 border-l-[3px] ${colors.border} bg-white dark:bg-gray-900 shadow-sm px-4 py-4 hover:border-green-400 dark:hover:border-green-600 hover:shadow-md active:scale-[0.98] transition-all`}
+      className={`group flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 border-l-[3px] ${colors.border} bg-white dark:bg-gray-900 shadow-sm px-4 py-4 hover:border-green-400 dark:hover:border-green-600 hover:shadow-md active:scale-[0.96] transition-all`}
     >
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">
@@ -135,7 +142,6 @@ export function KnowledgeListClient({
   );
 
   function handleCategoryClick(tab: string) {
-    setSearchQuery('');
     setVisibleCount(ITEMS_PER_PAGE);
     if (tab === ALL_TAB) {
       router.push('/knowledge');
@@ -183,7 +189,7 @@ export function KnowledgeListClient({
                 key={tab}
                 type="button"
                 onClick={() => handleCategoryClick(tab)}
-                className={`shrink-0 min-h-[44px] rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                className={`shrink-0 min-h-[48px] rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-green-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -219,7 +225,7 @@ export function KnowledgeListClient({
           {!searchQuery && (
             <Link
               href="/knowledge/new"
-              className="inline-flex items-center justify-center mt-4 min-h-[44px] rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
+              className="inline-flex items-center justify-center mt-4 min-h-[48px] rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
             >
               <Plus className="h-4 w-4 mr-1.5" />
               このカテゴリに追加
@@ -230,14 +236,15 @@ export function KnowledgeListClient({
         /* カテゴリ別グルーピング表示 */
         <div className="space-y-6">
           {groups.map((group) => {
-            const groupColor = CATEGORY_COLORS[group.category] || DEFAULT_COLOR;
+            const groupColor = getCategoryColor(group.category);
+            const totalCount = categoryCounts[group.category] || group.items.length;
             return (
             <section key={group.category}>
               <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-2">
                 <span className={`h-2.5 w-2.5 rounded-full ${groupColor.dot} shrink-0`} />
                 {group.category}
                 <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
-                  {group.items.length}件
+                  {totalCount}件
                 </span>
               </h2>
               <div className="space-y-2.5">
@@ -253,7 +260,7 @@ export function KnowledgeListClient({
             <button
               type="button"
               onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
-              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.98] transition-all"
+              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.96] transition-all"
             >
               もっと見る（残り{displayItems.length - visibleCount}件）
             </button>
@@ -270,7 +277,7 @@ export function KnowledgeListClient({
             <button
               type="button"
               onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
-              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.98] transition-all"
+              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.96] transition-all"
             >
               もっと見る（残り{displayItems.length - visibleCount}件）
             </button>
