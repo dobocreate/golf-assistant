@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { CompanionScoreEditor } from '@/features/score/components/companion-score-editor';
 import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
@@ -80,6 +80,15 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
   const companions = companionData.map(c => c.companion);
 
+  const totalStats = useMemo(() => {
+    const allHoles = [...outHoles, ...inHoles];
+    const totalPar = allHoles.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0);
+    const totalStrokes = allHoles.reduce((sum, h) => sum + (scoreMap.get(h)?.strokes ?? 0), 0);
+    const totalPutts = allHoles.reduce((sum, h) => sum + (scoreMap.get(h)?.putts ?? 0), 0);
+    const totalCount = allHoles.filter(h => scoreMap.has(h)).length;
+    return { allHoles, totalPar, totalStrokes, totalPutts, totalCount };
+  }, [outHoles, inHoles, holeMap, scoreMap]);
+
   return (
     <div className="max-w-md mx-auto space-y-3">
       {/* ヘッダー */}
@@ -87,10 +96,10 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
         <button
           onClick={() => setShowDetail(prev => !prev)}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded-lg bg-gray-800"
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-2 rounded-lg bg-gray-800 min-h-[48px]"
         >
           {showDetail ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          {showDetail ? '簡易表示' : '詳細表示'}
+          {showDetail ? '簡易表示' : 'パット・FW・GIRを表示'}
         </button>
       </div>
 
@@ -116,9 +125,9 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
             <table className="w-full text-sm tabular-nums">
               <thead>
                 <tr className="bg-gray-800 text-gray-400 text-xs">
-                  <th className="px-2 py-2 text-left font-bold">{section.label}</th>
-                  <th className="px-1 py-2 text-center font-medium w-10">Par</th>
-                  <th className="px-1 py-2 text-center font-bold w-12">Score</th>
+                  <th className="px-1.5 py-2 text-left font-bold w-8">{section.label}</th>
+                  <th className="px-1 py-2 text-center font-medium w-9">Par</th>
+                  <th className="px-1 py-2 text-center font-bold w-14">Score</th>
                   {showDetail && (
                     <>
                       <th className="px-1 py-2 text-center font-medium w-10">Putt</th>
@@ -139,9 +148,9 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
                   return (
                     <tr key={h} className={`bg-gray-900 ${s ? scoreBg(s.strokes, par) : ''}`}>
-                      <td className="px-2 py-2 font-bold text-gray-300">{h}</td>
+                      <td className="px-1.5 py-2 font-bold text-gray-300">{h}</td>
                       <td className="px-1 py-2 text-center text-gray-400">{par}</td>
-                      <td className={`px-1 py-2 text-center font-bold ${s ? scoreColor(s.strokes, par) : 'text-gray-600'}`}>
+                      <td className={`px-1 py-2 text-center font-bold text-base ${s ? scoreColor(s.strokes, par) : 'text-gray-600'}`}>
                         {s ? s.strokes : '-'}
                       </td>
                       {showDetail && (
@@ -168,17 +177,17 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
                 })}
 
                 {/* 小計行 */}
-                <tr className="bg-gray-800">
-                  <td className="px-2 py-2 font-bold text-white">{section.label}</td>
-                  <td className="px-1 py-2 text-center font-bold text-gray-400">{sectionPar}</td>
-                  <td className="px-1 py-2 text-center font-bold text-white">{sectionCount > 0 ? sectionStrokes : '-'}</td>
+                <tr className="bg-gray-700/80 border-t-2 border-gray-600">
+                  <td className="px-1.5 py-2.5 font-bold text-white">{section.label}</td>
+                  <td className="px-1 py-2.5 text-center font-bold text-gray-300">{sectionPar}</td>
+                  <td className={`px-1 py-2.5 text-center font-bold text-base ${sectionCount > 0 ? scoreColor(sectionStrokes, sectionPar) : 'text-white'}`}>{sectionCount > 0 ? sectionStrokes : '-'}</td>
                   {showDetail && (
                     <>
-                      <td className="px-1 py-2 text-center font-bold text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
-                      <td className="px-1 py-2 text-center text-xs text-gray-400">
+                      <td className="px-1 py-2.5 text-center font-bold text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
+                      <td className="px-1 py-2.5 text-center text-xs text-gray-400">
                         {calcHitRate(section.holes, scoreMap, 'fairway_hit')}
                       </td>
-                      <td className="px-1 py-2 text-center text-xs text-gray-400">
+                      <td className="px-1 py-2.5 text-center text-xs text-gray-400">
                         {calcHitRate(section.holes, scoreMap, 'green_in_reg')}
                       </td>
                     </>
@@ -188,7 +197,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
                     const ct = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
                     const cc = section.holes.filter(h => csMap?.get(h)?.strokes != null).length;
                     return (
-                      <td key={c.id} className="px-1 py-2 text-center font-bold text-gray-300">{cc > 0 ? ct : '-'}</td>
+                      <td key={c.id} className="px-1 py-2.5 text-center font-bold text-gray-200">{cc > 0 ? ct : '-'}</td>
                     );
                   })}
                 </tr>
@@ -198,7 +207,42 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         );
       })}
 
-      <div className="h-24" />
+      {/* 合計 */}
+      <div className="rounded-lg border border-gray-600 bg-gray-800 overflow-hidden">
+        <table className="w-full text-sm tabular-nums" aria-label="合計スコア">
+          <tbody>
+            <tr>
+              <td className="px-1.5 py-3 font-bold text-white w-8">TOTAL</td>
+              <td className="px-1 py-3 text-center font-bold text-gray-300 w-9">{totalStats.totalPar}</td>
+              <td className={`px-1 py-3 text-center font-bold text-lg w-14 ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
+                {totalStats.totalCount > 0 ? totalStats.totalStrokes : '-'}
+              </td>
+              {showDetail && (
+                <>
+                  <td className="px-1 py-3 text-center font-bold text-gray-300 w-10">{totalStats.totalCount > 0 ? totalStats.totalPutts : '-'}</td>
+                  <td className="px-1 py-3 text-center text-xs text-gray-400 w-8">
+                    {calcHitRate(totalStats.allHoles, scoreMap, 'fairway_hit')}
+                  </td>
+                  <td className="px-1 py-3 text-center text-xs text-gray-400 w-8">
+                    {calcHitRate(totalStats.allHoles, scoreMap, 'green_in_reg')}
+                  </td>
+                </>
+              )}
+              {companions.map(c => {
+                const csMap = companionScoreMap.get(c.id);
+                const ct = totalStats.allHoles.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                const cc = totalStats.allHoles.filter(h => csMap?.get(h)?.strokes != null).length;
+                return (
+                  <td key={c.id} className="px-1 py-3 text-center font-bold text-gray-200">{cc > 0 ? ct : '-'}</td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* BottomNav高さ(~80px) + safe area分のスペーサー */}
+      <div className="h-28" />
     </div>
   );
 }
