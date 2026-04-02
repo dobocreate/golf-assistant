@@ -36,26 +36,32 @@ function scoreBg(strokes: number, par: number): string {
   return 'bg-red-900/20';
 }
 
+const OUT_HOLES = Array.from({ length: 9 }, (_, i) => i + 1);
+const IN_HOLES = Array.from({ length: 9 }, (_, i) => i + 10);
+const ALL_HOLES = [...OUT_HOLES, ...IN_HOLES];
+
 export function Scorecard({ roundId, holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
   const [showDetail, setShowDetail] = useState(false);
   // 楽観的更新: 同伴者スコアのローカルオーバーライド
   const [companionOverrides, setCompanionOverrides] = useState<Map<string, Map<number, { strokes: number | null; putts: number | null }>>>(new Map());
 
-  const scoreMap = new Map(scores.map(s => [s.hole_number, s]));
-  const holeMap = new Map(holes.map(h => [h.hole_number, h]));
+  const scoreMap = useMemo(() => new Map(scores.map(s => [s.hole_number, s])), [scores]);
+  const holeMap = useMemo(() => new Map(holes.map(h => [h.hole_number, h])), [holes]);
 
   // 同伴者スコアMap（DB値 + 楽観的更新をマージ）
-  const companionScoreMap = new Map<string, Map<number, { strokes: number | null; putts: number | null }>>();
-  for (const { companion, scores: cs } of companionData) {
-    const m = new Map<number, { strokes: number | null; putts: number | null }>();
-    for (const s of cs) m.set(s.hole_number, { strokes: s.strokes, putts: s.putts });
-    // オーバーライドをマージ
-    const overrides = companionOverrides.get(companion.id);
-    if (overrides) {
-      for (const [hole, val] of overrides) m.set(hole, val);
+  const companionScoreMap = useMemo(() => {
+    const map = new Map<string, Map<number, { strokes: number | null; putts: number | null }>>();
+    for (const { companion, scores: cs } of companionData) {
+      const m = new Map<number, { strokes: number | null; putts: number | null }>();
+      for (const s of cs) m.set(s.hole_number, { strokes: s.strokes, putts: s.putts });
+      const overrides = companionOverrides.get(companion.id);
+      if (overrides) {
+        for (const [hole, val] of overrides) m.set(hole, val);
+      }
+      map.set(companion.id, m);
     }
-    companionScoreMap.set(companion.id, m);
-  }
+    return map;
+  }, [companionData, companionOverrides]);
 
   // CompanionScoreEditor からの保存完了コールバック
   const handleCompanionSaved = (holeNumber: number, savedScores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => {
@@ -71,32 +77,30 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     });
   };
 
-  const outHoles = Array.from({ length: 9 }, (_, i) => i + 1);
-  const inHoles = Array.from({ length: 9 }, (_, i) => i + 10);
   const sections = startingCourse === 'in'
-    ? [{ label: 'IN', holes: inHoles }, { label: 'OUT', holes: outHoles }]
-    : [{ label: 'OUT', holes: outHoles }, { label: 'IN', holes: inHoles }];
-
+    ? [{ label: 'IN', holes: IN_HOLES }, { label: 'OUT', holes: OUT_HOLES }]
+    : [{ label: 'OUT', holes: OUT_HOLES }, { label: 'IN', holes: IN_HOLES }];
 
   const companions = companionData.map(c => c.companion);
 
   const totalStats = useMemo(() => {
-    const allHoles = [...outHoles, ...inHoles];
-    const totalPar = allHoles.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0);
-    const totalStrokes = allHoles.reduce((sum, h) => sum + (scoreMap.get(h)?.strokes ?? 0), 0);
-    const totalPutts = allHoles.reduce((sum, h) => sum + (scoreMap.get(h)?.putts ?? 0), 0);
-    const totalCount = allHoles.filter(h => scoreMap.has(h)).length;
-    return { allHoles, totalPar, totalStrokes, totalPutts, totalCount };
-  }, [outHoles, inHoles, holeMap, scoreMap]);
+    const totalPar = ALL_HOLES.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0);
+    const totalStrokes = ALL_HOLES.reduce((sum, h) => sum + (scoreMap.get(h)?.strokes ?? 0), 0);
+    const totalPutts = ALL_HOLES.reduce((sum, h) => sum + (scoreMap.get(h)?.putts ?? 0), 0);
+    const totalCount = ALL_HOLES.filter(h => scoreMap.has(h)).length;
+    return { totalPar, totalStrokes, totalPutts, totalCount };
+  }, [holeMap, scoreMap]);
 
   return (
-    <div className="max-w-md mx-auto space-y-3">
+    <div className="max-w-md mx-auto space-y-5">
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
         <button
           onClick={() => setShowDetail(prev => !prev)}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-2 rounded-lg bg-gray-800 min-h-[48px]"
+          className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-200 transition-colors px-3 py-2 rounded-lg bg-gray-800 min-h-[48px]"
+          aria-expanded={showDetail}
+          aria-controls="scorecard-tables"
         >
           {showDetail ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           {showDetail ? '簡易表示' : 'パット・FW・GIRを表示'}
@@ -121,22 +125,22 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         const sectionCount = section.holes.filter(h => scoreMap.has(h)).length;
 
         return (
-          <div key={section.label} className="rounded-lg border border-gray-700 overflow-hidden">
-            <table className="w-full text-sm tabular-nums">
+          <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
+            <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
               <thead>
                 <tr className="bg-gray-800 text-gray-400 text-xs">
-                  <th className="px-1.5 py-2 text-left font-bold w-8">{section.label}</th>
-                  <th className="px-1 py-2 text-center font-medium w-9">Par</th>
-                  <th className="px-1 py-2 text-center font-bold w-14">Score</th>
+                  <th scope="col" className="px-1.5 py-2 text-left font-bold w-8">{section.label}</th>
+                  <th scope="col" className="px-1 py-2 text-center font-medium w-9">Par</th>
+                  <th scope="col" className="px-1 py-2 text-center font-bold w-14">Score</th>
                   {showDetail && (
                     <>
-                      <th className="px-1 py-2 text-center font-medium w-10">Putt</th>
-                      <th className="px-1 py-2 text-center font-medium w-8">FW</th>
-                      <th className="px-1 py-2 text-center font-medium w-8">GIR</th>
+                      <th scope="col" className="px-1 py-2 text-center font-medium w-10">Putt</th>
+                      <th scope="col" className="px-1 py-2 text-center font-medium w-8">FW</th>
+                      <th scope="col" className="px-1 py-2 text-center font-medium w-8">GIR</th>
                     </>
                   )}
                   {companions.map(c => (
-                    <th key={c.id} className="px-1 py-2 text-center font-medium w-12 truncate max-w-[48px]">{c.name}</th>
+                    <th scope="col" key={c.id} className="px-1 py-2 text-center font-medium w-12 truncate max-w-[48px]" title={c.name}>{c.name}</th>
                   ))}
                 </tr>
               </thead>
@@ -150,16 +154,16 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
                     <tr key={h} className={`bg-gray-900 ${s ? scoreBg(s.strokes, par) : ''}`}>
                       <td className="px-1.5 py-2 font-bold text-gray-300">{h}</td>
                       <td className="px-1 py-2 text-center text-gray-400">{par}</td>
-                      <td className={`px-1 py-2 text-center font-bold text-base ${s ? scoreColor(s.strokes, par) : 'text-gray-600'}`}>
+                      <td className={`px-1 py-2 text-center font-bold text-xl ${s ? scoreColor(s.strokes, par) : 'text-gray-500'}`}>
                         {s ? s.strokes : '-'}
                       </td>
                       {showDetail && (
                         <>
                           <td className="px-1 py-2 text-center text-gray-300">{s?.putts ?? '-'}</td>
-                          <td className={`px-1 py-2 text-center ${s?.fairway_hit === true ? 'text-green-400' : s?.fairway_hit === false ? 'text-red-400' : 'text-gray-600'}`}>
+                          <td className={`px-1 py-2 text-center ${s?.fairway_hit === true ? 'text-green-400' : s?.fairway_hit === false ? 'text-red-400' : 'text-gray-500'}`}>
                             {s?.fairway_hit === true ? '○' : s?.fairway_hit === false ? '×' : '-'}
                           </td>
-                          <td className={`px-1 py-2 text-center ${s?.green_in_reg === true ? 'text-green-400' : s?.green_in_reg === false ? 'text-red-400' : 'text-gray-600'}`}>
+                          <td className={`px-1 py-2 text-center ${s?.green_in_reg === true ? 'text-green-400' : s?.green_in_reg === false ? 'text-red-400' : 'text-gray-500'}`}>
                             {s?.green_in_reg === true ? '○' : s?.green_in_reg === false ? '×' : '-'}
                           </td>
                         </>
@@ -167,7 +171,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
                       {companions.map(c => {
                         const cs = companionScoreMap.get(c.id)?.get(h);
                         return (
-                          <td key={c.id} className={`px-1 py-2 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-600'}`}>
+                          <td key={c.id} className={`px-1 py-2 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
                             {cs?.strokes ?? '-'}
                           </td>
                         );
@@ -180,7 +184,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
                 <tr className="bg-gray-700/80 border-t-2 border-gray-600">
                   <td className="px-1.5 py-2.5 font-bold text-white">{section.label}</td>
                   <td className="px-1 py-2.5 text-center font-bold text-gray-300">{sectionPar}</td>
-                  <td className={`px-1 py-2.5 text-center font-bold text-base ${sectionCount > 0 ? scoreColor(sectionStrokes, sectionPar) : 'text-white'}`}>{sectionCount > 0 ? sectionStrokes : '-'}</td>
+                  <td className={`px-1 py-2.5 text-center font-bold text-xl ${sectionCount > 0 ? scoreColor(sectionStrokes, sectionPar) : 'text-white'}`}>{sectionCount > 0 ? sectionStrokes : '-'}</td>
                   {showDetail && (
                     <>
                       <td className="px-1 py-2.5 text-center font-bold text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
@@ -208,30 +212,30 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
       })}
 
       {/* 合計 */}
-      <div className="rounded-lg border border-gray-600 bg-gray-800 overflow-hidden">
+      <div className="rounded-xl border border-gray-600 bg-gray-800 overflow-x-auto">
         <table className="w-full text-sm tabular-nums" aria-label="合計スコア">
           <tbody>
             <tr>
               <td className="px-1.5 py-3 font-bold text-white w-8">TOTAL</td>
               <td className="px-1 py-3 text-center font-bold text-gray-300 w-9">{totalStats.totalPar}</td>
-              <td className={`px-1 py-3 text-center font-bold text-lg w-14 ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
+              <td className={`px-1 py-3 text-center font-bold text-2xl w-14 ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
                 {totalStats.totalCount > 0 ? totalStats.totalStrokes : '-'}
               </td>
               {showDetail && (
                 <>
                   <td className="px-1 py-3 text-center font-bold text-gray-300 w-10">{totalStats.totalCount > 0 ? totalStats.totalPutts : '-'}</td>
                   <td className="px-1 py-3 text-center text-xs text-gray-400 w-8">
-                    {calcHitRate(totalStats.allHoles, scoreMap, 'fairway_hit')}
+                    {calcHitRate(ALL_HOLES, scoreMap, 'fairway_hit')}
                   </td>
                   <td className="px-1 py-3 text-center text-xs text-gray-400 w-8">
-                    {calcHitRate(totalStats.allHoles, scoreMap, 'green_in_reg')}
+                    {calcHitRate(ALL_HOLES, scoreMap, 'green_in_reg')}
                   </td>
                 </>
               )}
               {companions.map(c => {
                 const csMap = companionScoreMap.get(c.id);
-                const ct = totalStats.allHoles.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
-                const cc = totalStats.allHoles.filter(h => csMap?.get(h)?.strokes != null).length;
+                const ct = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                const cc = ALL_HOLES.filter(h => csMap?.get(h)?.strokes != null).length;
                 return (
                   <td key={c.id} className="px-1 py-3 text-center font-bold text-gray-200">{cc > 0 ? ct : '-'}</td>
                 );
