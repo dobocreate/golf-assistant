@@ -91,6 +91,25 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     return { totalPar, totalStrokes, totalPutts, totalCount };
   }, [holeMap, scoreMap]);
 
+  // 両テーブルで共有するcolgroup（列幅を統一）
+  const colgroup = (
+    <colgroup>
+      <col style={{ width: 36 }} />
+      <col style={{ width: 36 }} />
+      <col style={{ width: 56 }} />
+      {showDetail && (
+        <>
+          <col style={{ width: 40 }} />
+          <col style={{ width: 32 }} />
+          <col style={{ width: 32 }} />
+        </>
+      )}
+      {companions.map(c => (
+        <col key={c.id} style={{ width: 48 }} />
+      ))}
+    </colgroup>
+  );
+
   return (
     <div className="max-w-md mx-auto space-y-5">
       {/* ヘッダー */}
@@ -127,6 +146,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         return (
           <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
             <table className="w-full text-sm tabular-nums table-fixed" aria-label={`${section.label}スコア`}>
+              {colgroup}
               <thead>
                 <tr className="bg-gray-800 text-gray-400 text-xs">
                   <th scope="col" className="px-1.5 py-2 text-left font-bold w-8">{section.label}</th>
@@ -214,23 +234,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
       {/* 合計 */}
       <div className="rounded-xl border border-gray-600 bg-gray-800 overflow-x-auto">
         <table className="w-full text-sm tabular-nums table-fixed" aria-label="合計スコア">
-          <thead className="sr-only">
-            <tr>
-              <th className="w-8" />
-              <th className="w-9" />
-              <th className="w-14" />
-              {showDetail && (
-                <>
-                  <th className="w-10" />
-                  <th className="w-8" />
-                  <th className="w-8" />
-                </>
-              )}
-              {companions.map(c => (
-                <th key={c.id} className="w-12" />
-              ))}
-            </tr>
-          </thead>
+          {colgroup}
           <tbody>
             <tr>
               <td className="px-1.5 py-3 font-bold text-white w-8">合計</td>
