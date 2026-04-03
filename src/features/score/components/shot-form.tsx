@@ -117,9 +117,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         {/* ===== 結果セクション ===== */}
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">結果</p>
 
-        {/* 結果 */}
         <div className="space-y-1">
-          <label className="block text-xs text-gray-400">結果</label>
           <div className="grid grid-cols-4 gap-2">
             {RESULT_OPTIONS.map(opt => (
               <button
