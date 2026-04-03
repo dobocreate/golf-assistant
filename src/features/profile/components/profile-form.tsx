@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { upsertProfile } from '@/actions/profile';
-import { PLAY_STYLES, type Profile } from '@/features/profile/types';
+import { PLAY_STYLES, SHOT_SHAPES, SCORE_LEVELS, type Profile } from '@/features/profile/types';
 
 type FormState =
   | { success: true; error?: never }
@@ -49,6 +49,46 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           >
             <option value="">選択してください</option>
             {PLAY_STYLES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="shot_shape" className="block text-sm font-medium mb-1">
+            持ち球
+          </label>
+          <select
+            id="shot_shape"
+            name="shot_shape"
+            defaultValue={profile?.shot_shape ?? ''}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">選択してください</option>
+            {SHOT_SHAPES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="score_level" className="block text-sm font-medium mb-1">
+            スコアレベル
+          </label>
+          <select
+            id="score_level"
+            name="score_level"
+            defaultValue={profile?.score_level ?? ''}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">選択してください</option>
+            {SCORE_LEVELS.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>

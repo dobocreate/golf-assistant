@@ -8,6 +8,8 @@ export interface Profile {
   favorite_shot: string | null;
   favorite_distance: string | null;
   situation_notes: string | null;
+  shot_shape: string | null;
+  score_level: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +19,8 @@ export interface Club {
   profile_id: string;
   name: string;
   distance: number | null;
+  distance_half: number | null;
+  success_rate: number | null;
   is_weak: boolean;
   confidence: number;
   note: string | null;
@@ -35,4 +39,17 @@ export const PLAY_STYLES = [
   { value: 'aggressive', label: '攻撃的' },
   { value: 'balanced', label: 'バランス型' },
   { value: 'conservative', label: '安定型' },
+] as const;
+
+export const SHOT_SHAPES = [
+  { value: 'straight', label: 'ストレート' },
+  { value: 'draw', label: 'ドロー' },
+  { value: 'fade', label: 'フェード' },
+] as const;
+
+export const SCORE_LEVELS = [
+  { value: 'beginner', label: '120以上' },
+  { value: 'intermediate', label: '100〜119' },
+  { value: 'advanced', label: '90〜99' },
+  { value: 'expert', label: '89以下' },
 ] as const;
