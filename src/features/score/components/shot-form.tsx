@@ -98,7 +98,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           roundId={roundId}
           holeNumber={holeNumber}
           shotNumber={slot.shotNumber}
-          lie={null}
+          lie="green"
           slopeFb={null}
           slopeLr={null}
           shotType="putt"

@@ -2,8 +2,12 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { AdviceContext } from '../types';
 import type { StartingCourse } from '@/features/round/types';
+import { SHOT_SHAPES, SCORE_LEVELS } from '@/features/profile/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const shapeLabels = Object.fromEntries(SHOT_SHAPES.map(({ value, label }) => [value, label]));
+const levelLabels = Object.fromEntries(SCORE_LEVELS.map(({ value, label }) => [value, label]));
 
 /**
  * スナップショットからコンテキストテキストを取得、なければ構築してキャッシュする
@@ -181,11 +185,9 @@ export function formatContextForPrompt(context: AdviceContext): string {
     if (p.favorite_distance) lines.push(`- 得意な距離帯: ${p.favorite_distance}`);
     if (p.situation_notes) lines.push(`- 状況別の傾向: ${p.situation_notes}`);
     if (p.shot_shape) {
-      const shapeLabels: Record<string, string> = { straight: 'ストレート', draw: 'ドロー', fade: 'フェード' };
       lines.push(`- 持ち球: ${shapeLabels[p.shot_shape as string] ?? p.shot_shape}`);
     }
     if (p.score_level) {
-      const levelLabels: Record<string, string> = { beginner: '120以上', intermediate: '100-119', advanced: '90-99', expert: '89以下' };
       lines.push(`- スコアレベル: ${levelLabels[p.score_level as string] ?? p.score_level}`);
     }
     sections.push(lines.join('\n'));
@@ -197,12 +199,13 @@ export function formatContextForPrompt(context: AdviceContext): string {
     for (const c of context.clubs as Record<string, unknown>[]) {
       const fullDist = Number(c.distance);
       const hasHalfDist = !!c.distance_half;
-      const halfDist = hasHalfDist ? Number(c.distance_half) : (fullDist > 0 ? Math.round(fullDist * 0.7) : 0);
-      const halfLabel = hasHalfDist ? `${halfDist}y` : `推定${halfDist}y`;
+      const halfLabel = hasHalfDist
+        ? `${Number(c.distance_half)}y`
+        : (fullDist > 0 ? `推定${Math.round(fullDist * 0.6)}〜${Math.round(fullDist * 0.7)}y` : '');
       let line = fullDist > 0
         ? `- ${c.name}: ${fullDist}y (6-7割: ${halfLabel})`
         : `- ${c.name}: 距離未設定`;
-      if (c.success_rate !== null && c.success_rate !== undefined) line += ` 成功率${c.success_rate}/10`;
+      if (c.success_rate != null) line += ` 成功率${c.success_rate}/10`;
       if (c.is_weak) line += ' (苦手)';
       if (c.confidence && !c.success_rate) line += ` 自信度${c.confidence}/5`;
       if (c.note) line += ` — ${c.note}`;

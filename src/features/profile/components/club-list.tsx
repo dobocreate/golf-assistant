@@ -8,11 +8,14 @@ import { CLUB_PRESETS, type Club } from '@/features/profile/types';
 
 function RateDisplay({ club }: { club: Club }) {
   if (club.success_rate !== null) {
-    const color = club.success_rate >= 8
-      ? 'text-green-600 dark:text-green-400'
-      : club.success_rate >= 5
-        ? 'text-yellow-600 dark:text-yellow-400'
-        : 'text-red-600 dark:text-red-400';
+    let color: string;
+    if (club.success_rate >= 8) {
+      color = 'text-green-600 dark:text-green-400';
+    } else if (club.success_rate >= 5) {
+      color = 'text-yellow-600 dark:text-yellow-400';
+    } else {
+      color = 'text-red-600 dark:text-red-400';
+    }
     return <span className={`font-medium ${color}`}>{club.success_rate}/10</span>;
   }
   return <span className="text-gray-400">{'★'.repeat(club.confidence)}{'☆'.repeat(5 - club.confidence)}</span>;

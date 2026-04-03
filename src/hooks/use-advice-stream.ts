@@ -55,9 +55,12 @@ export function useAdviceStream(): UseAdviceStreamReturn {
       // DB値のまま送信。日本語変換は prompt-template.ts が担当
       // パット時はメートル単位、それ以外はヤード単位
       const isPutt = params.shotType === 'putt';
-      const distanceStr = params.remainingDistance != null
-        ? `${params.remainingDistance}${isPutt ? 'm' : 'y'}`
-        : (isPutt ? '5m' : '150y');
+      let distanceStr: string;
+      if (params.remainingDistance != null) {
+        distanceStr = `${params.remainingDistance}${isPutt ? 'm' : 'y'}`;
+      } else {
+        distanceStr = isPutt ? '5m' : '150y';
+      }
 
       const res = await fetch('/api/advice/stream', {
         method: 'POST',
