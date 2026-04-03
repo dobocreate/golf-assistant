@@ -19,6 +19,9 @@ interface ManagementBandProps {
   scores: Map<number, Score>;
   targetScore: number | null;
   holeOrder: number[];
+  scoreLevel?: string | null;
+  handicap?: number | null;
+  totalOBCount?: number;
 }
 
 type Tone = 'normal' | 'attack' | 'defense';
@@ -37,6 +40,7 @@ function calculateTone(
   targetScore: number | null,
   currentHole: number,
   holeOrder: number[],
+  scoreLevel?: string | null,
 ): ToneInfo | null {
   if (!targetScore) return null;
 
@@ -71,9 +75,27 @@ function calculateTone(
 
   let tone: Tone;
   let label: string;
+  const isBeginnerOrIntermediate = scoreLevel === 'beginner' || scoreLevel === 'intermediate';
+
   if (diff <= -1) {
-    tone = 'attack';
-    label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
+    if (isBeginnerOrIntermediate) {
+      // 初中級者は攻めトーンを廃止。好調維持を最優先
+      tone = 'normal';
+      label = `好調維持（目標より${Math.abs(diff)}打良い）。このペースを守りましょう`;
+    } else if (scoreLevel === 'advanced' && diff <= -2) {
+      tone = 'attack';
+      label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
+    } else if (scoreLevel === 'advanced') {
+      tone = 'normal';
+      label = `好調（目標より${Math.abs(diff)}打良い）`;
+    } else if (scoreLevel === 'expert') {
+      tone = 'attack';
+      label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
+    } else {
+      // 未設定: 安全側に倒す
+      tone = 'normal';
+      label = `好調（目標より${Math.abs(diff)}打良い）`;
+    }
   } else if (diff >= 2) {
     tone = 'defense';
     label = `守り重視（目標より+${diff}打）`;
@@ -97,6 +119,9 @@ export function ManagementBand({
   scores,
   targetScore,
   holeOrder,
+  scoreLevel,
+  handicap,
+  totalOBCount = 0,
 }: ManagementBandProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -106,9 +131,18 @@ export function ManagementBand({
   );
 
   const toneInfo = useMemo(
-    () => calculateTone(scores, gamePlans, targetScore, currentHole, holeOrder),
-    [scores, gamePlans, targetScore, currentHole, holeOrder],
+    () => calculateTone(scores, gamePlans, targetScore, currentHole, holeOrder, scoreLevel),
+    [scores, gamePlans, targetScore, currentHole, holeOrder, scoreLevel],
   );
+
+  // 平均パーの計算（HC / 18 でホール当たりの追加打数を算出）
+  const avgPar = useMemo(() => {
+    if (!handicap || handicap <= 0) return null;
+    const currentPlan = gamePlans.find(p => p.hole_number === currentHole);
+    if (!currentPlan?.target_strokes) return null;
+    const hcPerHole = handicap / 18;
+    return (currentPlan.target_strokes + hcPerHole).toFixed(1);
+  }, [handicap, gamePlans, currentHole]);
 
   if (!plan) return null;
 
@@ -161,7 +195,19 @@ export function ManagementBand({
               <p className="text-sm text-gray-300 leading-snug">{plan.plan_text}</p>
             </div>
           )}
+
+          {/* 平均パー表示 */}
+          {avgPar && (
+            <p className="text-xs text-gray-500 pl-6">HC換算目安: {avgPar}打</p>
+          )}
         </>
+      )}
+
+      {/* OB累積警告 */}
+      {totalOBCount >= 2 && (
+        <p className="text-xs font-medium text-rose-400 px-1 pt-1">
+          ⚠️ 本日OB {totalOBCount}回。フェアウェイキープを最優先
+        </p>
       )}
     </div>
   );
