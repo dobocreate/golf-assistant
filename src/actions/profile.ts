@@ -30,6 +30,16 @@ export async function upsertProfile(formData: FormData): Promise<{ error?: strin
     return { error: 'ハンディキャップは0〜54の範囲で入力してください。' };
   }
 
+  const shotShape = (formData.get('shot_shape') as string) || null;
+  if (shotShape && !['straight', 'draw', 'fade'].includes(shotShape)) {
+    return { error: '持ち球の値が不正です。' };
+  }
+
+  const scoreLevel = (formData.get('score_level') as string) || null;
+  if (scoreLevel && !['beginner', 'intermediate', 'advanced', 'expert'].includes(scoreLevel)) {
+    return { error: 'スコアレベルの値が不正です。' };
+  }
+
   const profileData = {
     user_id: user.id,
     handicap,
@@ -39,6 +49,8 @@ export async function upsertProfile(formData: FormData): Promise<{ error?: strin
     favorite_shot: (formData.get('favorite_shot') as string) || null,
     favorite_distance: (formData.get('favorite_distance') as string) || null,
     situation_notes: (formData.get('situation_notes') as string) || null,
+    shot_shape: shotShape,
+    score_level: scoreLevel,
   };
 
   const supabase = await createClient();

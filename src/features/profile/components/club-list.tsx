@@ -6,6 +6,18 @@ import { Trash2, Plus, Pencil } from 'lucide-react';
 import { upsertClub, deleteClub } from '@/actions/club';
 import { CLUB_PRESETS, type Club } from '@/features/profile/types';
 
+function RateDisplay({ club }: { club: Club }) {
+  if (club.success_rate !== null) {
+    const color = club.success_rate >= 8
+      ? 'text-green-600 dark:text-green-400'
+      : club.success_rate >= 5
+        ? 'text-yellow-600 dark:text-yellow-400'
+        : 'text-red-600 dark:text-red-400';
+    return <span className={`font-medium ${color}`}>{club.success_rate}/10</span>;
+  }
+  return <span className="text-gray-400">{'★'.repeat(club.confidence)}{'☆'.repeat(5 - club.confidence)}</span>;
+}
+
 function ClubRow({
   club,
   onEdit,
@@ -18,11 +30,14 @@ function ClubRow({
   return (
     <div className="flex items-center gap-3 py-2 border-b border-gray-200 dark:border-gray-800 last:border-0">
       <span className="font-medium w-12 text-center">{club.name}</span>
-      <span className="text-sm text-gray-600 dark:text-gray-400 w-16 text-right">
+      <span className="text-sm text-gray-600 dark:text-gray-400 w-20 text-right">
         {club.distance ? `${club.distance}yd` : '-'}
+        {club.distance_half ? (
+          <span className="block text-xs text-blue-500 dark:text-blue-400">半{club.distance_half}yd</span>
+        ) : null}
       </span>
-      <span className="text-sm w-16 text-center">
-        {'★'.repeat(club.confidence)}{'☆'.repeat(5 - club.confidence)}
+      <span className="text-sm w-12 text-center">
+        <RateDisplay club={club} />
       </span>
       {club.is_weak && (
         <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded">
@@ -108,6 +123,34 @@ function ClubForm({
             min="0"
             max="400"
             defaultValue={editingClub?.distance ?? ''}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="club-distance-half" className="block text-sm font-medium mb-1">ハーフ飛距離(yd)</label>
+          <input
+            id="club-distance-half"
+            name="distance_half"
+            type="number"
+            min="0"
+            max="400"
+            defaultValue={editingClub?.distance_half ?? ''}
+            placeholder="6-7割の飛距離"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          />
+        </div>
+        <div>
+          <label htmlFor="club-success-rate" className="block text-sm font-medium mb-1">成功率(/10球)</label>
+          <input
+            id="club-success-rate"
+            name="success_rate"
+            type="number"
+            min="0"
+            max="10"
+            defaultValue={editingClub?.success_rate ?? ''}
+            placeholder="10球中の成功数"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
           />
         </div>

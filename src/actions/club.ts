@@ -43,10 +43,24 @@ export async function upsertClub(formData: FormData): Promise<{ error?: string }
     return { error: '自信度は1〜5で入力してください。' };
   }
 
+  const distanceHalfRaw = formData.get('distance_half');
+  const distanceHalf = distanceHalfRaw ? parseInt(distanceHalfRaw as string, 10) : null;
+  if (distanceHalf !== null && (isNaN(distanceHalf) || distanceHalf < 0 || distanceHalf > 400)) {
+    return { error: 'ハーフショット飛距離は0〜400の範囲で入力してください。' };
+  }
+
+  const successRateRaw = formData.get('success_rate');
+  const successRate = successRateRaw ? parseInt(successRateRaw as string, 10) : null;
+  if (successRate !== null && (isNaN(successRate) || successRate < 0 || successRate > 10)) {
+    return { error: '成功率は0〜10の範囲で入力してください。' };
+  }
+
   const clubData = {
     profile_id: profileId,
     name: clubName.trim(),
     distance,
+    distance_half: distanceHalf,
+    success_rate: successRate,
     is_weak: formData.get('is_weak') === 'true',
     confidence,
     note: (formData.get('note') as string) || null,
