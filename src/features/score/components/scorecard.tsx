@@ -233,7 +233,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </thead>
           <tbody>
             <tr>
-              <td className="px-1.5 py-3 font-bold text-white w-8">TOTAL</td>
+              <td className="px-1.5 py-3 font-bold text-white w-8">合計</td>
               <td className="px-1 py-3 text-center font-bold text-gray-300 w-9">{totalStats.totalPar}</td>
               <td className={`px-1 py-3 text-center font-bold text-2xl w-14 ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
                 {totalStats.totalCount > 0 ? totalStats.totalStrokes : '-'}
