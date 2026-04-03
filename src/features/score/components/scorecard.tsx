@@ -126,7 +126,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
         return (
           <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
-            <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
+            <table className="w-full text-sm tabular-nums table-fixed" aria-label={`${section.label}スコア`}>
               <thead>
                 <tr className="bg-gray-800 text-gray-400 text-xs">
                   <th scope="col" className="px-1.5 py-2 text-left font-bold w-8">{section.label}</th>
@@ -213,7 +213,24 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
       {/* 合計 */}
       <div className="rounded-xl border border-gray-600 bg-gray-800 overflow-x-auto">
-        <table className="w-full text-sm tabular-nums" aria-label="合計スコア">
+        <table className="w-full text-sm tabular-nums table-fixed" aria-label="合計スコア">
+          <thead className="sr-only">
+            <tr>
+              <th className="w-8" />
+              <th className="w-9" />
+              <th className="w-14" />
+              {showDetail && (
+                <>
+                  <th className="w-10" />
+                  <th className="w-8" />
+                  <th className="w-8" />
+                </>
+              )}
+              {companions.map(c => (
+                <th key={c.id} className="w-12" />
+              ))}
+            </tr>
+          </thead>
           <tbody>
             <tr>
               <td className="px-1.5 py-3 font-bold text-white w-8">TOTAL</td>
