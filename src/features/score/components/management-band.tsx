@@ -131,7 +131,7 @@ export function ManagementBand({
   handicap,
   totalOBCount = 0,
 }: ManagementBandProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const plan = useMemo(
     () => gamePlans.find(p => p.hole_number === currentHole),
@@ -205,7 +205,7 @@ export function ManagementBand({
 
           {/* 平均パー表示 */}
           {avgPar && (
-            <p className="text-xs text-gray-500 pl-6">HC換算目安: {avgPar}打</p>
+            <p className="text-sm text-gray-400 pl-6">HC換算目安: {avgPar}打</p>
           )}
         </>
       )}

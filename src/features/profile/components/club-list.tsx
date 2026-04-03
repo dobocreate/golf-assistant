@@ -189,14 +189,14 @@ function ClubForm({
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-primary min-h-[48px] px-4 py-3 text-sm text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
         >
           {loading ? (isEdit ? '更新中...' : '追加中...') : (isEdit ? '更新' : '追加')}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="rounded-lg border border-gray-300 dark:border-gray-700 min-h-[48px] px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           キャンセル
         </button>

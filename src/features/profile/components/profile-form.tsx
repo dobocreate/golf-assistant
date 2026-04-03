@@ -22,7 +22,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
     <form action={action} className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="handicap" className="block text-sm font-medium mb-1">
+          <label htmlFor="handicap" className="block text-sm font-medium mb-1.5">
             ハンディキャップ
           </label>
           <input
@@ -33,19 +33,19 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
             min="0"
             max="54"
             defaultValue={profile?.handicap ?? ''}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label htmlFor="play_style" className="block text-sm font-medium mb-1">
+          <label htmlFor="play_style" className="block text-sm font-medium mb-1.5">
             プレースタイル
           </label>
           <select
             id="play_style"
             name="play_style"
             defaultValue={profile?.play_style ?? ''}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           >
             <option value="">選択してください</option>
             {PLAY_STYLES.map((s) => (
@@ -59,14 +59,14 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="shot_shape" className="block text-sm font-medium mb-1">
+          <label htmlFor="shot_shape" className="block text-sm font-medium mb-1.5">
             持ち球
           </label>
           <select
             id="shot_shape"
             name="shot_shape"
             defaultValue={profile?.shot_shape ?? ''}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           >
             <option value="">選択してください</option>
             {SHOT_SHAPES.map((s) => (
@@ -78,14 +78,14 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
         </div>
 
         <div>
-          <label htmlFor="score_level" className="block text-sm font-medium mb-1">
+          <label htmlFor="score_level" className="block text-sm font-medium mb-1.5">
             スコアレベル
           </label>
           <select
             id="score_level"
             name="score_level"
             defaultValue={profile?.score_level ?? ''}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           >
             <option value="">選択してください</option>
             {SCORE_LEVELS.map((s) => (
@@ -98,7 +98,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
       </div>
 
       <div>
-        <label htmlFor="miss_tendency" className="block text-sm font-medium mb-1">
+        <label htmlFor="miss_tendency" className="block text-sm font-medium mb-1.5">
           ミス傾向
         </label>
         <textarea
@@ -107,12 +107,12 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           rows={2}
           defaultValue={profile?.miss_tendency ?? ''}
           placeholder="例: 力むとフック、打ち下ろしでスライス"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
         />
       </div>
 
       <div>
-        <label htmlFor="fatigue_note" className="block text-sm font-medium mb-1">
+        <label htmlFor="fatigue_note" className="block text-sm font-medium mb-1.5">
           疲労時の傾向
         </label>
         <textarea
@@ -121,13 +121,13 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           rows={2}
           defaultValue={profile?.fatigue_note ?? ''}
           placeholder="例: 後半に飛距離が落ちる、集中力低下でパットが雑になる"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="favorite_shot" className="block text-sm font-medium mb-1">
+          <label htmlFor="favorite_shot" className="block text-sm font-medium mb-1.5">
             得意なショット
           </label>
           <input
@@ -136,12 +136,12 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
             type="text"
             defaultValue={profile?.favorite_shot ?? ''}
             placeholder="例: 100yd以内のアプローチ"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label htmlFor="favorite_distance" className="block text-sm font-medium mb-1">
+          <label htmlFor="favorite_distance" className="block text-sm font-medium mb-1.5">
             得意な距離帯
           </label>
           <input
@@ -150,13 +150,13 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
             type="text"
             defaultValue={profile?.favorite_distance ?? ''}
             placeholder="例: 80〜120yd"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="situation_notes" className="block text-sm font-medium mb-1">
+        <label htmlFor="situation_notes" className="block text-sm font-medium mb-1.5">
           状況別の傾向（自由記述）
         </label>
         <textarea
@@ -165,7 +165,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           rows={3}
           defaultValue={profile?.situation_notes ?? ''}
           placeholder="例: バンカーが苦手、打ち上げではクラブ1番手上げる"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
         />
       </div>
 
@@ -181,7 +181,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-lg bg-primary px-6 py-2.5 text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        className="rounded-lg bg-primary min-h-[48px] px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
         {isPending ? '保存中...' : '保存'}
       </button>
