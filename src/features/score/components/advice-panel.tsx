@@ -109,7 +109,7 @@ export function AdvicePanel({
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="追加情報"
+          placeholder="グリーンの傾斜・速さ・ピン位置など"
           maxLength={500}
           rows={3}
           className="flex-1 min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 py-2 text-base border-0 focus:ring-2 focus:ring-blue-600 resize-none"
@@ -138,14 +138,14 @@ export function AdvicePanel({
         <button
           onClick={handleRequestAdvice}
           disabled={isStreaming}
-          className="flex-1 bg-blue-600 text-white min-h-[52px] rounded-lg text-lg font-bold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 bg-green-600 text-white min-h-[52px] rounded-lg text-lg font-bold hover:bg-green-700 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isStreaming ? 'アドバイス取得中...' : 'アドバイスを聞く'}
         </button>
         {hasSavedAdvice && (
           <button
             onClick={() => setShowSavedAdvice(true)}
-            className="min-h-[52px] min-w-[52px] flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+            className="min-h-[52px] min-w-[52px] flex items-center justify-center rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
             aria-label="保存済みアドバイスを確認"
           >
             <Eye className="h-5 w-5" />
