@@ -187,7 +187,10 @@ export function formatContextForPrompt(context: AdviceContext): string {
   if (context.clubs.length > 0) {
     const lines = ['## クラブ一覧'];
     for (const c of context.clubs as Record<string, unknown>[]) {
-      let line = `- ${c.name}: ${c.distance}y`;
+      const fullDist = Number(c.distance);
+      let line = fullDist > 0
+        ? `- ${c.name}: ${fullDist}y (6-7割: 約${Math.round(fullDist * 0.7)}y)`
+        : `- ${c.name}: 距離未設定`;
       if (c.is_weak) line += ' (苦手)';
       if (c.confidence) line += ` 自信度${c.confidence}/5`;
       if (c.note) line += ` — ${c.note}`;
@@ -304,7 +307,7 @@ export async function buildScoreContext(roundId: string, userId?: string): Promi
   const [scoresResult, holesResult] = await Promise.all([
     supabase
       .from('scores')
-      .select('hole_number, strokes, putts')
+      .select('hole_number, strokes, putts, ob_count')
       .eq('round_id', roundId)
       .order('hole_number'),
     supabase
@@ -384,10 +387,19 @@ export async function buildScoreContext(roundId: string, userId?: string): Promi
   if (lastDoubleBogeyHole !== null && lastDoubleBogeyHole === lastHoleNumber) {
     warnings.push(`直前のHole ${lastDoubleBogeyHole}でダブルボギー以上でした。気持ちを切り替えて、次の一打に集中するようアドバイスしてください。`);
   }
+  // OB累積検出
+  const totalOB = scores.reduce((sum, s) => {
+    const ob = (s as Record<string, unknown>).ob_count;
+    return sum + (typeof ob === 'number' ? ob : 0);
+  }, 0);
+  if (totalOB >= 2) {
+    warnings.push(`本日OB ${totalOB}回。OBはスコアに最も大きく響くため、確実にフェアウェイキープを最優先してください。番手を落としてでもOBを避ける戦略を推奨してください。`);
+  }
+
   if (scoringTrend === 'struggling') {
     warnings.push('直近3ホールの平均がパー+1以上です。安全策を推奨し、スコアの立て直しを優先してください。');
   } else if (scoringTrend === 'steady') {
-    warnings.push('直近3ホールはパー以下で安定しています。このリズムを維持するようアドバイスしてください。');
+    warnings.push('直近3ホールはパー以下で安定しています。このリズムを維持することを最優先し、攻め過ぎを誘発しないでください。センター狙いの安定した戦略を推奨してください。');
   }
 
   if (warnings.length > 0) {
