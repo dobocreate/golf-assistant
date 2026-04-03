@@ -26,6 +26,8 @@ interface ManagementBandProps {
 
 type Tone = 'normal' | 'attack' | 'defense';
 
+const OB_WARNING_THRESHOLD = 2;
+
 interface ToneInfo {
   tone: Tone;
   label: string;
@@ -75,26 +77,32 @@ function calculateTone(
 
   let tone: Tone;
   let label: string;
-  const isBeginnerOrIntermediate = scoreLevel === 'beginner' || scoreLevel === 'intermediate';
-
   if (diff <= -1) {
-    if (isBeginnerOrIntermediate) {
-      // 初中級者は攻めトーンを廃止。好調維持を最優先
-      tone = 'normal';
-      label = `好調維持（目標より${Math.abs(diff)}打良い）。このペースを守りましょう`;
-    } else if (scoreLevel === 'advanced' && diff <= -2) {
-      tone = 'attack';
-      label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
-    } else if (scoreLevel === 'advanced') {
-      tone = 'normal';
-      label = `好調（目標より${Math.abs(diff)}打良い）`;
-    } else if (scoreLevel === 'expert') {
-      tone = 'attack';
-      label = `攻めチャンス（目標より${Math.abs(diff)}打良い）`;
-    } else {
-      // 未設定: 安全側に倒す
-      tone = 'normal';
-      label = `好調（目標より${Math.abs(diff)}打良い）`;
+    const absDiff = Math.abs(diff);
+    switch (scoreLevel) {
+      case 'beginner':
+      case 'intermediate':
+        tone = 'normal';
+        label = `好調維持（目標より${absDiff}打良い）。このペースを守りましょう`;
+        break;
+      case 'advanced':
+        if (diff <= -2) {
+          tone = 'attack';
+          label = `攻めチャンス（目標より${absDiff}打良い）`;
+        } else {
+          tone = 'normal';
+          label = `好調（目標より${absDiff}打良い）`;
+        }
+        break;
+      case 'expert':
+        tone = 'attack';
+        label = `攻めチャンス（目標より${absDiff}打良い）`;
+        break;
+      default:
+        // 未設定: 安全側に倒す
+        tone = 'normal';
+        label = `好調（目標より${absDiff}打良い）`;
+        break;
     }
   } else if (diff >= 2) {
     tone = 'defense';
@@ -138,11 +146,10 @@ export function ManagementBand({
   // 平均パーの計算（HC / 18 でホール当たりの追加打数を算出）
   const avgPar = useMemo(() => {
     if (!handicap || handicap <= 0) return null;
-    const currentPlan = gamePlans.find(p => p.hole_number === currentHole);
-    if (!currentPlan?.target_strokes) return null;
+    if (!plan?.target_strokes) return null;
     const hcPerHole = handicap / 18;
-    return (currentPlan.target_strokes + hcPerHole).toFixed(1);
-  }, [handicap, gamePlans, currentHole]);
+    return (plan.target_strokes + hcPerHole).toFixed(1);
+  }, [handicap, plan]);
 
   if (!plan) return null;
 
@@ -204,7 +211,7 @@ export function ManagementBand({
       )}
 
       {/* OB累積警告 */}
-      {totalOBCount >= 2 && (
+      {totalOBCount >= OB_WARNING_THRESHOLD && (
         <p className="text-xs font-medium text-rose-400 px-1 pt-1">
           ⚠️ 本日OB {totalOBCount}回。フェアウェイキープを最優先
         </p>

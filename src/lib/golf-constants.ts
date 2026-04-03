@@ -14,6 +14,7 @@ export const LIE_OPTIONS: readonly { value: ShotLie; label: string; shortLabel: 
   { value: 'rough', label: 'ラフ', shortLabel: 'ラフ' },
   { value: 'bunker', label: 'バンカー', shortLabel: 'バンカー' },
   { value: 'woods', label: '林', shortLabel: '林' },
+  { value: 'green', label: 'グリーン', shortLabel: 'グリーン' },
 ];
 
 export const VALID_LIES: ShotLie[] = LIE_OPTIONS.map(l => l.value);

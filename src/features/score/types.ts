@@ -56,7 +56,7 @@ export interface Score {
 export type ShotResult = 'excellent' | 'good' | 'fair' | 'poor';
 export type DirectionLR = 'left' | 'center' | 'right';
 export type DirectionFB = 'short' | 'center' | 'long';
-export type ShotLie = 'tee' | 'fairway' | 'rough' | 'bunker' | 'woods';
+export type ShotLie = 'tee' | 'fairway' | 'rough' | 'bunker' | 'woods' | 'green';
 export type ShotSlopeFB = 'toe_up' | 'toe_down';
 export type ShotSlopeLR = 'left_up' | 'left_down';
 

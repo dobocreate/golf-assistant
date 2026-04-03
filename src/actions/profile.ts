@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { Profile } from '@/features/profile/types';
+import { SHOT_SHAPES, SCORE_LEVELS, type Profile } from '@/features/profile/types';
 
 export async function getProfile(): Promise<Profile | null> {
   const user = await getAuthenticatedUser();
@@ -31,12 +31,14 @@ export async function upsertProfile(formData: FormData): Promise<{ error?: strin
   }
 
   const shotShape = (formData.get('shot_shape') as string) || null;
-  if (shotShape && !['straight', 'draw', 'fade'].includes(shotShape)) {
+  const validShotShapes = SHOT_SHAPES.map(s => s.value) as string[];
+  if (shotShape && !validShotShapes.includes(shotShape)) {
     return { error: '持ち球の値が不正です。' };
   }
 
   const scoreLevel = (formData.get('score_level') as string) || null;
-  if (scoreLevel && !['beginner', 'intermediate', 'advanced', 'expert'].includes(scoreLevel)) {
+  const validScoreLevels = SCORE_LEVELS.map(s => s.value) as string[];
+  if (scoreLevel && !validScoreLevels.includes(scoreLevel)) {
     return { error: 'スコアレベルの値が不正です。' };
   }
 

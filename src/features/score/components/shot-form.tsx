@@ -93,6 +93,24 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           </div>
         </div>
 
+        {/* パットアドバイス */}
+        <AdvicePanel
+          roundId={roundId}
+          holeNumber={holeNumber}
+          shotNumber={slot.shotNumber}
+          lie="green"
+          slopeFb={null}
+          slopeLr={null}
+          shotType="putt"
+          remainingDistance={form.puttDistanceMeters}
+          windDirection={windDirection}
+          windStrength={windStrength}
+          weather={weather}
+          savedAdviceText={slot.shot?.advice_text}
+          onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
+          gamePlanContext={gamePlanContext}
+        />
+
         {/* ===== 区切り線 ===== */}
         <div className="border-t border-gray-700 my-1" />
 

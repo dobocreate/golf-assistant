@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       return jsonError('ショット種別が不正です。', 400);
     }
     // 既存のボタン選択値 or 数値+y パターン（例: '150y'）を許可
-    const isValidDistance = (DISTANCES as readonly string[]).includes(body.remainingDistance) || /^\d{1,3}y$/.test(body.remainingDistance);
+    const isValidDistance = (DISTANCES as readonly string[]).includes(body.remainingDistance) || /^\d{1,3}y$/.test(body.remainingDistance) || /^\d{1,2}m$/.test(body.remainingDistance);
     if (!isValidDistance) {
       return jsonError('残り距離が不正です。', 400);
     }
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     const fullContext = scoreContext
       ? `${snapshotResult.contextText}\n\n${scoreContext}`
       : snapshotResult.contextText;
-    const systemPrompt = createSystemPrompt(fullContext);
+    const systemPrompt = createSystemPrompt(fullContext, body.shotType);
     const userPrompt = createUserPrompt({
       holeNumber: body.holeNumber,
       shotType: body.shotType,
