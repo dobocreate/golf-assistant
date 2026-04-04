@@ -3,10 +3,20 @@
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
 import { AdvicePanel } from '@/features/score/components/advice-panel';
-import type { Shot, ShotFormState } from '@/features/score/types';
+import type { Shot, ShotFormState, ShotType, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
+import { ToggleButtonGrid } from '@/components/ui/toggle-button-grid';
+import { SectionHeader } from '@/components/ui/section-header';
+
+// --- ToggleButtonGrid用のオプション変換（型安全） ---
+const SHOT_TYPE_TOGGLE = SHOT_TYPE_OPTIONS.map(st => ({ value: st.value as ShotType, label: st.label }));
+const LIE_TOGGLE = LIE_OPTIONS.map(l => ({ value: l.value as ShotLie, label: l.shortLabel }));
+const SLOPE_FB_TOGGLE = SLOPE_FB_OPTIONS.map(s => ({ value: s.value as ShotSlopeFB, label: s.shortLabel }));
+const SLOPE_LR_TOGGLE = SLOPE_LR_OPTIONS.map(s => ({ value: s.value as ShotSlopeLR, label: s.shortLabel }));
+const MISS_TYPE_TOGGLE = MISS_TYPES.map(mt => ({ value: mt, label: mt }));
+const LANDING_TOGGLE = LANDINGS.map(l => ({ value: l.value as ShotLanding, label: l.label, activeColor: landingColor(l.value) }));
 
 interface ShotFormProps {
   slot: {
@@ -32,14 +42,25 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
   const showMissType = form.result === 'fair' || form.result === 'poor';
   const isPutt = form.shotType === 'putt';
 
+  // --- dispatchアダプター ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fieldUpdater = (key: keyof ShotFormState) =>
+    (value: any) => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, [key]: value }) });
+
+  const handleResultChange = (value: string | null) =>
+    dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({
+      ...f,
+      result: value as ShotFormState['result'],
+      missType: (value === 'fair' || value === 'poor') ? f.missType : null,
+    })});
+
   // パット用簡略化フォーム
   if (isPutt) {
     return (
       <div className="p-3 space-y-3 bg-gray-900">
-        {/* ===== 状況セクション ===== */}
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">パット状況</p>
+        <SectionHeader>パット状況</SectionHeader>
 
-        {/* ファーストパット距離（数値入力 + プリセット） */}
+        {/* ファーストパット距離（数値入力 + プリセット） ※number型のためToggleButtonGrid対象外 */}
         <div className="space-y-2">
           <label className="block text-xs text-gray-400">パット距離 (m)</label>
           <input
@@ -111,33 +132,26 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           gamePlanContext={gamePlanContext}
         />
 
-        {/* ===== 区切り線 ===== */}
         <div className="border-t border-gray-700 my-1" />
 
-        {/* ===== 結果セクション ===== */}
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">結果</p>
+        <SectionHeader>結果</SectionHeader>
 
-        <div className="space-y-1">
-          <div className="grid grid-cols-4 gap-2">
-            {RESULT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => dispatch({
-                  type: 'UPDATE_FIELD',
-                  index: slot.index,
-                  updater: f => ({ ...f, result: f.result === opt.value ? null : opt.value }),
-                })}
-                className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                  form.result === opt.value ? opt.activeColor : opt.color
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+        {/* 結果ボタン ※独自activeColorのためToggleButtonGrid使用 */}
+        <div className="grid grid-cols-4 gap-2">
+          {RESULT_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => handleResultChange(opt.value === form.result ? null : opt.value)}
+              className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
+                form.result === opt.value ? opt.activeColor : opt.color
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
-        {/* 方向グリッド */}
+        {/* 方向グリッド ※複合値(lr+fb)のためToggleButtonGrid対象外 */}
         <div className="space-y-1">
           <label className="block text-xs text-gray-400">方向</label>
           <div className="grid grid-cols-3 gap-1.5 max-w-[180px] mx-auto">
@@ -157,9 +171,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
                     },
                   })}
                   className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                    isSelected
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                    isSelected ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                   }`}
                 >
                   {label}
@@ -188,38 +200,24 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
   // 通常ショットフォーム
   return (
     <div className="p-3 space-y-3 bg-gray-900">
-      {/* スキップヒント */}
       {slot.isSkipped && (
         <p className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2">
           このショットはスキップされました。入力すると次の保存時に記録されます。
         </p>
       )}
 
-      {/* ===== 状況セクション ===== */}
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">状況</p>
+      <SectionHeader>状況</SectionHeader>
 
       {/* ショット種別 */}
       <div className="space-y-1">
         <label className="block text-xs text-gray-400">ショット</label>
-        <div className="grid grid-cols-3 gap-1">
-          {SHOT_TYPE_OPTIONS.map(st => (
-            <button
-              key={st.value}
-              onClick={() => dispatch({
-                type: 'UPDATE_FIELD',
-                index: slot.index,
-                updater: f => ({ ...f, shotType: f.shotType === st.value ? null : st.value }),
-              })}
-              className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                form.shotType === st.value
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              {st.label}
-            </button>
-          ))}
-        </div>
+        <ToggleButtonGrid
+          options={SHOT_TYPE_TOGGLE}
+          value={form.shotType}
+          onChange={fieldUpdater('shotType')}
+          columns={3}
+          className="gap-1"
+        />
       </div>
 
       {/* 残り距離 */}
@@ -235,11 +233,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           value={form.remainingDistance ?? ''}
           onChange={e => {
             const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
-            dispatch({
-              type: 'UPDATE_FIELD',
-              index: slot.index,
-              updater: f => ({ ...f, remainingDistance: val }),
-            });
+            dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, remainingDistance: val }) });
           }}
           className="w-full min-h-[48px] rounded-lg bg-gray-800 text-gray-200 px-3 text-sm border-0 focus:ring-2 focus:ring-green-600"
         />
@@ -248,25 +242,13 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
       {/* ライ */}
       <div className="space-y-1">
         <label className="block text-xs text-gray-400">ライ</label>
-        <div className="grid grid-cols-5 gap-1">
-          {LIE_OPTIONS.map(l => (
-            <button
-              key={l.value}
-              onClick={() => dispatch({
-                type: 'UPDATE_FIELD',
-                index: slot.index,
-                updater: f => ({ ...f, lie: f.lie === l.value ? null : l.value }),
-              })}
-              className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                form.lie === l.value
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-              }`}
-            >
-              {l.shortLabel}
-            </button>
-          ))}
-        </div>
+        <ToggleButtonGrid
+          options={LIE_TOGGLE}
+          value={form.lie}
+          onChange={fieldUpdater('lie')}
+          columns={5}
+          className="gap-1"
+        />
       </div>
 
       {/* 傾斜 */}
@@ -275,52 +257,26 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         <div className="flex gap-4">
           <div className="flex-1 space-y-1">
             <p className="text-xs text-gray-400">前後</p>
-            <div className="grid grid-cols-2 gap-1">
-              {SLOPE_FB_OPTIONS.map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: slot.index,
-                    updater: f => ({ ...f, slopeFb: f.slopeFb === s.value ? null : s.value }),
-                  })}
-                  className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                    form.slopeFb === s.value
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {s.shortLabel}
-                </button>
-              ))}
-            </div>
+            <ToggleButtonGrid
+              options={SLOPE_FB_TOGGLE}
+              value={form.slopeFb}
+              onChange={fieldUpdater('slopeFb')}
+              columns={2}
+              className="gap-1"
+            />
           </div>
           <div className="flex-1 space-y-1">
             <p className="text-xs text-gray-400">左右</p>
-            <div className="grid grid-cols-2 gap-1">
-              {SLOPE_LR_OPTIONS.map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => dispatch({
-                    type: 'UPDATE_FIELD',
-                    index: slot.index,
-                    updater: f => ({ ...f, slopeLr: f.slopeLr === s.value ? null : s.value }),
-                  })}
-                  className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                    form.slopeLr === s.value
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                  }`}
-                >
-                  {s.shortLabel}
-                </button>
-              ))}
-            </div>
+            <ToggleButtonGrid
+              options={SLOPE_LR_TOGGLE}
+              value={form.slopeLr}
+              onChange={fieldUpdater('slopeLr')}
+              columns={2}
+              className="gap-1"
+            />
           </div>
         </div>
       </div>
-
-      {/* 風はスコア画面のホールヘッダーで設定（ホール単位） */}
 
       {/* AIアドバイス */}
       <AdvicePanel
@@ -340,11 +296,9 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         gamePlanContext={gamePlanContext}
       />
 
-      {/* ===== 区切り線 ===== */}
       <div className="border-t border-gray-700 my-1" />
 
-      {/* ===== 結果セクション ===== */}
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">結果</p>
+      <SectionHeader>結果</SectionHeader>
 
       {/* クラブ */}
       {clubs.length > 0 && (
@@ -363,24 +317,14 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         </div>
       )}
 
-      {/* 結果 */}
+      {/* 結果 ※副作用(missTypeクリア)ありのためToggleButtonGrid不使用 */}
       <div className="space-y-1">
         <label className="block text-xs text-gray-400">結果</label>
         <div className="grid grid-cols-4 gap-2">
           {RESULT_OPTIONS.map(opt => (
             <button
               key={opt.value}
-              onClick={() => {
-                dispatch({
-                  type: 'UPDATE_FIELD',
-                  index: slot.index,
-                  updater: f => {
-                    const newResult = opt.value;
-                    const newMissType = (newResult !== 'fair' && newResult !== 'poor') ? null : f.missType;
-                    return { ...f, result: newResult, missType: newMissType };
-                  },
-                });
-              }}
+              onClick={() => handleResultChange(opt.value === form.result ? null : opt.value)}
               className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
                 form.result === opt.value ? opt.activeColor : opt.color
               }`}
@@ -395,29 +339,17 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
       {showMissType && (
         <div className="space-y-1">
           <label className="block text-xs text-gray-400">ミスタイプ</label>
-          <div className="grid grid-cols-3 gap-2">
-            {MISS_TYPES.map(mt => (
-              <button
-                key={mt}
-                onClick={() => dispatch({
-                  type: 'UPDATE_FIELD',
-                  index: slot.index,
-                  updater: f => ({ ...f, missType: f.missType === mt ? null : mt }),
-                })}
-                className={`min-h-[48px] rounded-lg text-sm font-bold transition-colors ${
-                  form.missType === mt
-                    ? 'bg-orange-600 text-white'
-                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                }`}
-              >
-                {mt}
-              </button>
-            ))}
-          </div>
+          <ToggleButtonGrid
+            options={MISS_TYPE_TOGGLE}
+            value={form.missType}
+            onChange={fieldUpdater('missType')}
+            columns={3}
+            itemClassName="bg-gray-800 text-gray-200 hover:bg-gray-700"
+          />
         </div>
       )}
 
-      {/* 方向 + 着地 */}
+      {/* 方向 + 着地 ※方向は複合値のため既存維持、着地はToggleButtonGrid */}
       <div className="space-y-2">
         <div className="flex gap-3">
           <div className="flex-1">
@@ -439,9 +371,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
                       },
                     })}
                     className={`min-h-[48px] rounded-lg text-lg font-bold transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      isSelected ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                     }`}
                   >
                     {label}
@@ -455,28 +385,12 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
 
           <div className="w-20">
             <label className="block text-xs text-gray-400 mb-1">着地</label>
-            <div className="grid grid-cols-1 gap-1.5">
-              {LANDINGS.map(({ value, label }) => {
-                const isSelected = form.landing === value;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => dispatch({
-                      type: 'UPDATE_FIELD',
-                      index: slot.index,
-                      updater: prev => ({
-                        ...prev, landing: prev.landing === value ? null : value
-                      }),
-                    })}
-                    className={`min-h-[48px] rounded-lg text-xs font-bold transition-colors ${
-                      isSelected ? landingColor(value) : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+            <ToggleButtonGrid
+              options={LANDING_TOGGLE}
+              value={form.landing}
+              onChange={fieldUpdater('landing')}
+              columns={1}
+            />
           </div>
         </div>
       </div>
