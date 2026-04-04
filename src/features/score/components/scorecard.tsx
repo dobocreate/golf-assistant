@@ -88,6 +88,27 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     return { totalPar, totalStrokes, totalPutts, totalCount };
   }, [holeMap, scoreMap]);
 
+  /** OUT/INのtheadと同一構造のヘッダー行（列幅を揃えるため） */
+  function renderTheadRow(label: string) {
+    return (
+      <tr className="bg-gray-800 text-gray-400 text-xs">
+        <th scope="col" className="px-1.5 py-2 text-left font-bold">{label}</th>
+        <th scope="col" className="px-1 py-2 text-center font-medium">Par</th>
+        <th scope="col" className="px-1 py-2 text-center font-bold">Score</th>
+        {showDetail && (
+          <>
+            <th scope="col" className="px-1 py-2 text-center font-medium">Putt</th>
+            <th scope="col" className="px-1 py-2 text-center font-medium">FW</th>
+            <th scope="col" className="px-1 py-2 text-center font-medium">GIR</th>
+          </>
+        )}
+        {companions.map(c => (
+          <th scope="col" key={c.id} className="px-1 py-2 text-center font-medium truncate max-w-[48px]" title={c.name}>{c.name}</th>
+        ))}
+      </tr>
+    );
+  }
+
   /** セクション小計行を描画 */
   function renderSubtotalRow(label: string, sectionHoles: number[]) {
     const sectionStrokes = sectionHoles.reduce((sum, h) => sum + (scoreMap.get(h)?.strokes ?? 0), 0);
@@ -117,9 +138,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     );
   }
 
-  // 最後のセクションを判定（TOTAL行をtfootに含める）
-  const lastSectionIdx = sections.length - 1;
-
   return (
     <div className="max-w-md mx-auto space-y-5">
       {/* ヘッダー */}
@@ -146,98 +164,83 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
         />
       )}
 
-      {sections.map((section, sectionIdx) => {
-        const isLastSection = sectionIdx === lastSectionIdx;
+      {/* セクション（OUT/IN） */}
+      {sections.map(section => (
+        <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
+          <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
+            <thead>{renderTheadRow(section.label)}</thead>
+            <tbody className="divide-y divide-gray-800">
+              {section.holes.map(h => {
+                const s = scoreMap.get(h);
+                const hole = holeMap.get(h);
+                const par = hole?.par ?? 4;
 
-        return (
-          <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
-            <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
-              <thead>
-                <tr className="bg-gray-800 text-gray-400 text-xs">
-                  <th scope="col" className="px-1.5 py-2 text-left font-bold">{section.label}</th>
-                  <th scope="col" className="px-1 py-2 text-center font-medium">Par</th>
-                  <th scope="col" className="px-1 py-2 text-center font-bold">Score</th>
-                  {showDetail && (
-                    <>
-                      <th scope="col" className="px-1 py-2 text-center font-medium">Putt</th>
-                      <th scope="col" className="px-1 py-2 text-center font-medium">FW</th>
-                      <th scope="col" className="px-1 py-2 text-center font-medium">GIR</th>
-                    </>
-                  )}
-                  {companions.map(c => (
-                    <th scope="col" key={c.id} className="px-1 py-2 text-center font-medium truncate max-w-[48px]" title={c.name}>{c.name}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {section.holes.map(h => {
-                  const s = scoreMap.get(h);
-                  const hole = holeMap.get(h);
-                  const par = hole?.par ?? 4;
-
-                  return (
-                    <tr key={h} className={`bg-gray-900 ${s ? scoreBg(s.strokes, par) : ''}`}>
-                      <td className="px-1.5 py-2 font-bold text-gray-300">{h}</td>
-                      <td className="px-1 py-2 text-center text-gray-400">{par}</td>
-                      <td className={`px-1 py-2 text-center font-bold text-xl ${s ? scoreColor(s.strokes, par) : 'text-gray-500'}`}>
-                        {s ? s.strokes : '-'}
-                      </td>
-                      {showDetail && (
-                        <>
-                          <td className="px-1 py-2 text-center text-gray-300">{s?.putts ?? '-'}</td>
-                          <td className={`px-1 py-2 text-center ${s?.fairway_hit === true ? 'text-green-400' : s?.fairway_hit === false ? 'text-red-400' : 'text-gray-500'}`}>
-                            {s?.fairway_hit === true ? '○' : s?.fairway_hit === false ? '×' : '-'}
-                          </td>
-                          <td className={`px-1 py-2 text-center ${s?.green_in_reg === true ? 'text-green-400' : s?.green_in_reg === false ? 'text-red-400' : 'text-gray-500'}`}>
-                            {s?.green_in_reg === true ? '○' : s?.green_in_reg === false ? '×' : '-'}
-                          </td>
-                        </>
-                      )}
-                      {companions.map(c => {
-                        const cs = companionScoreMap.get(c.id)?.get(h);
-                        return (
-                          <td key={c.id} className={`px-1 py-2 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
-                            {cs?.strokes ?? '-'}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-
-                {/* 小計行 */}
-                {renderSubtotalRow(section.label, section.holes)}
-              </tbody>
-
-              {/* 合計行: 最後のセクションテーブルのtfootに統合 */}
-              {isLastSection && (
-                <tfoot>
-                  <tr className="bg-gray-800 border-t-4 border-gray-600">
-                    <td className="px-1.5 py-3 font-bold text-white">合計</td>
-                    <td className="px-1 py-3 text-center font-bold text-gray-300">{totalStats.totalPar}</td>
-                    <td className={`px-1 py-3 text-center font-bold text-2xl ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
-                      {totalStats.totalCount > 0 ? totalStats.totalStrokes : '-'}
+                return (
+                  <tr key={h} className={`bg-gray-900 ${s ? scoreBg(s.strokes, par) : ''}`}>
+                    <td className="px-1.5 py-2 font-bold text-gray-300">{h}</td>
+                    <td className="px-1 py-2 text-center text-gray-400">{par}</td>
+                    <td className={`px-1 py-2 text-center font-bold text-xl ${s ? scoreColor(s.strokes, par) : 'text-gray-500'}`}>
+                      {s ? s.strokes : '-'}
                     </td>
                     {showDetail && (
                       <>
-                        <td className="px-1 py-3 text-center font-bold text-gray-300">{totalStats.totalCount > 0 ? totalStats.totalPutts : '-'}</td>
-                        <td className="px-1 py-3 text-center text-xs text-gray-400">{calcHitRate(ALL_HOLES, scoreMap, 'fairway_hit')}</td>
-                        <td className="px-1 py-3 text-center text-xs text-gray-400">{calcHitRate(ALL_HOLES, scoreMap, 'green_in_reg')}</td>
+                        <td className="px-1 py-2 text-center text-gray-300">{s?.putts ?? '-'}</td>
+                        <td className={`px-1 py-2 text-center ${s?.fairway_hit === true ? 'text-green-400' : s?.fairway_hit === false ? 'text-red-400' : 'text-gray-500'}`}>
+                          {s?.fairway_hit === true ? '○' : s?.fairway_hit === false ? '×' : '-'}
+                        </td>
+                        <td className={`px-1 py-2 text-center ${s?.green_in_reg === true ? 'text-green-400' : s?.green_in_reg === false ? 'text-red-400' : 'text-gray-500'}`}>
+                          {s?.green_in_reg === true ? '○' : s?.green_in_reg === false ? '×' : '-'}
+                        </td>
                       </>
                     )}
                     {companions.map(c => {
-                      const csMap = companionScoreMap.get(c.id);
-                      const ct = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
-                      const cc = ALL_HOLES.filter(h => csMap?.get(h)?.strokes != null).length;
-                      return <td key={c.id} className="px-1 py-3 text-center font-bold text-gray-200">{cc > 0 ? ct : '-'}</td>;
+                      const cs = companionScoreMap.get(c.id)?.get(h);
+                      return (
+                        <td key={c.id} className={`px-1 py-2 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
+                          {cs?.strokes ?? '-'}
+                        </td>
+                      );
                     })}
                   </tr>
-                </tfoot>
+                );
+              })}
+              {renderSubtotalRow(section.label, section.holes)}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      {/* 合計（OUT/INと同じthead構造で列幅を揃える） */}
+      <div className="rounded-xl border border-gray-600 overflow-x-auto">
+        <table className="w-full text-sm tabular-nums" aria-label="合計スコア">
+          {/* 非表示のthead: OUT/INと同じ列構造を持たせて列幅を揃える */}
+          <thead className="h-0 overflow-hidden" aria-hidden="true">
+            {renderTheadRow('合計')}
+          </thead>
+          <tbody>
+            <tr className="bg-gray-800">
+              <td className="px-1.5 py-3 font-bold text-white">合計</td>
+              <td className="px-1 py-3 text-center font-bold text-gray-300">{totalStats.totalPar}</td>
+              <td className={`px-1 py-3 text-center font-bold text-2xl ${totalStats.totalCount > 0 ? scoreColor(totalStats.totalStrokes, totalStats.totalPar) : 'text-white'}`}>
+                {totalStats.totalCount > 0 ? totalStats.totalStrokes : '-'}
+              </td>
+              {showDetail && (
+                <>
+                  <td className="px-1 py-3 text-center font-bold text-gray-300">{totalStats.totalCount > 0 ? totalStats.totalPutts : '-'}</td>
+                  <td className="px-1 py-3 text-center text-xs text-gray-400">{calcHitRate(ALL_HOLES, scoreMap, 'fairway_hit')}</td>
+                  <td className="px-1 py-3 text-center text-xs text-gray-400">{calcHitRate(ALL_HOLES, scoreMap, 'green_in_reg')}</td>
+                </>
               )}
-            </table>
-          </div>
-        );
-      })}
+              {companions.map(c => {
+                const csMap = companionScoreMap.get(c.id);
+                const ct = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                const cc = ALL_HOLES.filter(h => csMap?.get(h)?.strokes != null).length;
+                return <td key={c.id} className="px-1 py-3 text-center font-bold text-gray-200">{cc > 0 ? ct : '-'}</td>;
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       {/* BottomNav高さ(~80px) + safe area分のスペーサー */}
       <div className="h-28" />
