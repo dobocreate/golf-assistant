@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
-import { Save, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Save } from 'lucide-react';
+import { HoleNavigation } from '@/components/ui/hole-navigation';
+import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { CompanionWithScores } from '@/features/score/types';
@@ -214,39 +216,19 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
 
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden">
-      <div className="bg-gray-800 px-2 py-2 flex items-center justify-between">
-        <button
-          onClick={() => prevHole && switchHole(prevHole)}
-          disabled={prevHole === null}
-          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
-          aria-label="前のホール"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <span className="text-sm font-bold text-gray-200">
-          Hole {editingHole} 同伴者スコア
-        </span>
-        {saveResult === 'saved' && (
-          <span className="flex items-center gap-1 text-xs text-green-400">
-            <Check className="h-3 w-3" />
-            保存済み
+      <HoleNavigation
+        prevHole={prevHole}
+        nextHole={nextHole}
+        onNavigate={switchHole}
+        className="bg-gray-800 px-2 py-2"
+      >
+        <div className="flex items-center gap-2 justify-center">
+          <span className="text-sm font-bold text-gray-200">
+            Hole {editingHole} 同伴者スコア
           </span>
-        )}
-        {saveResult === 'error' && (
-          <span className="flex items-center gap-1 text-xs text-red-400">
-            <AlertCircle className="h-3 w-3" />
-            保存失敗
-          </span>
-        )}
-        <button
-          onClick={() => nextHole && switchHole(nextHole)}
-          disabled={nextHole === null}
-          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-white disabled:opacity-30 transition-colors"
-          aria-label="次のホール"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      </div>
+          <SaveStatusIndicator status={saveResult} compact showLabel={false} />
+        </div>
+      </HoleNavigation>
 
       <div className="p-3 space-y-3 bg-gray-900">
         {companionData.map(({ companion }) => {
