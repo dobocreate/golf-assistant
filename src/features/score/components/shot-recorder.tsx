@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { Plus, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
 import { hasFormChanged, type ClubOption } from '@/features/score/shot-constants';
@@ -76,26 +77,11 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <label className="block text-sm font-bold text-gray-200">ショット記録</label>
-          {saveStatus === 'saving' && (
-            <span className="flex items-center gap-1 text-xs text-gray-400">
-              <Loader2 className="h-3 w-3 animate-spin" />
-            </span>
-          )}
-          {saveStatus === 'saved' && (
-            <span className="flex items-center gap-1 text-xs text-green-400">
-              <Check className="h-3 w-3" />
-            </span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="flex items-center gap-1 text-xs text-red-400">
-              <AlertCircle className="h-3 w-3" />
-              保存失敗
-            </span>
-          )}
+          <SaveStatusIndicator status={saveStatus} compact showLabel={false} />
         </div>
         <button
           onClick={handleAddShot}
-          className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-gray-800 text-green-400 hover:bg-gray-700 transition-colors"
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-green-400 hover:bg-gray-700 transition-colors"
           aria-label="ショットを追加"
         >
           <Plus className="h-5 w-5" />
