@@ -5,6 +5,7 @@ import { Pencil, ExternalLink } from 'lucide-react';
 import type { Knowledge } from '@/features/knowledge/types';
 import { KnowledgeForm } from '@/features/knowledge/components/knowledge-form';
 import { DeleteKnowledgeButton } from '@/features/knowledge/components/delete-knowledge-button';
+import { Button } from '@/components/ui/button';
 
 export function KnowledgeDetail({ knowledge }: { knowledge: Knowledge }) {
   const [editing, setEditing] = useState(false);
@@ -14,13 +15,9 @@ export function KnowledgeDetail({ knowledge }: { knowledge: Knowledge }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">ナレッジを編集</h1>
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            className="min-h-[48px] rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
+          <Button variant="outline" onClick={() => setEditing(false)}>
             キャンセル
-          </button>
+          </Button>
         </div>
         <KnowledgeForm knowledge={knowledge} />
       </div>
@@ -70,14 +67,10 @@ export function KnowledgeDetail({ knowledge }: { knowledge: Knowledge }) {
       )}
 
       <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="inline-flex items-center gap-1.5 min-h-[48px] rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-500 transition-colors"
-        >
-          <Pencil className="h-4 w-4" />
+        <Button onClick={() => setEditing(true)}>
+          <Pencil className="h-4 w-4 mr-1.5" />
           編集
-        </button>
+        </Button>
         <DeleteKnowledgeButton id={knowledge.id} />
       </div>
     </div>

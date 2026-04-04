@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Pencil } from 'lucide-react';
 import { upsertClub, deleteClub } from '@/actions/club';
 import { CLUB_PRESETS, type Club } from '@/features/profile/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 function RateDisplay({ club }: { club: Club }) {
   if (club.success_rate !== null) {
@@ -48,22 +51,24 @@ function ClubRow({
         </span>
       )}
       <span className="flex-1" />
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="md"
         onClick={() => onEdit(club)}
-        className="p-2 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-primary transition-colors"
+        className="p-2 min-w-[48px] text-gray-400 hover:text-primary hover:bg-transparent"
         aria-label={`${club.name}を編集`}
       >
         <Pencil className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="ghost"
+        size="md"
         onClick={() => onDelete(club.id)}
-        className="p-2 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+        className="p-2 min-w-[48px] text-gray-400 hover:text-red-500 hover:bg-transparent"
         aria-label={`${club.name}を削除`}
       >
         <Trash2 className="h-4 w-4" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -90,87 +95,68 @@ function ClubForm({
       {editingClub && <input type="hidden" name="id" value={editingClub.id} />}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="club-name" className="block text-sm font-medium mb-1">クラブ名</label>
-          <select
-            id="club-name"
+          <Select
+            label="クラブ名"
             name="name"
             required
             defaultValue={editingClub ? (isPreset ? editingClub.name : '__custom__') : ''}
             onChange={(e) => setIsCustom(e.target.value === '__custom__')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
           >
             <option value="">選択</option>
             {CLUB_PRESETS.map((preset) => (
               <option key={preset} value={preset}>{preset}</option>
             ))}
             <option value="__custom__">カスタム</option>
-          </select>
+          </Select>
           {isCustom && (
-            <input
-              id="club-custom-name"
+            <Input
               name="custom_name"
               type="text"
               required
               defaultValue={editingClub && !isPreset ? editingClub.name : ''}
               placeholder="クラブ名を入力"
-              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+              className="mt-2"
             />
           )}
         </div>
-        <div>
-          <label htmlFor="club-distance" className="block text-sm font-medium mb-1">飛距離(yd)</label>
-          <input
-            id="club-distance"
-            name="distance"
-            type="number"
-            min="0"
-            max="400"
-            defaultValue={editingClub?.distance ?? ''}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
+        <Input
+          label="飛距離(yd)"
+          name="distance"
+          type="number"
+          min="0"
+          max="400"
+          defaultValue={editingClub?.distance ?? ''}
+        />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="club-distance-half" className="block text-sm font-medium mb-1">ハーフ飛距離(yd)</label>
-          <input
-            id="club-distance-half"
-            name="distance_half"
-            type="number"
-            min="0"
-            max="400"
-            defaultValue={editingClub?.distance_half ?? ''}
-            placeholder="6-7割の飛距離"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
-        <div>
-          <label htmlFor="club-success-rate" className="block text-sm font-medium mb-1">成功率(/10球)</label>
-          <input
-            id="club-success-rate"
-            name="success_rate"
-            type="number"
-            min="0"
-            max="10"
-            defaultValue={editingClub?.success_rate ?? ''}
-            placeholder="10球中の成功数"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
+        <Input
+          label="ハーフ飛距離(yd)"
+          name="distance_half"
+          type="number"
+          min="0"
+          max="400"
+          defaultValue={editingClub?.distance_half ?? ''}
+          placeholder="6-7割の飛距離"
+        />
+        <Input
+          label="成功率(/10球)"
+          name="success_rate"
+          type="number"
+          min="0"
+          max="10"
+          defaultValue={editingClub?.success_rate ?? ''}
+          placeholder="10球中の成功数"
+        />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="club-confidence" className="block text-sm font-medium mb-1">自信度(1-5)</label>
-          <input
-            id="club-confidence"
-            name="confidence"
-            type="number"
-            min="1"
-            max="5"
-            defaultValue={editingClub?.confidence ?? 3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
+        <Input
+          label="自信度(1-5)"
+          name="confidence"
+          type="number"
+          min="1"
+          max="5"
+          defaultValue={editingClub?.confidence ?? 3}
+        />
         <div className="flex items-end gap-2 pb-1">
           <label htmlFor="club-is-weak" className="flex items-center gap-2 text-sm">
             <input
@@ -186,20 +172,12 @@ function ClubForm({
         </div>
       </div>
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-primary min-h-[48px] px-4 py-3 text-sm text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" isLoading={loading}>
           {loading ? (isEdit ? '更新中...' : '追加中...') : (isEdit ? '更新' : '追加')}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 min-h-[48px] px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-        >
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
           キャンセル
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -302,14 +280,14 @@ export function ClubList({ clubs, profileExists }: { clubs: Club[]; profileExist
               onCancel={handleCancelForm}
             />
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={() => { setFormState('new'); setError(null); }}
-              className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary transition-colors"
+              className="border-dashed border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 mr-2" />
               クラブを追加
-            </button>
+            </Button>
           )}
         </div>
       )}
