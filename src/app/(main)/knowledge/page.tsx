@@ -1,9 +1,9 @@
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { BookOpen, Plus } from 'lucide-react';
 import { getKnowledgeList } from '@/actions/knowledge';
 import { KnowledgeListClient } from '@/features/knowledge/components/knowledge-list-client';
+import { ButtonLink } from '@/components/ui/button';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -28,13 +28,10 @@ export default async function KnowledgePage({
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">ナレッジベース</h1>
-        <Link
-          href="/knowledge/new"
-          className="inline-flex items-center gap-1.5 min-h-[48px] rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
-        >
-          <Plus className="h-4 w-4" />
+        <ButtonLink href="/knowledge/new">
+          <Plus className="h-4 w-4 mr-1.5" />
           追加
-        </Link>
+        </ButtonLink>
       </div>
 
       {allItems.length === 0 ? (
@@ -46,13 +43,10 @@ export default async function KnowledgePage({
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
             練習で学んだコツやコース攻略のメモを記録しましょう
           </p>
-          <Link
-            href="/knowledge/new"
-            className="inline-flex items-center justify-center min-h-[48px] rounded-lg bg-green-600 px-6 py-3 font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
-          >
+          <ButtonLink href="/knowledge/new">
             <Plus className="h-4 w-4 mr-2" />
             最初のナレッジを追加
-          </Link>
+          </ButtonLink>
         </div>
       ) : (
         <KnowledgeListClient

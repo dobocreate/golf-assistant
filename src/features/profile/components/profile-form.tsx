@@ -3,6 +3,10 @@
 import { useActionState } from 'react';
 import { upsertProfile } from '@/actions/profile';
 import { PLAY_STYLES, SHOT_SHAPES, SCORE_LEVELS, type Profile } from '@/features/profile/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type FormState =
   | { success: true; error?: never }
@@ -21,153 +25,99 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
   return (
     <form action={action} className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="handicap" className="block text-sm font-medium mb-1.5">
-            ハンディキャップ
-          </label>
-          <input
-            id="handicap"
-            name="handicap"
-            type="number"
-            step="0.1"
-            min="0"
-            max="54"
-            defaultValue={profile?.handicap ?? ''}
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          />
-        </div>
+        <Input
+          label="ハンディキャップ"
+          name="handicap"
+          type="number"
+          step="0.1"
+          min="0"
+          max="54"
+          defaultValue={profile?.handicap ?? ''}
+        />
 
-        <div>
-          <label htmlFor="play_style" className="block text-sm font-medium mb-1.5">
-            プレースタイル
-          </label>
-          <select
-            id="play_style"
-            name="play_style"
-            defaultValue={profile?.play_style ?? ''}
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          >
-            <option value="">選択してください</option>
-            {PLAY_STYLES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="プレースタイル"
+          name="play_style"
+          defaultValue={profile?.play_style ?? ''}
+        >
+          <option value="">選択してください</option>
+          {PLAY_STYLES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="shot_shape" className="block text-sm font-medium mb-1.5">
-            持ち球
-          </label>
-          <select
-            id="shot_shape"
-            name="shot_shape"
-            defaultValue={profile?.shot_shape ?? ''}
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          >
-            <option value="">選択してください</option>
-            {SHOT_SHAPES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="持ち球"
+          name="shot_shape"
+          defaultValue={profile?.shot_shape ?? ''}
+        >
+          <option value="">選択してください</option>
+          {SHOT_SHAPES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
 
-        <div>
-          <label htmlFor="score_level" className="block text-sm font-medium mb-1.5">
-            スコアレベル
-          </label>
-          <select
-            id="score_level"
-            name="score_level"
-            defaultValue={profile?.score_level ?? ''}
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          >
-            <option value="">選択してください</option>
-            {SCORE_LEVELS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="スコアレベル"
+          name="score_level"
+          defaultValue={profile?.score_level ?? ''}
+        >
+          <option value="">選択してください</option>
+          {SCORE_LEVELS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
-      <div>
-        <label htmlFor="miss_tendency" className="block text-sm font-medium mb-1.5">
-          ミス傾向
-        </label>
-        <textarea
-          id="miss_tendency"
-          name="miss_tendency"
-          rows={2}
-          defaultValue={profile?.miss_tendency ?? ''}
-          placeholder="例: 力むとフック、打ち下ろしでスライス"
-          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-        />
-      </div>
+      <Textarea
+        label="ミス傾向"
+        name="miss_tendency"
+        rows={2}
+        defaultValue={profile?.miss_tendency ?? ''}
+        placeholder="例: 力むとフック、打ち下ろしでスライス"
+      />
 
-      <div>
-        <label htmlFor="fatigue_note" className="block text-sm font-medium mb-1.5">
-          疲労時の傾向
-        </label>
-        <textarea
-          id="fatigue_note"
-          name="fatigue_note"
-          rows={2}
-          defaultValue={profile?.fatigue_note ?? ''}
-          placeholder="例: 後半に飛距離が落ちる、集中力低下でパットが雑になる"
-          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-        />
-      </div>
+      <Textarea
+        label="疲労時の傾向"
+        name="fatigue_note"
+        rows={2}
+        defaultValue={profile?.fatigue_note ?? ''}
+        placeholder="例: 後半に飛距離が落ちる、集中力低下でパットが雑になる"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="favorite_shot" className="block text-sm font-medium mb-1.5">
-            得意なショット
-          </label>
-          <input
-            id="favorite_shot"
-            name="favorite_shot"
-            type="text"
-            defaultValue={profile?.favorite_shot ?? ''}
-            placeholder="例: 100yd以内のアプローチ"
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          />
-        </div>
+        <Input
+          label="得意なショット"
+          name="favorite_shot"
+          type="text"
+          defaultValue={profile?.favorite_shot ?? ''}
+          placeholder="例: 100yd以内のアプローチ"
+        />
 
-        <div>
-          <label htmlFor="favorite_distance" className="block text-sm font-medium mb-1.5">
-            得意な距離帯
-          </label>
-          <input
-            id="favorite_distance"
-            name="favorite_distance"
-            type="text"
-            defaultValue={profile?.favorite_distance ?? ''}
-            placeholder="例: 80〜120yd"
-            className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="situation_notes" className="block text-sm font-medium mb-1.5">
-          状況別の傾向（自由記述）
-        </label>
-        <textarea
-          id="situation_notes"
-          name="situation_notes"
-          rows={3}
-          defaultValue={profile?.situation_notes ?? ''}
-          placeholder="例: バンカーが苦手、打ち上げではクラブ1番手上げる"
-          className="w-full min-h-[48px] rounded-lg border border-gray-300 px-3 py-3 text-base dark:border-gray-700 dark:bg-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+        <Input
+          label="得意な距離帯"
+          name="favorite_distance"
+          type="text"
+          defaultValue={profile?.favorite_distance ?? ''}
+          placeholder="例: 80〜120yd"
         />
       </div>
+
+      <Textarea
+        label="状況別の傾向（自由記述）"
+        name="situation_notes"
+        rows={3}
+        defaultValue={profile?.situation_notes ?? ''}
+        placeholder="例: バンカーが苦手、打ち上げではクラブ1番手上げる"
+      />
 
       {'error' in state && state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
@@ -178,13 +128,9 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-primary min-h-[48px] px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" size="lg" isLoading={isPending}>
         {isPending ? '保存中...' : '保存'}
-      </button>
+      </Button>
     </form>
   );
 }

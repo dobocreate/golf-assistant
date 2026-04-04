@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, X, ChevronRight, Plus } from 'lucide-react';
 import { KNOWLEDGE_CATEGORIES, type Knowledge, type KnowledgeCategory } from '@/features/knowledge/types';
+import { Button, ButtonLink } from '@/components/ui/button';
 
 const ALL_TAB = 'すべて';
 const ITEMS_PER_PAGE = 10;
@@ -165,7 +166,7 @@ export function KnowledgeListClient({
             setVisibleCount(ITEMS_PER_PAGE);
           }}
           placeholder="タイトル・本文・タグで検索"
-          className="w-full min-h-[48px] pl-11 pr-10 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-base placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all"
+          className="w-full min-h-[48px] pl-11 pr-10 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-base placeholder:text-gray-400 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none transition-all"
         />
         {searchQuery && (
           <button
@@ -185,11 +186,12 @@ export function KnowledgeListClient({
             const isActive = tab === ALL_TAB ? !currentCategory : currentCategory === tab;
             const count = tab === ALL_TAB ? allItems.length : (categoryCounts[tab] || 0);
             return (
-              <button
+              <Button
                 key={tab}
-                type="button"
+                size="sm"
+                variant={isActive ? 'primary' : 'ghost'}
                 onClick={() => handleCategoryClick(tab)}
-                className={`shrink-0 min-h-[48px] rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                className={`shrink-0 ${
                   isActive
                     ? 'bg-green-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -199,7 +201,7 @@ export function KnowledgeListClient({
                 <span className={`ml-1.5 text-xs ${isActive ? 'text-green-200' : 'text-gray-400 dark:text-gray-500'}`}>
                   {count}
                 </span>
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -223,13 +225,12 @@ export function KnowledgeListClient({
               : `「${currentCategory}」のナレッジがありません`}
           </p>
           {!searchQuery && (
-            <Link
-              href="/knowledge/new"
-              className="inline-flex items-center justify-center mt-4 min-h-[48px] rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              このカテゴリに追加
-            </Link>
+            <div className="mt-4">
+              <ButtonLink href="/knowledge/new">
+                <Plus className="h-4 w-4 mr-1.5" />
+                このカテゴリに追加
+              </ButtonLink>
+            </div>
           )}
         </div>
       ) : showGrouped ? (
@@ -257,13 +258,14 @@ export function KnowledgeListClient({
           })}
 
           {hasMore && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              fullWidth
               onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
-              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.96] transition-all"
+              className="rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               もっと見る（残り{displayItems.length - visibleCount}件）
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -274,13 +276,14 @@ export function KnowledgeListClient({
           ))}
 
           {hasMore && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              fullWidth
               onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
-              className="w-full min-h-[48px] rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-[0.96] transition-all"
+              className="rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               もっと見る（残り{displayItems.length - visibleCount}件）
-            </button>
+            </Button>
           )}
         </div>
       )}
