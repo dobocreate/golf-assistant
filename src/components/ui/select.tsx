@@ -1,55 +1,47 @@
 'use client';
 
-import { type InputHTMLAttributes, forwardRef, useId } from 'react';
+import { type SelectHTMLAttributes, forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils';
 
-type InputSize = 'sm' | 'md';
-
-interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
-  /** @default 'md' */
-  inputSize?: InputSize;
 }
 
-const sizeStyles: Record<InputSize, string> = {
-  sm: 'min-h-[36px] text-sm',
-  md: 'min-h-[48px] text-base',
-};
-
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, inputSize = 'md', id, className, ...props }, ref) => {
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, id, className, children, ...props }, ref) => {
     const generatedId = useId();
-    const inputId = id ?? generatedId;
-    const errorId = error ? `${inputId}-error` : undefined;
+    const selectId = id ?? generatedId;
+    const errorId = error ? `${selectId}-error` : undefined;
 
     return (
       <div className="space-y-1">
         {label && (
           <label
-            htmlFor={inputId}
+            htmlFor={selectId}
             className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             {label}
           </label>
         )}
-        <input
+        <select
           ref={ref}
-          id={inputId}
+          id={selectId}
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           className={cn(
-            'block w-full rounded-lg border border-gray-300 px-3 py-2 placeholder:text-gray-400',
+            'block w-full rounded-lg border border-gray-300 px-3 py-2 min-h-[48px] text-base placeholder:text-gray-400',
             'focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500',
             'dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
             'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-            sizeStyles[inputSize],
             error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
             className,
           )}
           {...props}
-        />
+        >
+          {children}
+        </select>
         {error && (
           <p id={errorId} className="text-sm text-red-600">
             {error}
@@ -60,4 +52,4 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   },
 );
 
-Input.displayName = 'Input';
+Select.displayName = 'Select';
