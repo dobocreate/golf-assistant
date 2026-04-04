@@ -172,7 +172,7 @@ export function KnowledgeListClient({
           <button
             type="button"
             onClick={() => setSearchQuery('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg"
+            className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg"
           >
             <X className="h-5 w-5" />
           </button>
