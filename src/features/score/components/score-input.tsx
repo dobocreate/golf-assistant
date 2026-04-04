@@ -648,7 +648,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         <button
           onClick={handleSave}
           disabled={strokes === null || isPending}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save className="h-4 w-4" />
           {isPending ? '保存中...' : '保存'}
@@ -656,7 +656,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         {editMode && (
           <Link
             href={`/rounds/${roundId}`}
-            className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-500 transition-colors"
+            className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
           >
             <CheckCircle className="h-4 w-4" />
             完了

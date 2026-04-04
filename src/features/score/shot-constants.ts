@@ -5,7 +5,7 @@ export interface ClubOption {
 }
 
 export const RESULT_OPTIONS: { value: ShotResult; label: string; color: string; activeColor: string }[] = [
-  { value: 'excellent', label: '\u25CE', color: 'bg-gray-800 text-gray-200 hover:bg-gray-700', activeColor: 'bg-yellow-600 text-white' },
+  { value: 'excellent', label: '\u25CE', color: 'bg-gray-800 text-gray-200 hover:bg-gray-700', activeColor: 'bg-amber-500 text-white' },
   { value: 'good', label: '\u25CB', color: 'bg-gray-800 text-gray-200 hover:bg-gray-700', activeColor: 'bg-green-600 text-white' },
   { value: 'fair', label: '\u25B3', color: 'bg-gray-800 text-gray-200 hover:bg-gray-700', activeColor: 'bg-orange-600 text-white' },
   { value: 'poor', label: '\u2715', color: 'bg-gray-800 text-gray-200 hover:bg-gray-700', activeColor: 'bg-red-600 text-white' },
@@ -23,7 +23,7 @@ export function landingColor(value: ShotLanding): string {
   switch (value) {
     case 'ob': return 'bg-red-600 text-white';
     case 'water': return 'bg-blue-600 text-white';
-    case 'bunker': return 'bg-yellow-600 text-white';
+    case 'bunker': return 'bg-amber-500 text-white';
   }
 }
 
