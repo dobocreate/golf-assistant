@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { createGamePlanSet, deleteGamePlanSet } from '@/actions/game-plan-set';
 import type { GamePlanSet } from '@/features/game-plan/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface Course {
   id: string;
@@ -67,23 +69,26 @@ export function GamePlanSetList({ sets, courses }: GamePlanSetListProps) {
     <div className="space-y-4">
       {/* 新規作成ボタン */}
       {!showCreateForm ? (
-        <button
+        <Button
           onClick={() => setShowCreateForm(true)}
-          className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-green-500 hover:text-green-600 transition-colors"
+          variant="outline"
+          size="md"
+          fullWidth
+          className="gap-2 border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-green-500 hover:text-green-600"
         >
           <Plus className="h-5 w-5" />
           新しいプランを作成
-        </button>
+        </Button>
       ) : (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-          <h3 className="text-sm font-bold">新しいプランを作成</h3>
+          <h3 className="text-sm font-semibold">新しいプランを作成</h3>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">コース</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">コース</label>
             <select
               value={selectedCourseId}
               onChange={e => setSelectedCourseId(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              className="w-full min-h-[48px] rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-base text-gray-900 dark:text-gray-200 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             >
               <option value="">選択してください</option>
               {courses.map(c => (
@@ -92,48 +97,50 @@ export function GamePlanSetList({ sets, courses }: GamePlanSetListProps) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">プラン名</label>
-            <input
-              type="text"
-              value={planName}
-              onChange={e => setPlanName(e.target.value)}
-              placeholder="例: 攻めプラン、安全プラン"
-              maxLength={100}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            />
-          </div>
+          <Input
+            label="プラン名"
+            type="text"
+            value={planName}
+            onChange={e => setPlanName(e.target.value)}
+            placeholder="例: 攻めプラン、安全プラン"
+            maxLength={100}
+            inputSize="sm"
+          />
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">目標スコア（任意）</label>
-            <input
-              type="number"
-              min={50}
-              max={200}
-              value={targetScore}
-              onChange={e => setTargetScore(e.target.value)}
-              placeholder="例: 92"
-              className="w-32 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            />
-          </div>
+          <Input
+            label="目標スコア（任意）"
+            type="number"
+            min={50}
+            max={200}
+            value={targetScore}
+            onChange={e => setTargetScore(e.target.value)}
+            placeholder="例: 92"
+            inputSize="sm"
+            className="w-32"
+          />
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={handleCreate}
               disabled={isPending || !selectedCourseId || !planName.trim()}
-              className="min-h-[48px] flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              size="md"
+              isLoading={isPending}
+              className="flex-1 gap-2 font-bold"
             >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              <Plus className="h-4 w-4" />
               作成
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => { setShowCreateForm(false); setError(''); }}
-              className="min-h-[48px] px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              variant="ghost"
+              size="md"
+              className="text-gray-500"
             >
               キャンセル
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -145,11 +152,11 @@ export function GamePlanSetList({ sets, courses }: GamePlanSetListProps) {
 
       {Array.from(grouped.entries()).map(([courseId, { courseName, plans }]) => (
         <div key={courseId} className="space-y-2">
-          <h3 className="text-sm font-bold text-gray-500">{courseName}</h3>
+          <h3 className="text-sm font-semibold text-gray-500">{courseName}</h3>
           {plans.map(plan => (
             <div
               key={plan.id}
-              className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              className="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <Link href={`/game-plans/${plan.id}`} className="flex-1 min-w-0">
                 <p className="font-bold truncate">{plan.name}</p>
@@ -157,14 +164,16 @@ export function GamePlanSetList({ sets, courses }: GamePlanSetListProps) {
                   {plan.target_score ? `目標: ${plan.target_score}` : '目標未設定'}
                 </p>
               </Link>
-              <button
+              <Button
                 onClick={() => handleDelete(plan.id)}
                 disabled={isPending}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                variant="ghost"
+                size="sm"
+                className="min-h-[48px] min-w-[48px] text-gray-400 hover:text-red-500"
                 aria-label="プランを削除"
               >
                 <Trash2 className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
