@@ -2,7 +2,11 @@
 
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Save, Check, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Save, CheckCircle } from 'lucide-react';
+import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
+import { HoleNavigation } from '@/components/ui/hole-navigation';
+import { Stepper } from '@/components/ui/stepper';
+import { ToggleButtonGrid, type ToggleOption } from '@/components/ui/toggle-button-grid';
 import { upsertScore } from '@/actions/score';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
@@ -12,6 +16,11 @@ import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
+
+const WIND_DIR_OPTIONS: ToggleOption<WindDirection>[] =
+  (Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([value, label]) => ({ value, label }));
+const WIND_STR_OPTIONS: ToggleOption<WindStrength>[] =
+  (Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([value, label]) => ({ value, label }));
 
 interface ClubOption {
   name: string;
@@ -373,46 +382,19 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ヘッダー: コース名 + 保存状態 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
-        {/* 同期状態インジケーター */}
-        {saveStatus === 'saving' && (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            保存中
-          </span>
-        )}
-        {saveStatus === 'saved' && (
-          <span className="flex items-center gap-1 text-xs text-green-400">
-            <Check className="h-3 w-3" />
-            保存済み
-          </span>
-        )}
-        {saveStatus === 'error' && (
-          <button
-            onClick={() => {
-              if (failedSave) {
-                saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId);
-              }
-            }}
-            className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
-          >
-            <AlertCircle className="h-3 w-3" />
-            保存失敗 - タップで再試行
-          </button>
-        )}
+        <SaveStatusIndicator
+          status={saveStatus}
+          onRetry={failedSave ? () => saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId) : undefined}
+        />
       </div>
 
       {/* ホールナビゲーション */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => prevHole !== null && switchHole(prevHole)}
-          disabled={prevHole === null}
-          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-          aria-label="前のホール"
-        >
-          <ChevronLeft className="h-6 w-6" />
-        </button>
-
-        <div className="flex items-center gap-2">
+      <HoleNavigation
+        prevHole={prevHole}
+        nextHole={nextHole}
+        onNavigate={switchHole}
+      >
+        <div className="flex items-center gap-2 justify-center">
           <div className="text-center">
             <p className="text-3xl font-bold">Hole {currentHole}</p>
             <p className="text-lg text-gray-300">
@@ -426,16 +408,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             </span>
           )}
         </div>
-
-        <button
-          onClick={() => nextHole !== null && switchHole(nextHole)}
-          disabled={nextHole === null}
-          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-white disabled:opacity-30 transition-colors"
-          aria-label="次のホール"
-        >
-          <ChevronRight className="h-6 w-6" />
-        </button>
-      </div>
+      </HoleNavigation>
 
       {/* マネジメントバンド */}
       {gamePlans.length > 0 && (
@@ -475,106 +448,64 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* 総打数 + パット数 ステッパー（横並び） */}
       <div className="space-y-2">
         <div className="flex gap-3">
-          {/* 総打数 */}
           <div className="flex-1 space-y-1">
             <label className="block text-xs font-bold text-gray-300 text-center">総打数</label>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => {
-                  const newStrokes = Math.max(1, (strokes ?? hole.par) - 1);
-                  setStrokes(newStrokes);
-                  if (putts !== null && putts > newStrokes) setPutts(newStrokes);
-                  setUserTouched(true);
-                }}
-                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                aria-label="打数を減らす"
-              >
-                −
-              </button>
-              <span className="text-3xl font-bold min-w-[40px] text-center">
-                {strokes ?? hole.par}
-              </span>
-              <button
-                onClick={() => { setStrokes(Math.min(20, (strokes ?? hole.par) + 1)); setUserTouched(true); }}
-                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                aria-label="打数を増やす"
-              >
-                +
-              </button>
-            </div>
+            <Stepper
+              value={strokes}
+              min={1}
+              max={20}
+              fallbackDisplay={String(hole.par)}
+              label="打数"
+              onChange={(v) => {
+                setStrokes(v);
+                if (putts !== null && putts > v) setPutts(v);
+                setUserTouched(true);
+              }}
+            />
           </div>
-
-          {/* 区切り */}
           <div className="w-px bg-gray-700 self-stretch mt-5" />
-
-          {/* パット数 */}
           <div className="flex-1 space-y-1">
             <label className="block text-xs font-bold text-gray-300 text-center">パット</label>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => { setPutts(Math.max(0, (putts ?? 2) - 1)); setUserTouched(true); }}
-                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                aria-label="パット数を減らす"
-              >
-                −
-              </button>
-              <span className="text-3xl font-bold min-w-[40px] text-center">
-                {putts ?? 2}
-              </span>
-              <button
-                onClick={() => { setPutts(Math.min(strokes ?? 20, (putts ?? 2) + 1)); setUserTouched(true); }}
-                className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                aria-label="パット数を増やす"
-              >
-                +
-              </button>
-            </div>
+            <Stepper
+              value={putts}
+              min={0}
+              max={strokes ?? 20}
+              fallbackDisplay="2"
+              label="パット数"
+              onChange={(v) => { setPutts(v); setUserTouched(true); }}
+            />
           </div>
         </div>
-
       </div>
 
-      {/* バンカー・OBカウント（総打数・パットの直下） */}
+      {/* バンカー・OBカウント */}
       <div className="space-y-2">
         <div className="flex gap-3">
-          {/* OB */}
           <div className="flex-1 space-y-1">
             <label className="block text-xs font-bold text-gray-300 text-center">OB</label>
             {editMode ? (
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  onClick={() => { setObCount(Math.max(0, obCount - 1)); setUserTouched(true); }}
-                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                >−</button>
-                <span className="text-3xl font-bold min-w-[40px] text-center">{obCount}</span>
-                <button
-                  onClick={() => { setObCount(Math.min(10, obCount + 1)); setUserTouched(true); }}
-                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                >+</button>
-              </div>
+              <Stepper
+                value={obCount}
+                min={0}
+                max={10}
+                label="OB"
+                onChange={(v) => { setObCount(v); setUserTouched(true); }}
+              />
             ) : (
               <p className="text-3xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().ob}</p>
             )}
           </div>
-
-          {/* 区切り */}
           <div className="w-px bg-gray-700 self-stretch mt-5" />
-
-          {/* バンカー */}
           <div className="flex-1 space-y-1">
             <label className="block text-xs font-bold text-gray-300 text-center">バンカー</label>
             {editMode ? (
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  onClick={() => { setBunkerCount(Math.max(0, bunkerCount - 1)); setUserTouched(true); }}
-                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                >−</button>
-                <span className="text-3xl font-bold min-w-[40px] text-center">{bunkerCount}</span>
-                <button
-                  onClick={() => { setBunkerCount(Math.min(10, bunkerCount + 1)); setUserTouched(true); }}
-                  className="min-h-[52px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-xl font-bold text-white hover:bg-gray-700 transition-colors"
-                >+</button>
-              </div>
+              <Stepper
+                value={bunkerCount}
+                min={0}
+                max={10}
+                label="バンカー"
+                onChange={(v) => { setBunkerCount(v); setUserTouched(true); }}
+              />
             ) : (
               <p className="text-3xl font-bold text-center tabular-nums">{shotActionsRef.current.getLandingCounts().bunker}</p>
             )}
@@ -586,35 +517,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       <div className="flex gap-2">
         <div className="flex-1">
           <p className="text-xs text-gray-400 mb-1">風向き</p>
-          <div className="grid grid-cols-2 gap-1">
-            {(Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => { setWindDirection(windDirection === key ? null : key); setUserTouched(true); }}
-                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                  windDirection === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <ToggleButtonGrid
+            options={WIND_DIR_OPTIONS}
+            value={windDirection}
+            onChange={(v) => { setWindDirection(v); setUserTouched(true); }}
+            columns={2}
+            className="gap-1"
+          />
         </div>
         <div className="flex-1">
           <p className="text-xs text-gray-400 mb-1">風の強さ</p>
-          <div className="grid grid-cols-2 gap-1">
-            {(Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => { setWindStrength(windStrength === key ? null : key); setUserTouched(true); }}
-                className={`min-h-[40px] rounded-lg text-xs font-bold transition-colors ${
-                  windStrength === key ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <ToggleButtonGrid
+            options={WIND_STR_OPTIONS}
+            value={windStrength}
+            onChange={(v) => { setWindStrength(v); setUserTouched(true); }}
+            columns={2}
+            className="gap-1"
+          />
         </div>
       </div>
 
