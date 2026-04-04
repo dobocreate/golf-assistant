@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePracticeStream } from '@/hooks/use-practice-stream';
 import { savePracticeSuggestion } from '@/actions/round';
+import { Button } from '@/components/ui/button';
 import { Sparkles, RefreshCw, Loader2, ChevronRight } from 'lucide-react';
 import type { Components } from 'react-markdown';
 
@@ -62,7 +63,7 @@ export function PracticeSuggestionSection({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">AI練習提案</h2>
+        <h2 className="text-lg font-semibold">AI練習提案</h2>
         {hasReviewNote && !isStreaming && (
           <button
             type="button"
@@ -89,20 +90,18 @@ export function PracticeSuggestionSection({
         <div className="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3">
           <p className="text-sm text-amber-800 dark:text-amber-200">現在の提案を上書きして再生成しますか？</p>
           <div className="flex gap-2 mt-2">
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={() => setShowConfirm(false)}
-              className="rounded min-h-[48px] px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               キャンセル
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               onClick={handleRequest}
-              className="rounded min-h-[48px] px-4 py-2 text-sm bg-emerald-600 text-white hover:bg-emerald-500"
+              className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700"
             >
               再生成する
-            </button>
+            </Button>
           </div>
         </div>
       )}

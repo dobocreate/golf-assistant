@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/actions/profile';
 import { getActiveRound } from '@/actions/round';
+import { ButtonLink } from '@/components/ui/button';
 import { Flag, Search, Play, User, ArrowRight } from 'lucide-react';
 import type { Metadata } from 'next';
 
@@ -92,26 +93,28 @@ export default async function Home() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Link
+        <ButtonLink
           href="/play"
-          className="flex flex-col items-center justify-center gap-2 min-h-[96px] rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          variant="outline"
+          className="flex-col gap-2 min-h-[96px] shadow-sm"
         >
           <Flag className="h-7 w-7 text-green-600" />
           <span className="font-bold text-sm">ラウンド開始</span>
-        </Link>
-        <Link
+        </ButtonLink>
+        <ButtonLink
           href="/courses"
-          className="flex flex-col items-center justify-center gap-2 min-h-[96px] rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          variant="outline"
+          className="flex-col gap-2 min-h-[96px] shadow-sm"
         >
           <Search className="h-7 w-7 text-blue-600" />
           <span className="font-bold text-sm">コース検索</span>
-        </Link>
+        </ButtonLink>
       </div>
 
       {/* Recent rounds */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">直近のラウンド</h2>
+          <h2 className="text-lg font-semibold">直近のラウンド</h2>
           <Link href="/rounds" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             すべて見る
           </Link>
@@ -130,7 +133,7 @@ export default async function Home() {
                 <Link
                   key={round.id}
                   href={`/rounds/${round.id}`}
-                  className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors min-h-[48px]"
+                  className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors min-h-[48px]"
                 >
                   <div>
                     <p className="font-bold">{courseName}</p>

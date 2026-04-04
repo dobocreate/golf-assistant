@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { saveReviewNote } from '@/actions/round';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Pencil, Save, X } from 'lucide-react';
 
 interface ReviewNoteSectionProps {
@@ -38,7 +40,7 @@ export function ReviewNoteSection({ roundId, initialNote }: ReviewNoteSectionPro
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">ラウンド総括</h2>
+        <h2 className="text-lg font-semibold">ラウンド総括</h2>
         {!isEditing && (
           <button
             type="button"
@@ -53,38 +55,37 @@ export function ReviewNoteSection({ roundId, initialNote }: ReviewNoteSectionPro
 
       {isEditing ? (
         <div className="space-y-2">
-          <textarea
+          <Textarea
             value={note}
             onChange={e => setNote(e.target.value)}
             maxLength={2000}
             rows={5}
             placeholder="今日のラウンドの振り返り、課題、次回への目標などを記入..."
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            error={error ?? undefined}
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">{note.length}/2000</span>
             <div className="flex gap-2">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={handleCancel}
                 disabled={isPending}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[48px] px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="gap-1"
               >
                 <X className="h-4 w-4" />
                 キャンセル
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={handleSave}
                 disabled={isPending}
-                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 min-h-[48px] px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 disabled:opacity-50"
+                isLoading={isPending}
+                className="gap-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700"
               >
                 <Save className="h-4 w-4" />
                 {isPending ? '保存中...' : '保存'}
-              </button>
+              </Button>
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       ) : savedNote ? (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">

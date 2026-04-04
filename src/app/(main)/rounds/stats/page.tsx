@@ -242,7 +242,7 @@ export default async function RoundStatsPage() {
 
       {/* Score Progression */}
       <section className="space-y-3">
-        <h2 className="text-lg font-bold">スコア推移</h2>
+        <h2 className="text-lg font-semibold">スコア推移</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -285,9 +285,9 @@ export default async function RoundStatsPage() {
       {/* OUT vs IN */}
       {(avgOut !== null || avgIn !== null) && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">前半/後半比較</h2>
+          <h2 className="text-lg font-semibold">前半/後半比較</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 text-center">
               <p className="text-xs text-gray-500 mb-1">OUT 平均</p>
               <p className="text-3xl font-bold">
                 {avgOut !== null ? avgOut.toFixed(1) : '-'}
@@ -298,7 +298,7 @@ export default async function RoundStatsPage() {
                 </div>
               )}
             </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 text-center">
               <p className="text-xs text-gray-500 mb-1">IN 平均</p>
               <p className="text-3xl font-bold">
                 {avgIn !== null ? avgIn.toFixed(1) : '-'}
@@ -315,7 +315,7 @@ export default async function RoundStatsPage() {
 
       {/* Par-based averages */}
       <section className="space-y-3">
-        <h2 className="text-lg font-bold">Par別平均スコア</h2>
+        <h2 className="text-lg font-semibold">Par別平均スコア</h2>
         <div className="space-y-3">
           {([3, 4, 5] as const).map((par) => {
             const data = parScores[par];
@@ -325,7 +325,7 @@ export default async function RoundStatsPage() {
             return (
               <div
                 key={par}
-                className="rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                className="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold">Par {par}</span>
@@ -347,7 +347,7 @@ export default async function RoundStatsPage() {
       {/* FW Keep Rate */}
       {fwRates.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">FWキープ率推移</h2>
+          <h2 className="text-lg font-semibold">FWキープ率推移</h2>
           <div className="space-y-2">
             {[...fwRates].reverse().map((r, i) => (
               <div
@@ -368,7 +368,7 @@ export default async function RoundStatsPage() {
       {/* GIR Rate */}
       {girRates.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">パーオン率推移</h2>
+          <h2 className="text-lg font-semibold">パーオン率推移</h2>
           <div className="space-y-2">
             {[...girRates].reverse().map((r, i) => (
               <div
@@ -389,7 +389,7 @@ export default async function RoundStatsPage() {
       {/* First Putt Distance */}
       {hasPuttDistData && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">ファーストパット距離</h2>
+          <h2 className="text-lg font-semibold">ファーストパット距離</h2>
           <div className="space-y-3">
             {(Object.entries(FIRST_PUTT_DISTANCE_LABELS) as [FirstPuttDistance, string][]).map(([key, label]) => {
               const d = puttDistData[key];
@@ -399,7 +399,7 @@ export default async function RoundStatsPage() {
               return (
                 <div
                   key={key}
-                  className="rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                  className="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold">{label}</span>

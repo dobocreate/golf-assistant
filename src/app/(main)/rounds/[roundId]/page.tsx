@@ -4,6 +4,7 @@ import { getMemos } from '@/actions/memo';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import { ButtonLink } from '@/components/ui/button';
 import { ArrowLeft, Flag, Pencil, ChevronRight } from 'lucide-react';
 import { ReviewNoteSection } from './review-note-section';
 import { PracticeSuggestionSection } from './practice-suggestion-section';
@@ -258,24 +259,25 @@ export default async function RoundReviewPage({
 
       {/* アクションリンク */}
       {round.status === 'in_progress' && (
-        <Link
+        <ButtonLink
           href={`/play/${roundId}`}
-          className="inline-flex items-center justify-center min-h-[48px] rounded-lg bg-green-600 px-6 py-3 text-lg font-bold text-white hover:bg-green-700 active:scale-[0.96] transition-all"
+          size="lg"
+          className="text-lg font-bold"
         >
           プレーに戻る
-        </Link>
+        </ButtonLink>
       )}
 
       {/* フローティングアクションボタン（completedのみ） */}
       {round.status === 'completed' && (
         <div className="fixed bottom-6 right-4 z-40 flex gap-2">
-          <Link
+          <ButtonLink
             href={`/play/${roundId}/score?edit=1`}
-            className="min-h-[48px] flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-500 active:scale-[0.96] transition-all"
+            className="rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 gap-2 px-5 shadow-lg"
           >
             <Pencil className="h-4 w-4" />
             編集
-          </Link>
+          </ButtonLink>
           <DeleteRoundButton roundId={roundId} />
         </div>
       )}

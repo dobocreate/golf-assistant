@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Copy, Check } from 'lucide-react';
 
 export function CopyScoreButton({ text }: { text: string }) {
@@ -30,10 +31,10 @@ export function CopyScoreButton({ text }: { text: string }) {
   };
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 min-h-[48px] rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+      className="gap-2"
     >
       {copied ? (
         <>
@@ -46,6 +47,6 @@ export function CopyScoreButton({ text }: { text: string }) {
           <span>スコアをコピー</span>
         </>
       )}
-    </button>
+    </Button>
   );
 }
