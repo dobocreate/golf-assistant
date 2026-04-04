@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Save, Loader2, Check, Trash2 } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
 import { upsertGamePlansBatch, deleteGamePlan, updateTargetScore } from '@/actions/game-plan';
 import type { GamePlan, RiskLevel } from '@/features/game-plan/types';
 import { RISK_LEVEL_VALUES, RISK_LEVEL_LABELS } from '@/features/game-plan/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 
 interface GamePlanEditorProps {
   roundId: string;
@@ -135,19 +139,18 @@ export function GamePlanEditor({ roundId, initialPlans, initialTargetScore, hole
     <div className="space-y-4">
       {/* 目標スコア */}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <label className="block text-sm font-bold mb-2">目標スコア</label>
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            min={50}
-            max={200}
-            value={targetScore}
-            onChange={e => setTargetScore(e.target.value)}
-            placeholder="例: 92"
-            className="w-24 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-center text-lg font-bold"
-          />
-          <span className="text-sm text-gray-500">（50〜200）</span>
-        </div>
+        <Input
+          label="目標スコア"
+          type="number"
+          min={50}
+          max={200}
+          value={targetScore}
+          onChange={e => setTargetScore(e.target.value)}
+          placeholder="例: 92"
+          inputSize="sm"
+          className="w-24 text-center text-lg font-bold"
+        />
+        <span className="mt-1 block text-sm text-gray-500">（50〜200）</span>
       </div>
 
       {/* ホール一覧 */}
@@ -157,7 +160,7 @@ export function GamePlanEditor({ roundId, initialPlans, initialTargetScore, hole
         </div>
 
         {/* OUT */}
-        <h3 className="text-sm font-bold text-gray-500 mt-3">OUT（1-9）</h3>
+        <h3 className="text-sm font-semibold text-gray-500 mt-3">OUT（1-9）</h3>
         {Array.from({ length: 9 }, (_, i) => i + 1).map(hole => (
           <HolePlanCard
             key={hole}
@@ -172,7 +175,7 @@ export function GamePlanEditor({ roundId, initialPlans, initialTargetScore, hole
         ))}
 
         {/* IN */}
-        <h3 className="text-sm font-bold text-gray-500 mt-3">IN（10-18）</h3>
+        <h3 className="text-sm font-semibold text-gray-500 mt-3">IN（10-18）</h3>
         {Array.from({ length: 9 }, (_, i) => i + 10).map(hole => (
           <HolePlanCard
             key={hole}
@@ -187,25 +190,27 @@ export function GamePlanEditor({ roundId, initialPlans, initialTargetScore, hole
         ))}
       </div>
 
-      {/* エラーメッセージ */}
-      {errorMsg && (
-        <p className="text-sm text-red-600 dark:text-red-400">{errorMsg}</p>
-      )}
+      {/* 保存ステータス + エラーメッセージ */}
+      <div className="flex items-center gap-2">
+        <SaveStatusIndicator status={saveStatus} tone="light" onRetry={saveStatus === 'error' ? handleSaveAll : undefined} />
+        {errorMsg && (
+          <p className="text-sm text-red-600 dark:text-red-400">{errorMsg}</p>
+        )}
+      </div>
 
       {/* 一括保存ボタン */}
-      <button
+      <Button
         onClick={handleSaveAll}
         disabled={isPending}
-        className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-lg font-bold text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+        variant="primary"
+        size="lg"
+        fullWidth
+        isLoading={isPending}
+        className="gap-2 text-lg font-bold"
       >
-        {saveStatus === 'saving' ? (
-          <><Loader2 className="h-5 w-5 animate-spin" />保存中...</>
-        ) : saveStatus === 'saved' ? (
-          <><Check className="h-5 w-5" />保存しました</>
-        ) : (
-          <><Save className="h-5 w-5" />すべて保存</>
-        )}
-      </button>
+        <Save className="h-5 w-5" />
+        すべて保存
+      </Button>
     </div>
   );
 }
@@ -233,6 +238,7 @@ function HolePlanCard({
     <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* ヘッダー（タップで展開） */}
       <button
+        type="button"
         onClick={onToggle}
         className="w-full min-h-[48px] flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
       >
@@ -252,30 +258,25 @@ function HolePlanCard({
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-gray-200 dark:border-gray-700 pt-3">
           {/* 弱点アラート */}
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">弱点アラート</label>
-            <input
-              type="text"
-              value={state.alertText}
-              onChange={e => onChange('alertText', e.target.value)}
-              placeholder="例: 右OB注意（過去2/2回）"
-              maxLength={1000}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            />
-          </div>
+          <Input
+            label="弱点アラート"
+            type="text"
+            value={state.alertText}
+            onChange={e => onChange('alertText', e.target.value)}
+            placeholder="例: 右OB注意（過去2/2回）"
+            maxLength={1000}
+            inputSize="sm"
+          />
 
           {/* ゲームプラン */}
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">ゲームプラン</label>
-            <textarea
-              value={state.planText}
-              onChange={e => onChange('planText', e.target.value)}
-              placeholder="例: 5IでFW左狙い。ボギーOK"
-              maxLength={2000}
-              rows={2}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm resize-none"
-            />
-          </div>
+          <Textarea
+            label="ゲームプラン"
+            value={state.planText}
+            onChange={e => onChange('planText', e.target.value)}
+            placeholder="例: 5IでFW左狙い。ボギーOK"
+            maxLength={2000}
+            rows={2}
+          />
 
           {/* リスクレベル + 目標打数 */}
           <div className="flex gap-3">
@@ -283,45 +284,50 @@ function HolePlanCard({
               <label className="block text-xs font-bold text-gray-500 mb-1">リスクレベル</label>
               <div className="flex gap-1">
                 {RISK_LEVEL_VALUES.map(level => (
-                  <button
+                  <Button
                     key={level}
                     onClick={() => onChange('riskLevel', state.riskLevel === level ? '' : level)}
-                    className={`flex-1 py-1.5 rounded text-xs font-bold transition-colors ${
+                    variant="ghost"
+                    size="sm"
+                    className={`flex-1 text-xs font-bold ${
                       state.riskLevel === level
-                        ? level === 'low' ? 'bg-emerald-600 text-white'
-                        : level === 'medium' ? 'bg-amber-600 text-white'
-                        : 'bg-rose-600 text-white'
+                        ? level === 'low' ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : level === 'medium' ? 'bg-amber-600 text-white hover:bg-amber-700'
+                        : 'bg-rose-600 text-white hover:bg-rose-700'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                     }`}
                   >
                     {RISK_LEVEL_LABELS[level]}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
             <div className="w-24">
-              <label className="block text-xs font-bold text-gray-500 mb-1">目標打数</label>
-              <input
+              <Input
+                label="目標打数"
                 type="number"
                 min={1}
                 max={20}
                 value={state.targetStrokes}
                 onChange={e => onChange('targetStrokes', e.target.value)}
                 placeholder="例: 5"
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-center"
+                inputSize="sm"
+                className="text-center"
               />
             </div>
           </div>
 
           {/* 削除ボタン */}
           {hasExistingData && (
-            <button
+            <Button
               onClick={onDelete}
-              className="flex items-center gap-1 min-h-[44px] py-2 text-xs text-red-500 hover:text-red-400 transition-colors"
+              variant="ghost"
+              size="sm"
+              className="gap-1 min-h-[48px] text-xs text-red-500 hover:text-red-400"
             >
               <Trash2 className="h-3 w-3" />
               このホールのプランを削除
-            </button>
+            </Button>
           )}
         </div>
       )}

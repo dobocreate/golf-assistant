@@ -6,6 +6,9 @@ import { Search } from 'lucide-react';
 import type { CourseSearchResult } from '@/lib/course-source/types';
 import { saveCourse } from '@/actions/course';
 import { useRouter } from 'next/navigation';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 export function CourseSearch() {
   const router = useRouter();
@@ -69,23 +72,23 @@ export function CourseSearch() {
     <div className="space-y-4">
       <form onSubmit={handleSearch} className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="ゴルフ場名で検索"
             aria-label="ゴルフ場名で検索"
-            className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2.5 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="pl-10"
           />
         </div>
-        <button
+        <Button
           type="submit"
           disabled={loading || !query.trim()}
-          className="rounded-lg bg-primary px-5 py-2.5 text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+          isLoading={loading}
         >
           {loading ? '検索中...' : '検索'}
-        </button>
+        </Button>
       </form>
 
       {error && (
@@ -95,9 +98,9 @@ export function CourseSearch() {
       {results.length > 0 && (
         <div className="space-y-2">
           {results.map((course) => (
-            <div
+            <Card
               key={course.id}
-              className="flex items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-800 p-4"
+              className="flex items-center gap-4"
             >
               {course.image_url && (
                 <Image
@@ -114,15 +117,17 @@ export function CourseSearch() {
                   {course.prefecture} {course.address}
                 </p>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => handleSave(course)}
                 disabled={saving === course.id}
-                className="shrink-0 rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
+                isLoading={saving === course.id}
+                className="shrink-0"
               >
                 {saving === course.id ? '保存中...' : '保存'}
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
         </div>
       )}

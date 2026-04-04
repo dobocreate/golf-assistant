@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { upsertHoleNote } from '@/actions/course';
 import type { HoleNote } from '@/features/course/types';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface HoleNoteEditorProps {
   holeId: string;
@@ -29,50 +32,40 @@ export function HoleNoteEditor({ holeId, note, onClose }: HoleNoteEditorProps) {
 
   return (
     <form action={handleSubmit} className="ml-12 space-y-2 mt-2">
-      <div>
-        <label htmlFor={`strategy-${holeId}`} className="block text-xs font-medium mb-1">
-          攻略法
-        </label>
-        <input
-          id={`strategy-${holeId}`}
-          name="strategy"
-          type="text"
-          defaultValue={note?.strategy ?? ''}
-          placeholder="例: グリーン手前から攻める"
-          className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
-        />
-      </div>
-      <div>
-        <label htmlFor={`note-${holeId}`} className="block text-xs font-medium mb-1">
-          メモ・注意点
-        </label>
-        <textarea
-          id={`note-${holeId}`}
-          name="note"
-          rows={2}
-          defaultValue={note?.note ?? ''}
-          placeholder="例: 右OBに注意、左足下がりのライ"
-          className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
-        />
-      </div>
+      <Input
+        label="攻略法"
+        name="strategy"
+        type="text"
+        defaultValue={note?.strategy ?? ''}
+        placeholder="例: グリーン手前から攻める"
+        inputSize="sm"
+      />
+      <Textarea
+        label="メモ・注意点"
+        name="note"
+        rows={2}
+        defaultValue={note?.note ?? ''}
+        placeholder="例: 右OBに注意、左足下がりのライ"
+        className="text-sm"
+      />
       {error && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>
       )}
       <div className="flex gap-2">
-        <button
+        <Button
           type="submit"
-          disabled={loading}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
+          size="sm"
+          isLoading={loading}
         >
           {loading ? '保存中...' : '保存'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={onClose}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           キャンセル
-        </button>
+        </Button>
       </div>
     </form>
   );

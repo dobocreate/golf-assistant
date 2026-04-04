@@ -3,6 +3,8 @@
 import { useState, useTransition, useCallback } from 'react';
 import { Upload, Download } from 'lucide-react';
 import { importHoles } from '@/actions/course';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface HoleImportData {
   holeNumber: number;
@@ -329,14 +331,16 @@ export function HoleImport({ courseId }: HoleImportProps) {
 
   return (
     <div className="space-y-3">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-sm font-bold text-primary hover:underline"
+        className="text-primary font-bold"
       >
-        <Upload className="h-4 w-4" />
+        <Upload className="h-4 w-4 mr-2" />
         ホール情報をインポート
-        <span className="text-gray-500">{isExpanded ? '▲' : '▼'}</span>
-      </button>
+        <span className="text-gray-500 ml-2">{isExpanded ? '▲' : '▼'}</span>
+      </Button>
 
       {isExpanded && (
         <div className="space-y-3 bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
@@ -354,19 +358,23 @@ export function HoleImport({ courseId }: HoleImportProps) {
 
           {/* サンプルダウンロード + CSV様式説明 */}
           <div className="flex items-center gap-3 flex-wrap">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDownloadSample}
-              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+              className="text-primary"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-3.5 w-3.5 mr-1.5" />
               サンプルCSVをダウンロード
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowFormatHelp(!showFormatHelp)}
-              className="text-xs text-gray-500 hover:text-primary"
+              className="text-gray-500"
             >
               {showFormatHelp ? 'CSV様式を閉じる ▲' : 'CSV様式の説明 ▼'}
-            </button>
+            </Button>
           </div>
 
           {/* CSV様式の説明（折りたたみ） */}
@@ -400,7 +408,7 @@ export function HoleImport({ courseId }: HoleImportProps) {
             </div>
           )}
 
-          <textarea
+          <Textarea
             value={csvText}
             onChange={e => {
               setCsvText(e.target.value);
@@ -409,7 +417,7 @@ export function HoleImport({ courseId }: HoleImportProps) {
             }}
             placeholder="ホールデータを貼り付けてください..."
             rows={6}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-3 py-2 focus:ring-2 focus:ring-primary"
+            className="text-sm"
           />
 
           {/* エラー表示 */}
@@ -422,13 +430,13 @@ export function HoleImport({ courseId }: HoleImportProps) {
           )}
 
           {/* プレビューボタン */}
-          <button
+          <Button
+            variant="secondary"
             onClick={handlePreview}
             disabled={!csvText.trim()}
-            className="min-h-[48px] rounded-lg bg-gray-200 dark:bg-gray-700 px-4 py-2 text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             プレビュー
-          </button>
+          </Button>
 
           {/* プレビューテーブル */}
           {preview && preview.length > 0 && (
@@ -480,13 +488,13 @@ export function HoleImport({ courseId }: HoleImportProps) {
                 </table>
               </div>
 
-              <button
+              <Button
+                fullWidth
                 onClick={handleImport}
-                disabled={isPending}
-                className="min-h-[48px] w-full rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                isLoading={isPending}
               >
                 {isPending ? 'インポート中...' : `${preview.length}ホールをインポート`}
-              </button>
+              </Button>
             </div>
           )}
 
