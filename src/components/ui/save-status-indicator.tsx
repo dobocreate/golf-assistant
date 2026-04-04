@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface SaveStatusIndicatorProps {
   status: 'idle' | 'saving' | 'saved' | 'error';
+  tone?: 'light' | 'dark';
   onRetry?: () => void;
   compact?: boolean;
   showLabel?: boolean;
@@ -13,8 +14,14 @@ interface SaveStatusIndicatorProps {
   className?: string;
 }
 
+const toneColors = {
+  light: { saving: 'text-gray-500', saved: 'text-green-600', error: 'text-red-600', errorHover: 'hover:text-red-500' },
+  dark: { saving: 'text-gray-400', saved: 'text-green-400', error: 'text-red-400', errorHover: 'hover:text-red-300' },
+} as const;
+
 export function SaveStatusIndicator({
   status,
+  tone = 'dark',
   onRetry,
   compact = false,
   showLabel = true,
@@ -25,35 +32,36 @@ export function SaveStatusIndicator({
   if (status === 'idle') return null;
 
   const iconSize = compact ? 'h-3 w-3' : 'h-4 w-4';
+  const colors = toneColors[tone];
 
   return (
     <span className={cn('inline-flex items-center gap-1', className)}>
       {status === 'saving' && (
         <>
-          <Loader2 className={cn(iconSize, 'animate-spin text-gray-400')} />
-          {showLabel && <span className="text-xs text-gray-400">保存中</span>}
+          <Loader2 className={cn(iconSize, 'animate-spin', colors.saving)} />
+          {showLabel && <span className={cn('text-xs', colors.saving)}>保存中</span>}
         </>
       )}
       {status === 'saved' && (
         <>
-          <Check className={cn(iconSize, 'text-green-400')} />
-          {showLabel && <span className="text-xs text-green-400">保存済み</span>}
+          <Check className={cn(iconSize, colors.saved)} />
+          {showLabel && <span className={cn('text-xs', colors.saved)}>保存済み</span>}
         </>
       )}
       {status === 'error' && (
         <>
-          <AlertCircle className={cn(iconSize, 'text-red-400')} />
+          <AlertCircle className={cn(iconSize, colors.error)} />
           {showLabel && (
             onRetry ? (
               <button
                 type="button"
                 onClick={onRetry}
-                className="text-xs text-red-400 hover:text-red-300 underline"
+                className={cn('text-xs underline', colors.error, colors.errorHover)}
               >
                 {errorLabel} - {retryLabel}
               </button>
             ) : (
-              <span className="text-xs text-red-400">{errorLabel}</span>
+              <span className={cn('text-xs', colors.error)}>{errorLabel}</span>
             )
           )}
         </>

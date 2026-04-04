@@ -1,4 +1,5 @@
 import { type HTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padding?: 'sm' | 'md' | 'lg';
@@ -10,10 +11,14 @@ const paddingStyles = {
   lg: 'p-6',
 };
 
-export function Card({ padding = 'md', className = '', children, ...props }: CardProps) {
+export function Card({ padding = 'md', className, children, ...props }: CardProps) {
   return (
     <div
-      className={`rounded-xl border border-gray-200 bg-white shadow-sm ${paddingStyles[padding]} ${className}`}
+      className={cn(
+        'rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900',
+        paddingStyles[padding],
+        className,
+      )}
       {...props}
     >
       {children}
