@@ -3,23 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flag, Pencil, Grid3x3, Home } from 'lucide-react';
-import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 
 export function PlayBottomNav() {
   const pathname = usePathname();
-  const playRound = usePlayRoundOptional();
 
   // /play/[roundId] からroundIdを抽出
   const roundIdMatch = pathname.match(/^\/play\/([0-9a-f-]{36})/);
   const roundId = roundIdMatch?.[1];
 
-  // Context からホール番号を取得してリンクに付与
-  const holeParam = playRound ? `?hole=${playRound.currentHole}` : '';
-
   const navItems = roundId
     ? [
         { href: `/play/${roundId}`, label: '設定', icon: Flag, exact: true },
-        { href: `/play/${roundId}/score${holeParam}`, label: 'スコア', icon: Pencil, exact: false },
+        { href: `/play/${roundId}/score`, label: 'スコア', icon: Pencil, exact: false },
         { href: `/play/${roundId}/scorecard`, label: 'カード', icon: Grid3x3, exact: false },
         { href: '/', label: '戻る', icon: Home, exact: true },
       ]
