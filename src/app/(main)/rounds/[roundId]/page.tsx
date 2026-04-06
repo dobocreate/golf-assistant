@@ -5,10 +5,10 @@ import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ButtonLink } from '@/components/ui/button';
-import { ArrowLeft, Flag, Pencil, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Flag, ChevronRight } from 'lucide-react';
 import { ReviewNoteSection } from './review-note-section';
 import { PracticeSuggestionSection } from './practice-suggestion-section';
-import { DeleteRoundButton } from './delete-round-button';
+import { RoundSpeedDial } from './round-speed-dial';
 import { getPracticeSuggestion } from '@/actions/round';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
@@ -270,16 +270,7 @@ export default async function RoundReviewPage({
 
       {/* フローティングアクションボタン（completedのみ） */}
       {round.status === 'completed' && (
-        <div className="fixed bottom-6 right-4 z-40 flex gap-2">
-          <ButtonLink
-            href={`/play/${roundId}/score?edit=1`}
-            className="rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 gap-2 px-5 shadow-lg"
-          >
-            <Pencil className="h-4 w-4" />
-            編集
-          </ButtonLink>
-          <DeleteRoundButton roundId={roundId} />
-        </div>
+        <RoundSpeedDial roundId={roundId} />
       )}
     </div>
   );

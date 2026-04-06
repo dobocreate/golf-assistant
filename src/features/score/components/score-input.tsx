@@ -3,6 +3,7 @@
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Save, CheckCircle } from 'lucide-react';
+import { SpeedDial } from '@/components/ui/speed-dial';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
@@ -562,26 +563,31 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />
 
-      {/* フローティング保存ボタン（ナビバーの上・右寄せ） */}
-      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3 flex gap-2">
-        <button
-          onClick={handleSave}
-          disabled={strokes === null || isPending}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save className="h-4 w-4" />
-          {isPending ? '保存中...' : '保存'}
-        </button>
-        {editMode && (
-          <Link
-            href={`/rounds/${roundId}`}
-            className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
-          >
-            <CheckCircle className="h-4 w-4" />
-            完了
-          </Link>
-        )}
-      </div>
+      {/* フローティング保存ボタン（Speed Dial） */}
+      <SpeedDial
+        aboveNav
+        actions={[
+          {
+            key: 'save',
+            icon: <Save className="h-4 w-4" />,
+            label: isPending ? '保存中...' : '保存',
+            onClick: handleSave,
+            disabled: strokes === null || isPending,
+            variant: 'primary',
+          },
+          ...(editMode
+            ? [
+                {
+                  key: 'complete',
+                  icon: <CheckCircle className="h-4 w-4" />,
+                  label: '完了',
+                  href: `/rounds/${roundId}`,
+                  variant: 'primary' as const,
+                },
+              ]
+            : []),
+        ]}
+      />
     </div>
   );
 }
