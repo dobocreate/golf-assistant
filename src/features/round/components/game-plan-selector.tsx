@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Target } from 'lucide-react';
+import { Select } from '@/components/ui/select';
 import { applyGamePlanSetToRound } from '@/actions/game-plan-set';
 import type { GamePlanSet } from '@/features/game-plan/types';
 
@@ -42,11 +43,10 @@ export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSe
         <Target className="h-4 w-4" />
         ゲームプラン
       </label>
-      <select
+      <Select
         onChange={handleChange}
         disabled={isPending}
         defaultValue=""
-        className="w-full min-h-[48px] rounded-lg bg-gray-800 border border-gray-700 px-3 py-2.5 text-sm text-white disabled:opacity-50"
       >
         <option value="">{appliedName ? `${appliedName}（適用中）` : '選択してください'}</option>
         {plans.filter(plan => plan.name !== appliedName).map(plan => (
@@ -54,7 +54,7 @@ export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSe
             {plan.name}{plan.target_score ? ` (目標${plan.target_score})` : ''}
           </option>
         ))}
-      </select>
+      </Select>
       {isPending && <p className="text-xs text-gray-400">適用中...</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
