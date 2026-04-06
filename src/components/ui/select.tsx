@@ -31,8 +31,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={error ? true : undefined}
             aria-describedby={errorId}
             className={cn(
-              'block w-full appearance-none rounded-lg border border-gray-300 px-3 pr-10 py-2 min-h-[48px] text-base placeholder:text-gray-400',
-              'focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500',
+              'block w-full appearance-none rounded-lg border border-gray-300 px-3 pr-10 py-3 text-base placeholder:text-gray-400',
+              'focus:outline-none',
               'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200',
               'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
               error && 'border-red-500 focus:border-red-500 focus:ring-red-500',

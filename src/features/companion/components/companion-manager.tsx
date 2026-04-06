@@ -50,7 +50,7 @@ export function CompanionManager({ roundId, initialCompanions }: CompanionManage
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-controls="companion-manager-panel"
-        className="w-full flex items-center justify-between p-4 bg-gray-800 text-left"
+        className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
       >
         <span className="text-base font-bold text-white">
           同伴者
