@@ -52,7 +52,7 @@ export function CompanionManager({ roundId, initialCompanions }: CompanionManage
         aria-controls="companion-manager-panel"
         className="w-full flex items-center justify-between p-4 bg-gray-800 text-left"
       >
-        <span className="text-lg font-bold text-white">
+        <span className="text-base font-bold text-white">
           同伴者
           {companions.length > 0 && (
             <span className="ml-2 text-sm font-normal text-gray-400">
