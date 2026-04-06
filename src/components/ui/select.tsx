@@ -1,7 +1,7 @@
 'use client';
 
 import { type SelectHTMLAttributes, forwardRef, useId } from 'react';
-
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -25,23 +25,26 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {label}
           </label>
         )}
-        <select
-          ref={ref}
-          id={selectId}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={errorId}
-          className={cn(
-            'block w-full rounded-lg border border-gray-300 px-3 py-2 min-h-[48px] text-base placeholder:text-gray-400',
-            'focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500',
-            'dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-            'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-            error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
-            className,
-          )}
-          {...props}
-        >
-          {children}
-        </select>
+        <div className="relative">
+          <select
+            ref={ref}
+            id={selectId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId}
+            className={cn(
+              'block w-full appearance-none rounded-lg border border-gray-300 px-3 pr-10 py-2 min-h-[48px] text-base placeholder:text-gray-400',
+              'focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500',
+              'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200',
+              'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+              error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
+              className,
+            )}
+            {...props}
+          >
+            {children}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        </div>
         {error && (
           <p id={errorId} className="text-sm text-red-600">
             {error}
