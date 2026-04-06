@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Save } from 'lucide-react';
+import { SpeedDial } from '@/components/ui/speed-dial';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
@@ -291,16 +292,19 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
       </div>
 
       {/* フローティング保存ボタン */}
-      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3">
-        <button
-          onClick={() => saveHole(editingHole)}
-          disabled={isPending}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save className="h-4 w-4" />
-          {isPending ? '保存中...' : '保存'}
-        </button>
-      </div>
+      <SpeedDial
+        aboveNav
+        actions={[
+          {
+            key: 'save',
+            icon: <Save className="h-4 w-4" />,
+            label: isPending ? '保存中...' : '保存',
+            onClick: () => saveHole(editingHole),
+            disabled: isPending,
+            variant: 'primary',
+          },
+        ]}
+      />
     </div>
   );
 }

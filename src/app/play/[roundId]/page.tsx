@@ -4,8 +4,7 @@ import { getGamePlanSetsByCourse } from '@/actions/game-plan-set';
 import { getGamePlans } from '@/actions/game-plan';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Pencil, CheckCircle } from 'lucide-react';
+import { PlaySpeedDial } from './play-speed-dial';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
 import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
 import { WeatherWindSetting } from '@/features/round/components/weather-wind-setting';
@@ -68,23 +67,8 @@ export default async function PlayMainPage({
       {/* ゲームプラン選択 */}
       <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={appliedPlanName} />
 
-      {/* フローティングアクションボタン */}
-      <div className="fixed bottom-[var(--play-nav-height)] right-4 z-40 mb-3 flex gap-2">
-        <Link
-          href={`/play/${roundId}/score`}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-green-500 transition-colors"
-        >
-          <Pencil className="h-4 w-4" />
-          スコア入力
-        </Link>
-        <Link
-          href={`/play/${roundId}/complete`}
-          className="min-h-[48px] flex items-center justify-center gap-2 rounded-lg bg-gray-700 px-5 py-3 text-sm font-bold text-gray-200 shadow-lg hover:bg-gray-600 transition-colors"
-        >
-          <CheckCircle className="h-4 w-4" />
-          完了
-        </Link>
-      </div>
+      {/* フローティングアクションボタン（Speed Dial） */}
+      <PlaySpeedDial roundId={roundId} />
     </div>
   );
 }
