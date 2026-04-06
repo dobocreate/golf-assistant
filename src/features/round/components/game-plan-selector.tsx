@@ -47,6 +47,7 @@ export function GamePlanSelector({ roundId, plans, currentPlanName }: GamePlanSe
         onChange={handleChange}
         disabled={isPending}
         defaultValue=""
+        className="border-gray-700 bg-gray-800 text-gray-200 [&>option]:bg-gray-800 [&>option]:text-gray-200"
       >
         <option value="">{appliedName ? `${appliedName}（適用中）` : '選択してください'}</option>
         {plans.filter(plan => plan.name !== appliedName).map(plan => (
