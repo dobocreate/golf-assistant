@@ -102,7 +102,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
               aria-expanded={isExpanded}
               className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
             >
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-base">
                 <span className="font-bold text-gray-200">
                   {slot.isNew ? `新規（第${slot.shotNumber}打）` : `第${slot.shotNumber}打`}
                 </span>
