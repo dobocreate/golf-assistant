@@ -17,7 +17,6 @@ export function RoundSpeedDial({ roundId }: { roundId: string }) {
       const result = await deleteRound(roundId);
       if (result?.error) {
         setError(result.error);
-        setShowConfirm(false);
       }
     });
   };
