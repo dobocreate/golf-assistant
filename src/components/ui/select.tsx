@@ -1,7 +1,6 @@
 'use client';
 
 import { type SelectHTMLAttributes, forwardRef, useId } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -43,7 +42,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           >
             {children}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">&#x25BC;</span>
         </div>
         {error && (
           <p id={errorId} className="text-sm text-red-600">
