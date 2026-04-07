@@ -315,8 +315,8 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
 
       {/* AIアドバイス（折りたたみ） */}
       <details className="group">
-        <summary className="text-sm text-green-400 cursor-pointer hover:text-green-300 list-none flex items-center gap-1">
-          <span className="group-open:rotate-90 transition-transform">▶</span>
+        <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
+          <span className="group-open:rotate-90 transition-transform" aria-hidden="true">▶</span>
           AIアドバイス
         </summary>
         <div className="mt-2">
