@@ -1,4 +1,4 @@
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLanding, ShotFormState } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLanding, ShotElevation, ShotFormState } from '@/features/score/types';
 
 export interface ClubOption {
   name: string;
@@ -17,6 +17,12 @@ export const LANDINGS: { value: ShotLanding; label: string }[] = [
   { value: 'ob', label: 'OB' },
   { value: 'water', label: '池' },
   { value: 'bunker', label: 'バンカー' },
+];
+
+export const ELEVATIONS: { value: ShotElevation; label: string; shortLabel: string }[] = [
+  { value: 'uphill', label: '打ち上げ', shortLabel: '↑打上げ' },
+  { value: 'flat', label: '平坦', shortLabel: '→平坦' },
+  { value: 'downhill', label: '打ち下ろし', shortLabel: '↓打下し' },
 ];
 
 export function landingColor(value: ShotLanding): string {
@@ -57,6 +63,7 @@ export function emptyShotForm(): ShotFormState {
     puttDistanceMeters: null,
     windDirection: null,
     windStrength: null,
+    elevation: null,
   };
 }
 
@@ -78,6 +85,7 @@ export function shotToForm(shot: Shot): ShotFormState {
     puttDistanceMeters: null,
     windDirection: shot.wind_direction,
     windStrength: shot.wind_strength,
+    elevation: shot.elevation,
   };
 }
 
@@ -97,6 +105,7 @@ export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.note !== shot.note ||
     form.windDirection !== shot.wind_direction ||
     form.windStrength !== shot.wind_strength ||
+    form.elevation !== shot.elevation ||
     form.puttDistanceCategory !== null || // puttDistanceCategoryが設定されていれば変更あり
     form.puttDistanceMeters !== null
   );
@@ -104,5 +113,5 @@ export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
 
 /** 全フィールドnullのフォームは保存しない */
 export function shouldSaveForm(form: ShotFormState): boolean {
-  return !!(form.club || form.result || form.shotType || form.lie || form.remainingDistance != null || form.directionLr || form.note || form.puttDistanceCategory || form.puttDistanceMeters != null || form.windDirection || form.windStrength);
+  return !!(form.club || form.result || form.shotType || form.lie || form.remainingDistance != null || form.directionLr || form.note || form.puttDistanceCategory || form.puttDistanceMeters != null || form.windDirection || form.windStrength || form.elevation);
 }

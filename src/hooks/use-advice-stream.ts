@@ -15,6 +15,7 @@ export interface AdviceRequestParams {
   windDirection?: string;
   windStrength?: string;
   weather?: string;
+  elevation?: string;
 }
 
 export interface UseAdviceStreamReturn {
@@ -77,6 +78,7 @@ export function useAdviceStream(): UseAdviceStreamReturn {
           windDirection: params.windDirection,
           windStrength: params.windStrength,
           weather: params.weather,
+          elevation: params.elevation,
         }),
         signal: controller.signal,
       });

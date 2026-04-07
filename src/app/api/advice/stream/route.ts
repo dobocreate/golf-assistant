@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       windDirection?: string | null;
       windStrength?: string | null;
       weather?: string | null;
+      elevation?: string | null;
     };
 
     try {
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
     if (body.slopeLR != null && !(VALID_SLOPE_LR as readonly string[]).includes(body.slopeLR)) {
       return jsonError('左右傾斜が不正です。', 400);
     }
+    if (body.elevation != null && !['uphill', 'flat', 'downhill'].includes(body.elevation)) {
+      return jsonError('高低差が不正です。', 400);
+    }
 
     // コンテキスト構築（2回目以降はスナップショットから1クエリで取得）
     const [snapshotResult, scoreContext] = await Promise.all([
@@ -84,6 +88,7 @@ export async function POST(request: Request) {
       windDirection: body.windDirection,
       windStrength: body.windStrength,
       weather: body.weather,
+      elevation: body.elevation,
     });
 
     return createGeminiStream(systemPrompt, userPrompt, MAX_ADVICE_TOKENS);

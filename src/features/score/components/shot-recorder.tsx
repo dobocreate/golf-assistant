@@ -73,19 +73,10 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
 
   return (
     <div className="space-y-3">
-      {/* ヘッダー + 追加ボタン + 保存状態 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <label className="block text-sm font-bold text-gray-200">ショット記録</label>
-          <SaveStatusIndicator status={saveStatus} compact showLabel={false} />
-        </div>
-        <button
-          onClick={handleAddShot}
-          className="min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg bg-gray-800 text-green-400 hover:bg-gray-700 transition-colors"
-          aria-label="ショットを追加"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+      {/* ヘッダー + 保存状態 */}
+      <div className="flex items-center gap-2">
+        <label className="block text-sm font-bold text-gray-200">ショット記録</label>
+        <SaveStatusIndicator status={saveStatus} compact showLabel={false} />
       </div>
 
       {/* ショット一覧（最新順） */}
@@ -136,6 +127,16 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
           </div>
         );
       })}
+
+      {/* ショット追加FAB */}
+      <button
+        onClick={handleAddShot}
+        className="fixed left-4 z-40 bottom-[var(--play-nav-height)] mb-3 flex items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-bold bg-green-600 text-white hover:bg-green-500 active:bg-green-700 transition-colors"
+        aria-label="ショットを追加"
+      >
+        <Plus className="h-4 w-4" />
+        ショット追加
+      </button>
 
       {/* エラー */}
       {error && (

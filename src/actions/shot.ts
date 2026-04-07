@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, AdviceHistoryItem } from '@/features/score/types';
+import type { Shot, ShotResult, DirectionLR, DirectionFB, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotElevation, AdviceHistoryItem } from '@/features/score/types';
 import { isValidUUID } from '@/lib/utils';
 
 /** 認証 + ラウンド所有権確認の共通ヘルパー */
@@ -28,6 +28,7 @@ const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
 import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import type { ShotType } from '@/features/score/types';
 const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
+const VALID_ELEVATIONS: ShotElevation[] = ['uphill', 'flat', 'downhill'];
 
 function validateShotFields(data: {
   club?: string | null;
@@ -41,6 +42,7 @@ function validateShotFields(data: {
   landing: string | null;
   shotType?: string | null;
   remainingDistance?: number | null;
+  elevation?: string | null;
 }): string | null {
   if (data.club !== undefined && data.club !== null && (typeof data.club !== 'string' || data.club.length > 20)) {
     return 'クラブ名が不正です。';
@@ -75,6 +77,9 @@ function validateShotFields(data: {
   if (data.remainingDistance != null && (!Number.isInteger(data.remainingDistance) || data.remainingDistance < 0 || data.remainingDistance > 700)) {
     return '残り距離が不正です。';
   }
+  if (data.elevation != null && !VALID_ELEVATIONS.includes(data.elevation as ShotElevation)) {
+    return '高低差が不正です。';
+  }
   return null;
 }
 
@@ -94,6 +99,7 @@ export async function recordShot(data: {
   shotType: string | null;
   remainingDistance: number | null;
   note?: string | null;
+  elevation?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -143,6 +149,7 @@ export async function recordShot(data: {
       shot_type: data.shotType,
       remaining_distance: data.remainingDistance,
       note,
+      elevation: data.elevation ?? null,
     })
     .select('*')
     .single();
@@ -168,6 +175,7 @@ export async function updateShot(data: {
   shotType: string | null;
   remainingDistance: number | null;
   note?: string | null;
+  elevation?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -209,6 +217,7 @@ export async function updateShot(data: {
       shot_type: data.shotType,
       remaining_distance: data.remainingDistance,
       note,
+      elevation: data.elevation ?? null,
     })
     .eq('id', data.shotId)
     .eq('round_id', data.roundId)
@@ -381,6 +390,7 @@ export async function saveShotsForHole(data: {
     adviceText: string | null;
     windDirection: string | null;
     windStrength: string | null;
+    elevation: string | null;
   }>;
 }): Promise<{ error?: string; shots?: Shot[] }> {
   if (data.shots.length === 0) return { shots: [] };
@@ -411,6 +421,7 @@ export async function saveShotsForHole(data: {
       landing: shot.landing,
       shotType: shot.shotType,
       remainingDistance: shot.remainingDistance,
+      elevation: shot.elevation,
     });
     if (validationError) return { error: `第${shot.shotNumber}打: ${validationError}` };
   }
@@ -436,6 +447,7 @@ export async function saveShotsForHole(data: {
     advice_text: s.adviceText,
     wind_direction: s.windDirection ?? null,
     wind_strength: s.windStrength ?? null,
+    elevation: s.elevation ?? null,
   }));
 
   const { error: upsertErr } = await supabase
