@@ -344,7 +344,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
             value={form.missType}
             onChange={fieldUpdater('missType')}
             columns={3}
-            itemClassName="bg-gray-800 text-gray-200 hover:bg-gray-700"
+            itemClassName="bg-gray-800 text-gray-200"
           />
         </div>
       )}

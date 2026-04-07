@@ -65,9 +65,8 @@ export function ToggleButtonGrid<T extends string>({
             }}
             className={cn(
               'min-h-[48px] rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-              !isSelected && inactiveStyle,
               itemClassName,
-              isSelected && activeStyle,
+              isSelected ? activeStyle : inactiveStyle,
             )}
           >
             {renderOption ? renderOption(opt, isSelected) : opt.label}
