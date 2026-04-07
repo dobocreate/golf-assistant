@@ -2,6 +2,7 @@ import { getScoresWithHoles } from '@/actions/score';
 import { getClubs } from '@/actions/club';
 import { getGamePlans } from '@/actions/game-plan';
 import { getProfile } from '@/actions/profile';
+import { getCompanions, getCompanionScores } from '@/actions/companion';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import { ScoreInput } from '@/features/score/components/score-input';
@@ -22,14 +23,19 @@ export default async function ScoreInputPage({
   const parsed = hole ? parseInt(hole, 10) : undefined;
   const initialHole = parsed && !isNaN(parsed) ? parsed : undefined;
 
-  const [data, clubs, gamePlans, profile] = await Promise.all([
+  const [data, clubs, gamePlans, profile, companions, companionData] = await Promise.all([
     getScoresWithHoles(roundId),
     getClubs(),
     getGamePlans(roundId),
     getProfile(),
+    getCompanions(roundId),
+    getCompanionScores(roundId),
   ]);
 
   if (!data) notFound();
+
+  // 同伴者スコアをフラットな配列に変換
+  const allCompanionScores = companionData.flatMap(cd => cd.scores);
 
   return (
     <ScoreInput
@@ -46,6 +52,8 @@ export default async function ScoreInputPage({
       targetScore={data.round.targetScore}
       scoreLevel={profile?.score_level}
       handicap={profile?.handicap}
+      companions={companions}
+      initialCompanionScores={allCompanionScores}
     />
   );
 }
