@@ -340,6 +340,7 @@ function collectPendingShotsSync(
     adviceText: string | null;
     windDirection: string | null;
     windStrength: string | null;
+    elevation: string | null;
   }> = [];
 
   // 既存ショットで変更があるもの
@@ -393,5 +394,6 @@ function formToPayload(form: ShotFormState) {
     note: form.note,
     windDirection: form.windDirection,
     windStrength: form.windStrength,
+    elevation: form.elevation,
   };
 }

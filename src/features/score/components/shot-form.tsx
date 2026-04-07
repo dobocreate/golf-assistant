@@ -1,9 +1,9 @@
 'use client';
 
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
-import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
+import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, ELEVATIONS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
 import { AdvicePanel } from '@/features/score/components/advice-panel';
-import type { Shot, ShotFormState, ShotType, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding } from '@/features/score/types';
+import type { Shot, ShotFormState, ShotType, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotElevation } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
@@ -17,6 +17,7 @@ const SLOPE_FB_TOGGLE = SLOPE_FB_OPTIONS.map(s => ({ value: s.value as ShotSlope
 const SLOPE_LR_TOGGLE = SLOPE_LR_OPTIONS.map(s => ({ value: s.value as ShotSlopeLR, label: s.shortLabel }));
 const MISS_TYPE_TOGGLE = MISS_TYPES.map(mt => ({ value: mt, label: mt }));
 const LANDING_TOGGLE = LANDINGS.map(l => ({ value: l.value as ShotLanding, label: l.label, activeColor: landingColor(l.value) }));
+const ELEVATION_TOGGLE = ELEVATIONS.map(e => ({ value: e.value as ShotElevation, label: e.shortLabel }));
 
 interface ShotFormProps {
   slot: {
@@ -268,7 +269,19 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
       {/* 傾斜 */}
       <div className="space-y-1">
         <label className="block text-xs text-gray-400">傾斜（任意）</label>
-        <div className="flex gap-4">
+        <div className="flex gap-3">
+          <div className="flex-1 space-y-1">
+            <p className="text-xs text-gray-400">高低差</p>
+            <ToggleButtonGrid
+              options={ELEVATION_TOGGLE}
+              value={form.elevation}
+              onChange={fieldUpdater('elevation')}
+              columns={3}
+              className="gap-1"
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-1">
           <div className="flex-1 space-y-1">
             <p className="text-xs text-gray-400">前後</p>
             <ToggleButtonGrid
@@ -306,6 +319,7 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         windDirection={windDirection}
         windStrength={windStrength}
         weather={weather}
+        elevation={form.elevation}
         onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
         gamePlanContext={gamePlanContext}
       />

@@ -60,6 +60,7 @@ export function createUserPrompt(situation: {
   windDirection?: string | null;
   windStrength?: string | null;
   weather?: string | null;
+  elevation?: string | null;
 }): string {
   const lieLabel = LIE_DB_TO_LABEL[situation.lie] ?? situation.lie;
   const shotTypeLabel = SHOT_TYPE_DB_TO_LABEL[situation.shotType] ?? situation.shotType;
@@ -84,6 +85,11 @@ export function createUserPrompt(situation: {
     if (label) slopes.push(label);
   }
   if (slopes.length > 0) parts.push(`傾斜: ${slopes.join('・')}`);
+
+  // 高低差
+  if (situation.elevation && situation.elevation !== 'flat') {
+    parts.push(`高低差: ${situation.elevation === 'uphill' ? '打ち上げ' : '打ち下ろし'}`);
+  }
 
   // 風
   const windParts: string[] = [];

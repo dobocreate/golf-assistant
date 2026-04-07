@@ -62,6 +62,7 @@ export type ShotSlopeLR = 'left_up' | 'left_down';
 
 export type ShotLanding = 'ob' | 'water' | 'bunker';
 export type ShotType = 'tee_shot' | 'second' | 'approach' | 'putt';
+export type ShotElevation = 'uphill' | 'flat' | 'downhill';
 
 export interface Shot {
   id: string;
@@ -83,6 +84,7 @@ export interface Shot {
   note: string | null;
   wind_direction: WindDirection | null;
   wind_strength: WindStrength | null;
+  elevation: ShotElevation | null;
 }
 
 export interface ShotFormState {
@@ -102,6 +104,7 @@ export interface ShotFormState {
   puttDistanceMeters: number | null;
   windDirection: WindDirection | null;
   windStrength: WindStrength | null;
+  elevation: ShotElevation | null;
 }
 
 export interface Companion {

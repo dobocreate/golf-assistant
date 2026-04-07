@@ -4,7 +4,7 @@
  * DB値・日本語ラベル・バリデーション値をすべてここで定義
  */
 
-import type { ShotLie, ShotSlopeFB, ShotSlopeLR, ShotType } from '@/features/score/types';
+import type { ShotLie, ShotSlopeFB, ShotSlopeLR, ShotType, ShotElevation } from '@/features/score/types';
 
 // --- ライ ---
 
@@ -59,6 +59,10 @@ export const SHOT_TYPE_OPTIONS: readonly { value: ShotType; label: string }[] = 
 ];
 
 export const VALID_SHOT_TYPES: ShotType[] = SHOT_TYPE_OPTIONS.map(s => s.value);
+
+// --- 高低差 ---
+
+export const VALID_ELEVATIONS: ShotElevation[] = ['uphill', 'flat', 'downhill'];
 
 export const SHOT_NOTE_MAX_LENGTH = 500;
 
