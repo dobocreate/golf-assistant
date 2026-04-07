@@ -253,16 +253,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         setSaveStatus('saved');
         setFailedSave(null);
         saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
-        // 全18ホール入力完了チェック（楽観的更新済みのサイズを計算）
+        // 全ホール入力完了チェック（楽観的更新済みのサイズを計算）
         const expectedSize = scoresRef.current.has(holeNum)
           ? scoresRef.current.size
           : scoresRef.current.size + 1;
-        if (expectedSize >= 18 && !editMode && !completeDismissedRef.current) {
+        if (expectedSize >= holes.length && !editMode && !completeDismissedRef.current) {
           setShowCompleteDialog(true);
         }
       }
     });
-  }, [roundId, editMode]);
+  }, [roundId, editMode, holes.length]);
 
   // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
   const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null, wd: WindDirection | null, ws: WindStrength | null): boolean => {
@@ -571,12 +571,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       />
       </div>
 
-      {/* 全18ホール完了ダイアログ */}
+      {/* 全ホール完了ダイアログ */}
       {showCompleteDialog && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="complete-dialog-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -591,16 +592,19 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               <h2 id="complete-dialog-title" className="text-xl font-bold text-white">全ホール入力完了</h2>
             </div>
             <p className="text-gray-300">
-              18ホールすべてのスコアが入力されました。ラウンドを完了しますか？
+              {holes.length}ホールすべてのスコアが入力されました。ラウンドを完了しますか？
             </p>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => { setShowCompleteDialog(false); completeDismissedRef.current = true; }}
                 className="flex-1 min-h-[48px] rounded-lg bg-gray-700 px-4 py-3 text-sm font-bold text-gray-300 hover:bg-gray-600 transition-colors"
               >
                 続ける
               </button>
               <button
+                type="button"
+                autoFocus
                 onClick={() => router.push(`/play/${roundId}/complete`)}
                 className="flex-1 min-h-[48px] rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-500 transition-colors"
               >
