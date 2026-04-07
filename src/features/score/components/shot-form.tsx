@@ -129,23 +129,31 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           </div>
         </div>
 
-        {/* パットアドバイス */}
-        <AdvicePanel
-          roundId={roundId}
-          holeNumber={holeNumber}
-          shotNumber={slot.shotNumber}
-          lie="green"
-          slopeFb={null}
-          slopeLr={null}
-          shotType="putt"
-          remainingDistance={form.puttDistanceMeters}
-          windDirection={windDirection}
-          windStrength={windStrength}
-          weather={weather}
-          savedAdviceText={slot.shot?.advice_text}
-          onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
-          gamePlanContext={gamePlanContext}
-        />
+        {/* パットアドバイス（折りたたみ） */}
+        <details className="group">
+          <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
+            <span className="group-open:rotate-90 transition-transform" aria-hidden="true">▶</span>
+            AIアドバイス
+          </summary>
+          <div className="mt-2">
+            <AdvicePanel
+              roundId={roundId}
+              holeNumber={holeNumber}
+              shotNumber={slot.shotNumber}
+              lie="green"
+              slopeFb={null}
+              slopeLr={null}
+              shotType="putt"
+              remainingDistance={form.puttDistanceMeters}
+              windDirection={windDirection}
+              windStrength={windStrength}
+              weather={weather}
+              savedAdviceText={slot.shot?.advice_text}
+              onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
+              gamePlanContext={gamePlanContext}
+            />
+          </div>
+        </details>
 
         <div className="border-t border-gray-700 my-1" />
 
@@ -305,24 +313,32 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         </div>
       </div>
 
-      {/* AIアドバイス */}
-      <AdvicePanel
-        roundId={roundId}
-        holeNumber={holeNumber}
-        shotNumber={slot.shotNumber}
-        lie={form.lie}
-        slopeFb={form.slopeFb}
-        savedAdviceText={slot.shot?.advice_text}
-        slopeLr={form.slopeLr}
-        shotType={form.shotType}
-        remainingDistance={form.remainingDistance}
-        windDirection={windDirection}
-        windStrength={windStrength}
-        weather={weather}
-        elevation={form.elevation}
-        onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
-        gamePlanContext={gamePlanContext}
-      />
+      {/* AIアドバイス（折りたたみ） */}
+      <details className="group">
+        <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
+          <span className="group-open:rotate-90 transition-transform" aria-hidden="true">▶</span>
+          AIアドバイス
+        </summary>
+        <div className="mt-2">
+          <AdvicePanel
+            roundId={roundId}
+            holeNumber={holeNumber}
+            shotNumber={slot.shotNumber}
+            lie={form.lie}
+            slopeFb={form.slopeFb}
+            savedAdviceText={slot.shot?.advice_text}
+            slopeLr={form.slopeLr}
+            shotType={form.shotType}
+            remainingDistance={form.remainingDistance}
+            windDirection={windDirection}
+            windStrength={windStrength}
+            weather={weather}
+            elevation={form.elevation}
+            onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
+            gamePlanContext={gamePlanContext}
+          />
+        </div>
+      </details>
 
       <div className="border-t border-gray-700 my-1" />
 
