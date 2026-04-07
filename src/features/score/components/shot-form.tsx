@@ -58,6 +58,18 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
   if (isPutt) {
     return (
       <div className="p-3 space-y-3 bg-gray-900">
+        {/* ショット種別（パットから他への切替用） */}
+        <div className="space-y-1">
+          <label className="block text-xs text-gray-400">ショット</label>
+          <ToggleButtonGrid
+            options={SHOT_TYPE_TOGGLE}
+            value={form.shotType}
+            onChange={fieldUpdater('shotType')}
+            columns={3}
+            className="gap-1"
+          />
+        </div>
+
         <SectionHeader>パット状況</SectionHeader>
 
         {/* ファーストパット距離（数値入力 + プリセット） ※number型のためToggleButtonGrid対象外 */}
