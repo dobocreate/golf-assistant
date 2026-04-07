@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Save, CheckCircle } from 'lucide-react';
 import { SpeedDial } from '@/components/ui/speed-dial';
@@ -62,9 +63,12 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
 
 export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null, gamePlans = [], targetScore = null, scoreLevel = null, handicap = null }: ScoreInputProps) {
   const { showToast } = useToast();
+  const router = useRouter();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
   const playRound = usePlayRoundOptional();
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const completeDismissedRef = useRef(false);
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
@@ -249,9 +253,16 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         setSaveStatus('saved');
         setFailedSave(null);
         saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
+        // 全ホール入力完了チェック（楽観的更新済みのサイズを計算）
+        const expectedSize = scoresRef.current.has(holeNum)
+          ? scoresRef.current.size
+          : scoresRef.current.size + 1;
+        if (expectedSize >= holes.length && !editMode && !completeDismissedRef.current) {
+          setShowCompleteDialog(true);
+        }
       }
     });
-  }, [roundId]);
+  }, [roundId, editMode, holes.length]);
 
   // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
   const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null, wd: WindDirection | null, ws: WindStrength | null): boolean => {
@@ -559,6 +570,50 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>
+
+      {/* 全ホール完了ダイアログ */}
+      {showCompleteDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="complete-dialog-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setShowCompleteDialog(false);
+              completeDismissedRef.current = true;
+            }
+          }}
+        >
+          <div className="mx-4 w-full max-w-sm rounded-xl bg-gray-800 border border-gray-600 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-8 w-8 text-green-400 flex-shrink-0" />
+              <h2 id="complete-dialog-title" className="text-xl font-bold text-white">全ホール入力完了</h2>
+            </div>
+            <p className="text-gray-300">
+              {holes.length}ホールすべてのスコアが入力されました。ラウンドを完了しますか？
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowCompleteDialog(false); completeDismissedRef.current = true; }}
+                className="flex-1 min-h-[48px] rounded-lg bg-gray-700 px-4 py-3 text-sm font-bold text-gray-300 hover:bg-gray-600 transition-colors"
+              >
+                続ける
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => router.push(`/play/${roundId}/complete`)}
+                className="flex-1 min-h-[48px] rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-500 transition-colors"
+              >
+                ラウンド完了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />

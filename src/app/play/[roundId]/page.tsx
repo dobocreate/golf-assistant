@@ -4,7 +4,7 @@ import { getGamePlanSetsByCourse } from '@/actions/game-plan-set';
 import { getGamePlans } from '@/actions/game-plan';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
-import { PlaySpeedDial } from './play-speed-dial';
+import { PlayActionButtons } from './play-action-buttons';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
 import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
 import { WeatherWindSetting } from '@/features/round/components/weather-wind-setting';
@@ -67,8 +67,8 @@ export default async function PlayMainPage({
       {/* ゲームプラン選択 */}
       <GamePlanSelector roundId={roundId} plans={gamePlanSets} currentPlanName={appliedPlanName} />
 
-      {/* フローティングアクションボタン（Speed Dial） */}
-      <PlaySpeedDial roundId={roundId} />
+      {/* アクションボタン */}
+      <PlayActionButtons roundId={roundId} />
     </div>
   );
 }
