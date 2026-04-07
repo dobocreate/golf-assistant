@@ -6,7 +6,7 @@ import { PlayBottomNav } from '@/components/layout/play-bottom-nav';
 export function PlayLayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <PlayRoundProvider>
-      <div className="min-h-screen bg-gray-950 text-white">
+      <div className="min-h-screen bg-gray-950 text-white touch-manipulation overflow-x-hidden">
         <main className="pb-[var(--play-nav-height)] px-4 py-4">
           {children}
         </main>
