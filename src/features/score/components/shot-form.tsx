@@ -58,6 +58,8 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
   if (isPutt) {
     return (
       <div className="p-3 space-y-3 bg-gray-900">
+        <SectionHeader>状況</SectionHeader>
+
         {/* ショット種別（パットから他への切替用） */}
         <div className="space-y-1">
           <label className="block text-xs text-gray-400">ショット</label>
