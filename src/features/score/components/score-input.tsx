@@ -477,50 +477,53 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </Link>
       )}
 
-      {/* ヘッダー: コース名 + 保存状態 */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
-        <SaveStatusIndicator
-          status={saveStatus}
-          onRetry={failedSave ? () => saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId) : undefined}
-        />
-      </div>
-
-      {/* ホールナビゲーション */}
-      <HoleNavigation
-        prevHole={prevHole}
-        nextHole={nextHole}
-        onNavigate={switchHole}
-      >
-        <div className="flex items-center gap-2 justify-center">
-          <div className="text-center">
-            <p className="text-3xl font-bold">Hole {currentHole}</p>
-            <p className="text-lg text-gray-300">
-              Par {hole.par}
-              {hole.distance && ` ・ ${hole.distance}y`}
-            </p>
-          </div>
-          {strokes !== null && (
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold self-start mt-1 ${getScoreBgColor(strokes, hole.par)}`}>
-              {getScoreLabel(strokes, hole.par)}
-            </span>
-          )}
+      {/* スティッキーヘッダー: コース名〜マネジメントバンド */}
+      <div className="sticky top-0 z-30 bg-gray-950 -mx-4 px-4 pb-2 space-y-4 border-b border-gray-800">
+        {/* ヘッダー: コース名 + 保存状態 */}
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
+          <SaveStatusIndicator
+            status={saveStatus}
+            onRetry={failedSave ? () => saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId) : undefined}
+          />
         </div>
-      </HoleNavigation>
 
-      {/* マネジメントバンド */}
-      {gamePlans.length > 0 && (
-        <ManagementBand
-          gamePlans={gamePlans}
-          currentHole={currentHole}
-          scores={scores}
-          targetScore={targetScore}
-          holeOrder={holeOrder}
-          scoreLevel={scoreLevel}
-          handicap={handicap}
-          totalOBCount={totalOBCount}
-        />
-      )}
+        {/* ホールナビゲーション */}
+        <HoleNavigation
+          prevHole={prevHole}
+          nextHole={nextHole}
+          onNavigate={switchHole}
+        >
+          <div className="flex items-center gap-2 justify-center">
+            <div className="text-center">
+              <p className="text-3xl font-bold">Hole {currentHole}</p>
+              <p className="text-lg text-gray-300">
+                Par {hole.par}
+                {hole.distance && ` ・ ${hole.distance}y`}
+              </p>
+            </div>
+            {strokes !== null && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold self-start mt-1 ${getScoreBgColor(strokes, hole.par)}`}>
+                {getScoreLabel(strokes, hole.par)}
+              </span>
+            )}
+          </div>
+        </HoleNavigation>
+
+        {/* マネジメントバンド */}
+        {gamePlans.length > 0 && (
+          <ManagementBand
+            gamePlans={gamePlans}
+            currentHole={currentHole}
+            scores={scores}
+            targetScore={targetScore}
+            holeOrder={holeOrder}
+            scoreLevel={scoreLevel}
+            handicap={handicap}
+            totalOBCount={totalOBCount}
+          />
+        )}
+      </div>
 
       {/* ホールアドバイス（冒頭） */}
       {!editMode && (

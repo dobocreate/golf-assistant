@@ -46,7 +46,7 @@ export function CompanionScoreModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl bg-gray-800 border-t border-gray-600 p-5 pb-8 space-y-4 animate-in slide-in-from-bottom duration-200">
+      <div className="w-full max-w-md max-h-[85vh] rounded-t-2xl bg-gray-800 border-t border-gray-600 p-5 pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] space-y-4 animate-in slide-in-from-bottom duration-200 overflow-y-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
