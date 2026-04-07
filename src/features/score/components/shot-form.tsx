@@ -243,16 +243,16 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         />
       </div>
 
-      {/* 残り距離 */}
+      {/* 目標距離 */}
       <div className="space-y-1">
-        <label className="block text-xs text-gray-400">残り距離 (yd)</label>
+        <label className="block text-xs text-gray-400">目標距離 (yd)</label>
         <input
           type="number"
           inputMode="numeric"
           min={0}
           max={700}
           step={1}
-          placeholder="残り距離"
+          placeholder="目標距離"
           value={form.remainingDistance ?? ''}
           onChange={e => {
             const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
