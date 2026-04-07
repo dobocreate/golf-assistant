@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { CompanionScoreEditor } from '@/features/score/components/companion-score-editor';
-import type { Score, HoleInfo, CompanionWithScores } from '@/features/score/types';
+import type { Score, HoleInfo, Companion, CompanionWithScores } from '@/features/score/types';
 
 interface ScorecardProps {
   roundId: string;
@@ -42,6 +42,7 @@ const ALL_HOLES = [...OUT_HOLES, ...IN_HOLES];
 
 export function Scorecard({ roundId, holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
   const [showDetail, setShowDetail] = useState(false);
+  const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(null);
   const [companionOverrides, setCompanionOverrides] = useState<Map<string, Map<number, { strokes: number | null; putts: number | null }>>>(new Map());
 
   const scoreMap = useMemo(() => new Map(scores.map(s => [s.hole_number, s])), [scores]);
@@ -103,7 +104,16 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </>
         )}
         {companions.map(c => (
-          <th scope="col" key={c.id} className="px-1 py-2 text-center font-medium truncate max-w-[48px]" title={c.name}>{c.name}</th>
+          <th scope="col" key={c.id} className="text-center font-medium truncate max-w-[48px] p-0">
+            <button
+              type="button"
+              onClick={() => setSelectedCompanion(c)}
+              className="w-full px-1 py-2 text-blue-400 hover:text-blue-300 underline underline-offset-2 cursor-pointer truncate"
+              title={`${c.name}の詳細を表示`}
+            >
+              {c.name}
+            </button>
+          </th>
         ))}
       </tr>
     );
@@ -165,8 +175,9 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
       )}
 
       {/* セクション（OUT/IN） */}
+      <div id="scorecard-tables">
       {sections.map(section => (
-        <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto" id="scorecard-tables">
+        <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto mb-5">
           <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
             <thead>{renderTheadRow(section.label)}</thead>
             <tbody className="divide-y divide-gray-800">
@@ -209,6 +220,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </table>
         </div>
       ))}
+      </div>
 
       {/* 合計（OUT/INと同じthead構造で列幅を揃える） */}
       <div className="rounded-xl border border-gray-600 overflow-x-auto">
@@ -241,6 +253,115 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </tbody>
         </table>
       </div>
+
+      {/* 同伴者詳細モーダル */}
+      {selectedCompanion && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="companion-detail-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedCompanion(null); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setSelectedCompanion(null); }}
+        >
+          <div className="mx-4 w-full max-w-sm max-h-[80vh] rounded-xl bg-gray-800 border border-gray-600 overflow-hidden flex flex-col">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <h2 id="companion-detail-title" className="text-lg font-bold text-white">{selectedCompanion.name}</h2>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setSelectedCompanion(null)}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                aria-label="閉じる"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* スコアテーブル */}
+            <div className="overflow-y-auto flex-1 px-4 py-3">
+              {(() => {
+                const csMap = companionScoreMap.get(selectedCompanion.id);
+                const totalStrokes = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                const totalPutts = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.putts ?? 0), 0);
+                const totalCount = ALL_HOLES.filter(h => csMap?.get(h)?.strokes != null).length;
+
+                return (
+                  <>
+                    {sections.map(section => {
+                      const sectionStrokes = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                      const sectionPutts = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.putts ?? 0), 0);
+                      const sectionCount = section.holes.filter(h => csMap?.get(h)?.strokes != null).length;
+
+                      return (
+                        <div key={section.label} className="mb-3">
+                          <table className="w-full text-sm tabular-nums">
+                            <thead>
+                              <tr className="text-gray-400 text-xs">
+                                <th className="px-1 py-1 text-left font-bold">{section.label}</th>
+                                <th className="px-1 py-1 text-center font-medium">Par</th>
+                                <th className="px-1 py-1 text-center font-bold">Score</th>
+                                <th className="px-1 py-1 text-center font-medium">Putt</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700/50">
+                              {section.holes.map(h => {
+                                const cs = csMap?.get(h);
+                                const par = holeMap.get(h)?.par ?? 4;
+                                return (
+                                  <tr key={h} className={cs?.strokes ? scoreBg(cs.strokes, par) : ''}>
+                                    <td className="px-1 py-1.5 font-bold text-gray-300">{h}</td>
+                                    <td className="px-1 py-1.5 text-center text-gray-400">{par}</td>
+                                    <td className={`px-1 py-1.5 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
+                                      {cs?.strokes ?? '-'}
+                                    </td>
+                                    <td className="px-1 py-1.5 text-center text-gray-300">
+                                      {cs?.putts ?? '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              <tr className="bg-gray-700/50 border-t border-gray-600">
+                                <td className="px-1 py-1.5 font-bold text-white">{section.label}</td>
+                                <td className="px-1 py-1.5 text-center text-gray-300">
+                                  {section.holes.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0)}
+                                </td>
+                                <td className="px-1 py-1.5 text-center font-bold text-white">{sectionCount > 0 ? sectionStrokes : '-'}</td>
+                                <td className="px-1 py-1.5 text-center text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+
+                    <div className="rounded-lg bg-gray-700/50 px-3 py-2 flex justify-between items-center">
+                      <span className="font-bold text-white">合計</span>
+                      <div className="flex gap-4">
+                        <span className="text-white font-bold text-lg">{totalCount > 0 ? totalStrokes : '-'}<span className="text-xs text-gray-400 ml-0.5">打</span></span>
+                        <span className="text-gray-300">{totalCount > 0 ? totalPutts : '-'}<span className="text-xs text-gray-400 ml-0.5">パット</span></span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* 閉じるボタン */}
+            <div className="px-4 pb-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCompanion(null)}
+                className="w-full min-h-[48px] rounded-lg bg-gray-700 px-4 py-3 text-sm font-bold text-gray-300 hover:bg-gray-600 transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BottomNav高さ(~80px) + safe area分のスペーサー */}
       <div className="h-28" />
