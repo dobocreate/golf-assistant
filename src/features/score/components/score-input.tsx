@@ -3,17 +3,19 @@
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Save, CheckCircle } from 'lucide-react';
+import { Save, CheckCircle, Users } from 'lucide-react';
 import { SpeedDial } from '@/components/ui/speed-dial';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
 import { ToggleButtonGrid, type ToggleOption } from '@/components/ui/toggle-button-grid';
 import { upsertScore } from '@/actions/score';
+import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, HoleInfo } from '@/features/score/types';
+import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
+import { CompanionScoreModal, getCompanionInputsForHole, type CompanionHoleInput } from '@/features/score/components/companion-score-modal';
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
@@ -42,6 +44,8 @@ interface ScoreInputProps {
   targetScore?: number | null;
   scoreLevel?: string | null;
   handicap?: number | null;
+  companions?: Companion[];
+  initialCompanionScores?: CompanionScore[];
 }
 
 // デフォルトのホール情報（holes テーブルにデータがない場合）
@@ -61,7 +65,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null, gamePlans = [], targetScore = null, scoreLevel = null, handicap = null }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null, gamePlans = [], targetScore = null, scoreLevel = null, handicap = null, companions = [], initialCompanionScores = [] }: ScoreInputProps) {
   const { showToast } = useToast();
   const router = useRouter();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
@@ -69,6 +73,31 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRound = usePlayRoundOptional();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const completeDismissedRef = useRef(false);
+
+  // --- 同伴者スコア ---
+  const hasCompanions = companions.length > 0;
+  const [showCompanionModal, setShowCompanionModal] = useState(false);
+  const companionScoresMapRef = useRef<Map<string, Map<number, CompanionScore>> | null>(null);
+  if (companionScoresMapRef.current === null) {
+    const map = new Map<string, Map<number, CompanionScore>>();
+    for (const cs of initialCompanionScores) {
+      if (!map.has(cs.companion_id)) map.set(cs.companion_id, new Map());
+      map.get(cs.companion_id)!.set(cs.hole_number, cs);
+    }
+    companionScoresMapRef.current = map;
+  }
+  const [companionInputs, setCompanionInputs] = useState<CompanionHoleInput[]>(() =>
+    getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeOrder[0]),
+  );
+  const companionInputsRef = useRef(companionInputs);
+  useEffect(() => { companionInputsRef.current = companionInputs; }, [companionInputs]);
+
+  const handleCompanionInputChange = useCallback((companionId: string, field: 'strokes' | 'putts', value: number | null) => {
+    setCompanionInputs(prev => prev.map(i =>
+      i.companionId === companionId ? { ...i, [field]: value } : i,
+    ));
+  }, []);
+
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
@@ -134,6 +163,15 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           firstPuttDistanceM: existing?.first_putt_distance_m ?? null,
           windDirection: wd,
           windStrength: ws,
+        }).catch(() => {});
+      }
+      // アンマウント時: 同伴者スコアも保存
+      const cInputs = companionInputsRef.current;
+      if (cInputs.some(i => i.strokes !== null)) {
+        upsertCompanionScoresBatch({
+          roundId: roundIdRef.current,
+          holeNumber: currentInputRef.current.currentHole,
+          scores: cInputs.map(i => ({ companionId: i.companionId, strokes: i.strokes, putts: i.putts })),
         }).catch(() => {});
       }
     };
@@ -272,6 +310,30 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir || saved.wind_direction !== wd || saved.wind_strength !== ws;
   }, []);
 
+  // 同伴者スコア保存（fire-and-forget）
+  const saveCompanionScoresForHole = useCallback((holeNum: number, inputs: CompanionHoleInput[]) => {
+    const hasData = inputs.some(i => i.strokes !== null);
+    if (!hasData) return;
+    // companionScoresMapRefを更新
+    const csMap = companionScoresMapRef.current!;
+    for (const input of inputs) {
+      if (!csMap.has(input.companionId)) csMap.set(input.companionId, new Map());
+      const holeMap = csMap.get(input.companionId)!;
+      holeMap.set(holeNum, {
+        id: holeMap.get(holeNum)?.id ?? '',
+        companion_id: input.companionId,
+        hole_number: holeNum,
+        strokes: input.strokes,
+        putts: input.putts,
+      });
+    }
+    upsertCompanionScoresBatch({
+      roundId,
+      holeNumber: holeNum,
+      scores: inputs.map(i => ({ companionId: i.companionId, strokes: i.strokes, putts: i.putts })),
+    }).catch(() => {});
+  }, [roundId]);
+
   const handleSave = useCallback(() => {
     if (strokes === null) return;
     const scoreChanged = hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength);
@@ -279,7 +341,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     // バンカー/OBの変更も検知
     const existingScore = scoresRef.current.get(currentHole);
     const countsChanged = (existingScore?.ob_count ?? 0) !== obCount || (existingScore?.bunker_count ?? 0) !== bunkerCount;
-    if (!scoreChanged && !shotsChanged && !countsChanged) {
+    // 同伴者スコアの変更検知（保存済みデータと比較）
+    const companionChanged = hasCompanions && companionInputsRef.current.some(i => {
+      if (i.strokes === null) return false;
+      const saved = companionScoresMapRef.current?.get(i.companionId)?.get(currentHole);
+      return !saved || saved.strokes !== i.strokes || saved.putts !== i.putts;
+    });
+    if (!scoreChanged && !shotsChanged && !countsChanged && !companionChanged) {
       showToast('変更なし', 'info');
       return;
     }
@@ -289,10 +357,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (shotsChanged) {
       shotActionsRef.current.saveCurrentHole();
     }
-    if (!scoreChanged && !countsChanged && shotsChanged) {
+    // 同伴者スコアも同時保存
+    if (companionChanged) {
+      saveCompanionScoresForHole(currentHole, companionInputsRef.current);
+    }
+    if (!scoreChanged && !countsChanged && shotsChanged && !companionChanged) {
       showToast('ショット記録を保存しました', 'success');
     }
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast]);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -325,7 +397,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setObCount(s?.ob_count ?? 0);
     setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
-  }, [saveHole, hasChanges, roundId]);
+    // 同伴者スコア: 現在ホールを自動保存 → 新ホールの入力値に切替
+    if (hasCompanions) {
+      saveCompanionScoresForHole(currentInputRef.current.currentHole, companionInputsRef.current);
+      setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
+    }
+  }, [saveHole, hasChanges, roundId, hasCompanions, companions, saveCompanionScoresForHole]);
 
 
   // スコアラベル
@@ -615,8 +692,32 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       )}
 
+      {/* 同伴者スコアモーダル */}
+      {hasCompanions && (
+        <CompanionScoreModal
+          open={showCompanionModal}
+          onClose={() => setShowCompanionModal(false)}
+          companions={companions}
+          holeNumber={currentHole}
+          inputs={companionInputs}
+          onInputChange={handleCompanionInputChange}
+        />
+      )}
+
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />
+
+      {/* 同伴者スコアFAB（保存ボタンの上） */}
+      {hasCompanions && !editMode && (
+        <button
+          type="button"
+          onClick={() => setShowCompanionModal(true)}
+          className="fixed right-4 z-40 bottom-[calc(var(--play-nav-height)+60px)] flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 transition-colors"
+          aria-label="同伴者スコア入力"
+        >
+          <Users className="h-5 w-5" />
+        </button>
+      )}
 
       {/* フローティング保存ボタン（Speed Dial） */}
       <SpeedDial
