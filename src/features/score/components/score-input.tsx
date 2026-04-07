@@ -87,7 +87,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     companionScoresMapRef.current = map;
   }
   const [companionInputs, setCompanionInputs] = useState<CompanionHoleInput[]>(() =>
-    getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeOrder[0]),
+    getCompanionInputsForHole(companions, companionScoresMapRef.current!, initialHoleResolved),
   );
   const companionInputsRef = useRef(companionInputs);
   useEffect(() => { companionInputsRef.current = companionInputs; }, [companionInputs]);
@@ -103,7 +103,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
-  const [currentHole, setCurrentHole] = useState(() => {
+  const initialHoleResolved = useMemo(() => {
     const validHoles = new Set(holeOrder);
     if (initialHole && validHoles.has(initialHole)) return initialHole;
     if (typeof window !== 'undefined') {
@@ -114,7 +114,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       }
     }
     return holeOrder[0];
-  });
+  }, [holeOrder, initialHole, roundId]);
+  const [currentHole, setCurrentHole] = useState(initialHoleResolved);
   // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
@@ -310,29 +311,36 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir || saved.wind_direction !== wd || saved.wind_strength !== ws;
   }, []);
 
-  // 同伴者スコア保存（fire-and-forget）
+  // 同伴者スコア保存
   const saveCompanionScoresForHole = useCallback((holeNum: number, inputs: CompanionHoleInput[]) => {
-    const hasData = inputs.some(i => i.strokes !== null);
+    const hasData = inputs.some(i => i.strokes !== null || i.putts !== null);
     if (!hasData) return;
-    // companionScoresMapRefを更新
-    const csMap = companionScoresMapRef.current!;
-    for (const input of inputs) {
-      if (!csMap.has(input.companionId)) csMap.set(input.companionId, new Map());
-      const holeMap = csMap.get(input.companionId)!;
-      holeMap.set(holeNum, {
-        id: holeMap.get(holeNum)?.id ?? '',
-        companion_id: input.companionId,
-        hole_number: holeNum,
-        strokes: input.strokes,
-        putts: input.putts,
-      });
-    }
     upsertCompanionScoresBatch({
       roundId,
       holeNumber: holeNum,
       scores: inputs.map(i => ({ companionId: i.companionId, strokes: i.strokes, putts: i.putts })),
-    }).catch(() => {});
-  }, [roundId]);
+    }).then((result) => {
+      if (result.error) {
+        showToast('同伴者スコアの保存に失敗しました', 'error');
+        return;
+      }
+      // 成功時のみローカルMapを更新
+      const csMap = companionScoresMapRef.current!;
+      for (const input of inputs) {
+        if (!csMap.has(input.companionId)) csMap.set(input.companionId, new Map());
+        const holeMap = csMap.get(input.companionId)!;
+        holeMap.set(holeNum, {
+          id: holeMap.get(holeNum)?.id ?? '',
+          companion_id: input.companionId,
+          hole_number: holeNum,
+          strokes: input.strokes,
+          putts: input.putts,
+        });
+      }
+    }).catch(() => {
+      showToast('同伴者スコアの保存に失敗しました', 'error');
+    });
+  }, [roundId, showToast]);
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
@@ -341,11 +349,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     // バンカー/OBの変更も検知
     const existingScore = scoresRef.current.get(currentHole);
     const countsChanged = (existingScore?.ob_count ?? 0) !== obCount || (existingScore?.bunker_count ?? 0) !== bunkerCount;
-    // 同伴者スコアの変更検知（保存済みデータと比較）
+    // 同伴者スコアの変更検知（保存済みデータと比較、クリア操作も検知）
     const companionChanged = hasCompanions && companionInputsRef.current.some(i => {
-      if (i.strokes === null) return false;
       const saved = companionScoresMapRef.current?.get(i.companionId)?.get(currentHole);
-      return !saved || saved.strokes !== i.strokes || saved.putts !== i.putts;
+      return (saved?.strokes ?? null) !== i.strokes || (saved?.putts ?? null) !== i.putts;
     });
     if (!scoreChanged && !shotsChanged && !countsChanged && !companionChanged) {
       showToast('変更なし', 'info');

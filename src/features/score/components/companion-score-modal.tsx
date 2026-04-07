@@ -99,7 +99,7 @@ export function CompanionScoreModal({
                     <Stepper
                       value={putts}
                       min={0}
-                      max={strokes ?? 20}
+                      max={Math.min(strokes ?? 10, 10)}
                       fallbackDisplay="-"
                       label="パット"
                       onChange={(v) => onInputChange(companion.id, 'putts', v)}
