@@ -25,10 +25,9 @@ const VALID_RESULTS: ShotResult[] = ['excellent', 'good', 'fair', 'poor'];
 const VALID_MISS_TYPES = ['フック', 'スライス', 'ダフリ', 'トップ', 'シャンク'];
 const VALID_DIRECTION_LR: DirectionLR[] = ['left', 'center', 'right'];
 const VALID_DIRECTION_FB: DirectionFB[] = ['short', 'center', 'long'];
-import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
+import { VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES, VALID_ELEVATIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import type { ShotType } from '@/features/score/types';
 const VALID_LANDINGS: ShotLanding[] = ['ob', 'water', 'bunker'];
-const VALID_ELEVATIONS: ShotElevation[] = ['uphill', 'flat', 'downhill'];
 
 function validateShotFields(data: {
   club?: string | null;

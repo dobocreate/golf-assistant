@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { createSystemPrompt, createUserPrompt, MAX_ADVICE_TOKENS } from '@/features/advice/lib/prompt-template';
 import { jsonError, createGeminiStream } from '@/lib/llm';
-import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES } from '@/lib/golf-constants';
+import { DISTANCES, VALID_LIES, VALID_SLOPE_FB, VALID_SLOPE_LR, VALID_SHOT_TYPES, VALID_ELEVATIONS } from '@/lib/golf-constants';
 
 export async function POST(request: Request) {
   try {
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     if (body.slopeLR != null && !(VALID_SLOPE_LR as readonly string[]).includes(body.slopeLR)) {
       return jsonError('左右傾斜が不正です。', 400);
     }
-    if (body.elevation != null && !['uphill', 'flat', 'downhill'].includes(body.elevation)) {
+    if (body.elevation != null && !(VALID_ELEVATIONS as readonly string[]).includes(body.elevation)) {
       return jsonError('高低差が不正です。', 400);
     }
 
