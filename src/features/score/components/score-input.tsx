@@ -74,6 +74,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const completeDismissedRef = useRef(false);
 
+  // 初期ホール決定: searchParams > localStorage > holeOrder[0]
+  const initialHoleResolved = useMemo(() => {
+    const validHoles = new Set(holeOrder);
+    if (initialHole && validHoles.has(initialHole)) return initialHole;
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`golf-last-hole-${roundId}`);
+      if (saved) {
+        const num = parseInt(saved, 10);
+        if (validHoles.has(num)) return num;
+      }
+    }
+    return holeOrder[0];
+  }, [holeOrder, initialHole, roundId]);
+  const [currentHole, setCurrentHole] = useState(initialHoleResolved);
+
   // --- 同伴者スコア ---
   const hasCompanions = companions.length > 0;
   const [showCompanionModal, setShowCompanionModal] = useState(false);
@@ -102,20 +117,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
   const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
 
-  // 初期ホール決定: searchParams > localStorage > holeOrder[0]
-  const initialHoleResolved = useMemo(() => {
-    const validHoles = new Set(holeOrder);
-    if (initialHole && validHoles.has(initialHole)) return initialHole;
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`golf-last-hole-${roundId}`);
-      if (saved) {
-        const num = parseInt(saved, 10);
-        if (validHoles.has(num)) return num;
-      }
-    }
-    return holeOrder[0];
-  }, [holeOrder, initialHole, roundId]);
-  const [currentHole, setCurrentHole] = useState(initialHoleResolved);
   // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
