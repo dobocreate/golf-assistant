@@ -104,11 +104,11 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           </>
         )}
         {companions.map(c => (
-          <th scope="col" key={c.id} className="px-1 py-2 text-center font-medium truncate max-w-[48px]">
+          <th scope="col" key={c.id} className="text-center font-medium truncate max-w-[48px] p-0">
             <button
               type="button"
               onClick={() => setSelectedCompanion(c)}
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2 cursor-pointer"
+              className="w-full px-1 py-2 text-blue-400 hover:text-blue-300 underline underline-offset-2 cursor-pointer truncate"
               title={`${c.name}の詳細を表示`}
             >
               {c.name}
@@ -282,68 +282,69 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
             {/* スコアテーブル */}
             <div className="overflow-y-auto flex-1 px-4 py-3">
-              {sections.map(section => {
-                const csMap = companionScoreMap.get(selectedCompanion.id);
-                const sectionStrokes = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
-                const sectionPutts = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.putts ?? 0), 0);
-                const sectionCount = section.holes.filter(h => csMap?.get(h)?.strokes != null).length;
-
-                return (
-                  <div key={section.label} className="mb-3">
-                    <table className="w-full text-sm tabular-nums">
-                      <thead>
-                        <tr className="text-gray-400 text-xs">
-                          <th className="px-1 py-1 text-left font-bold">{section.label}</th>
-                          <th className="px-1 py-1 text-center font-medium">Par</th>
-                          <th className="px-1 py-1 text-center font-bold">Score</th>
-                          <th className="px-1 py-1 text-center font-medium">Putt</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-700/50">
-                        {section.holes.map(h => {
-                          const cs = csMap?.get(h);
-                          const par = holeMap.get(h)?.par ?? 4;
-                          return (
-                            <tr key={h} className={cs?.strokes ? scoreBg(cs.strokes, par) : ''}>
-                              <td className="px-1 py-1.5 font-bold text-gray-300">{h}</td>
-                              <td className="px-1 py-1.5 text-center text-gray-400">{par}</td>
-                              <td className={`px-1 py-1.5 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
-                                {cs?.strokes ?? '-'}
-                              </td>
-                              <td className="px-1 py-1.5 text-center text-gray-300">
-                                {cs?.putts ?? '-'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        <tr className="bg-gray-700/50 border-t border-gray-600">
-                          <td className="px-1 py-1.5 font-bold text-white">{section.label}</td>
-                          <td className="px-1 py-1.5 text-center text-gray-300">
-                            {section.holes.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0)}
-                          </td>
-                          <td className="px-1 py-1.5 text-center font-bold text-white">{sectionCount > 0 ? sectionStrokes : '-'}</td>
-                          <td className="px-1 py-1.5 text-center text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-
-              {/* 合計 */}
               {(() => {
                 const csMap = companionScoreMap.get(selectedCompanion.id);
                 const totalStrokes = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
                 const totalPutts = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.putts ?? 0), 0);
                 const totalCount = ALL_HOLES.filter(h => csMap?.get(h)?.strokes != null).length;
+
                 return (
-                  <div className="rounded-lg bg-gray-700/50 px-3 py-2 flex justify-between items-center">
-                    <span className="font-bold text-white">合計</span>
-                    <div className="flex gap-4">
-                      <span className="text-white font-bold text-lg">{totalCount > 0 ? totalStrokes : '-'}<span className="text-xs text-gray-400 ml-0.5">打</span></span>
-                      <span className="text-gray-300">{totalCount > 0 ? totalPutts : '-'}<span className="text-xs text-gray-400 ml-0.5">パット</span></span>
+                  <>
+                    {sections.map(section => {
+                      const sectionStrokes = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
+                      const sectionPutts = section.holes.reduce((sum, h) => sum + (csMap?.get(h)?.putts ?? 0), 0);
+                      const sectionCount = section.holes.filter(h => csMap?.get(h)?.strokes != null).length;
+
+                      return (
+                        <div key={section.label} className="mb-3">
+                          <table className="w-full text-sm tabular-nums">
+                            <thead>
+                              <tr className="text-gray-400 text-xs">
+                                <th className="px-1 py-1 text-left font-bold">{section.label}</th>
+                                <th className="px-1 py-1 text-center font-medium">Par</th>
+                                <th className="px-1 py-1 text-center font-bold">Score</th>
+                                <th className="px-1 py-1 text-center font-medium">Putt</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700/50">
+                              {section.holes.map(h => {
+                                const cs = csMap?.get(h);
+                                const par = holeMap.get(h)?.par ?? 4;
+                                return (
+                                  <tr key={h} className={cs?.strokes ? scoreBg(cs.strokes, par) : ''}>
+                                    <td className="px-1 py-1.5 font-bold text-gray-300">{h}</td>
+                                    <td className="px-1 py-1.5 text-center text-gray-400">{par}</td>
+                                    <td className={`px-1 py-1.5 text-center font-bold ${cs?.strokes ? scoreColor(cs.strokes, par) : 'text-gray-500'}`}>
+                                      {cs?.strokes ?? '-'}
+                                    </td>
+                                    <td className="px-1 py-1.5 text-center text-gray-300">
+                                      {cs?.putts ?? '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              <tr className="bg-gray-700/50 border-t border-gray-600">
+                                <td className="px-1 py-1.5 font-bold text-white">{section.label}</td>
+                                <td className="px-1 py-1.5 text-center text-gray-300">
+                                  {section.holes.reduce((sum, h) => sum + (holeMap.get(h)?.par ?? 0), 0)}
+                                </td>
+                                <td className="px-1 py-1.5 text-center font-bold text-white">{sectionCount > 0 ? sectionStrokes : '-'}</td>
+                                <td className="px-1 py-1.5 text-center text-gray-300">{sectionCount > 0 ? sectionPutts : '-'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+
+                    <div className="rounded-lg bg-gray-700/50 px-3 py-2 flex justify-between items-center">
+                      <span className="font-bold text-white">合計</span>
+                      <div className="flex gap-4">
+                        <span className="text-white font-bold text-lg">{totalCount > 0 ? totalStrokes : '-'}<span className="text-xs text-gray-400 ml-0.5">打</span></span>
+                        <span className="text-gray-300">{totalCount > 0 ? totalPutts : '-'}<span className="text-xs text-gray-400 ml-0.5">パット</span></span>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 );
               })()}
             </div>
