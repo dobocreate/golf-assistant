@@ -137,8 +137,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const setScores = useCallback((updater: Map<number, Score> | ((prev: Map<number, Score>) => Map<number, Score>)) => {
     setScoresRaw(updater);
   }, []);
-  // scores変更時にsessionStorageに同期
+  // scores変更時にsessionStorageに同期（初回マウントはスキップ）
+  const isInitialMount = useRef(true);
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     setSession(roundScoresKey(roundId), scores);
     setSession(roundDirtyKey(roundId), true);
   }, [scores, roundId]);
@@ -163,20 +168,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       if (userTouched && strokes !== null) {
         const existing = scoresRef.current.get(currentHole);
         const updated = new Map(scoresRef.current).set(currentHole, {
-          id: scoreId ?? '',
+          ...(existing ?? {} as Score),
+          id: scoreId ?? existing?.id ?? '',
           round_id: roundIdRef.current,
           hole_number: currentHole,
           strokes,
           putts,
-          first_putt_distance: existing?.first_putt_distance ?? null,
-          first_putt_distance_m: existing?.first_putt_distance_m ?? null,
-          fairway_hit: null,
           green_in_reg: greenInReg,
-          tee_shot_lr: null,
-          tee_shot_fb: null,
-          ob_count: existing?.ob_count ?? 0,
-          bunker_count: existing?.bunker_count ?? 0,
-          penalty_count: 0,
           wind_direction: wd,
           wind_strength: ws,
         });
@@ -196,6 +194,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       const isDirty = getSession<boolean>(roundDirtyKey(roundId));
       if (isDirty) {
         e.preventDefault();
+        e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -421,20 +420,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (touched && st !== null) {
       const existing = scoresRef.current.get(ch);
       setScores(prev => new Map(prev).set(ch, {
-        id: scoreId ?? '',
+        ...(existing ?? {} as Score),
+        id: scoreId ?? existing?.id ?? '',
         round_id: roundId,
         hole_number: ch,
         strokes: st,
         putts: pt,
-        first_putt_distance: existing?.first_putt_distance ?? null,
-        first_putt_distance_m: existing?.first_putt_distance_m ?? null,
-        fairway_hit: null,
         green_in_reg: gir,
-        tee_shot_lr: null,
-        tee_shot_fb: null,
-        ob_count: existing?.ob_count ?? 0,
-        bunker_count: existing?.bunker_count ?? 0,
-        penalty_count: 0,
         wind_direction: wd,
         wind_strength: ws,
       }));
