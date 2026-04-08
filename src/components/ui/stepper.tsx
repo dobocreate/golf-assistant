@@ -10,6 +10,8 @@ interface StepperProps {
   label?: string;
   fallbackDisplay?: string;
   className?: string;
+  /** コンパクトモード（狭い画面用） */
+  compact?: boolean;
 }
 
 export function Stepper({
@@ -20,6 +22,7 @@ export function Stepper({
   label,
   fallbackDisplay = '-',
   className,
+  compact = false,
 }: StepperProps) {
   const displayValue = value ?? fallbackDisplay;
   const canDecrement = value !== null && value > min;
@@ -35,25 +38,29 @@ export function Stepper({
     onChange(Math.min(max, next));
   };
 
+  const btnSize = compact ? 'min-h-[40px] min-w-[40px] text-lg' : 'min-h-[48px] min-w-[48px] text-xl';
+  const valueSize = compact ? 'min-w-[28px] text-2xl' : 'min-w-[40px] text-3xl';
+  const gapSize = compact ? 'gap-1' : 'gap-2';
+
   return (
-    <div className={cn('flex items-center justify-center gap-2', className)}>
+    <div className={cn('flex items-center justify-center', gapSize, className)}>
       <button
         type="button"
         onClick={handleDecrement}
         disabled={!canDecrement}
-        className="min-h-[48px] min-w-[48px] rounded-lg bg-gray-800 text-white text-xl font-bold hover:bg-gray-700 disabled:opacity-30 transition-colors"
+        className={cn('rounded-lg bg-gray-800 text-white font-bold hover:bg-gray-700 disabled:opacity-30 transition-colors', btnSize)}
         aria-label={label ? `${label}を減らす` : '減らす'}
       >
         −
       </button>
-      <span className="min-w-[40px] text-center text-3xl font-bold text-white">
+      <span className={cn('text-center font-bold text-white', valueSize)} aria-live="polite">
         {displayValue}
       </span>
       <button
         type="button"
         onClick={handleIncrement}
         disabled={!canIncrement}
-        className="min-h-[48px] min-w-[48px] rounded-lg bg-gray-800 text-white text-xl font-bold hover:bg-gray-700 disabled:opacity-30 transition-colors"
+        className={cn('rounded-lg bg-gray-800 text-white font-bold hover:bg-gray-700 disabled:opacity-30 transition-colors', btnSize)}
         aria-label={label ? `${label}を増やす` : '増やす'}
       >
         +

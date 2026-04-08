@@ -76,7 +76,7 @@ export function CompanionScoreModal({
             return (
               <div key={companion.id} className="rounded-lg bg-gray-900 border border-gray-700 p-3">
                 <p className="text-sm font-bold text-gray-300 mb-2">{companion.name}</p>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
                     <label className="block text-xs text-gray-400 text-center">打数</label>
                     <Stepper
@@ -85,6 +85,7 @@ export function CompanionScoreModal({
                       max={20}
                       fallbackDisplay="-"
                       label="打数"
+                      compact
                       onChange={(v) => {
                         onInputChange(companion.id, 'strokes', v);
                         if (putts !== null && v !== null && putts > v) {
@@ -102,6 +103,7 @@ export function CompanionScoreModal({
                       max={Math.min(strokes ?? 10, 10)}
                       fallbackDisplay="-"
                       label="パット"
+                      compact
                       onChange={(v) => onInputChange(companion.id, 'putts', v)}
                     />
                   </div>
