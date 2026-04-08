@@ -178,7 +178,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
           </div>
 
           {/* モーダルコンテンツ（スクロール） */}
-          <div className="flex-1 overflow-y-auto max-w-md mx-auto w-full">
+          <div className="flex-1 overflow-y-auto max-w-md mx-auto w-full pb-[calc(var(--play-nav-height,80px)*0.75+env(safe-area-inset-bottom,0px))]">
             <ShotForm
               slot={modalSlot}
               form={getForm(modalSlot.index)}
