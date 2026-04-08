@@ -69,6 +69,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const completeDismissedRef = useRef(false);
   const [showStrategyModal, setShowStrategyModal] = useState(false);
+  // 戦略モーダル表示中は背景スクロールを防止
+  useEffect(() => {
+    if (showStrategyModal) {
+      const orig = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = orig; };
+    }
+  }, [showStrategyModal]);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const initialHoleResolved = useMemo(() => {
@@ -542,7 +550,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </HoleNavigation>
       </div>
 
-      {/* 戦略モーダル */}
+      {/* 戦略モーダル（背景スクロール防止） */}
       {showStrategyModal && gamePlans.length > 0 && (
         <div
           role="dialog"
