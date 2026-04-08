@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { Plus } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
@@ -16,8 +15,8 @@ interface ShotRecorderProps {
   weather?: string | null;
   gamePlanContext?: string | null;
   holeDistance?: number | null;
-  /** 親に saveCurrentHole / hasPendingShots / getLandingCounts を公開するコールバック */
-  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }) => void;
+  /** 親に saveCurrentHole / hasPendingShots / getLandingCounts / addShot を公開するコールバック */
+  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void }) => void;
 }
 
 export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, onShotActionsReady }: ShotRecorderProps) {
@@ -50,8 +49,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
 
   // 親コンポーネントにショット保存関数を公開
   useEffect(() => {
-    onShotActionsReady?.({ saveCurrentHole, hasPendingShots, getLandingCounts });
-  }, [saveCurrentHole, hasPendingShots, getLandingCounts, onShotActionsReady]);
+    onShotActionsReady?.({ saveCurrentHole, hasPendingShots, getLandingCounts, addShot: handleAddShot });
+  }, [saveCurrentHole, hasPendingShots, getLandingCounts, handleAddShot, onShotActionsReady]);
 
   if (loading) {
     return (
@@ -131,16 +130,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
           </div>
         );
       })}
-
-      {/* ショット追加FAB */}
-      <button
-        onClick={handleAddShot}
-        className="fixed left-4 z-40 bottom-[var(--play-nav-height)] mb-3 flex items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-bold bg-green-600 text-white hover:bg-green-500 active:bg-green-700 transition-colors"
-        aria-label="ショットを追加"
-      >
-        <Plus className="h-4 w-4" />
-        ショット追加
-      </button>
 
       {/* エラー */}
       {error && (
