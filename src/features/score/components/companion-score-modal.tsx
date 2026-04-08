@@ -113,14 +113,6 @@ export function CompanionScoreModal({
           })}
         </div>
 
-        {/* 閉じるボタン */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full min-h-[48px] rounded-lg bg-gray-700 px-4 py-3 text-sm font-bold text-gray-300 hover:bg-gray-600 transition-colors"
-        >
-          閉じる
-        </button>
       </div>
     </div>
   );
