@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Flag, Pencil, Grid3x3, Home } from 'lucide-react';
+import { Flag, Pencil, Grid3x3, MessageCircle } from 'lucide-react';
 
 export function PlayBottomNav() {
   const pathname = usePathname();
@@ -16,11 +16,10 @@ export function PlayBottomNav() {
         { href: `/play/${roundId}`, label: '設定', icon: Flag, exact: true },
         { href: `/play/${roundId}/score`, label: 'スコア', icon: Pencil, exact: true },
         { href: `/play/${roundId}/scorecard`, label: 'カード', icon: Grid3x3, exact: false },
-        { href: '/', label: '戻る', icon: Home, exact: true },
+        { href: `/play/${roundId}/advice`, label: 'AI', icon: MessageCircle, exact: true },
       ]
     : [
         { href: '/play', label: '設定', icon: Flag, exact: true },
-        { href: '/', label: '戻る', icon: Home, exact: true },
       ];
 
   return (
@@ -30,12 +29,9 @@ export function PlayBottomNav() {
     >
       <div className="flex justify-around">
         {navItems.map((item) => {
-          const isActive =
-            item.href === '/'
-              ? false
-              : item.exact
-                ? pathname === item.href
-                : pathname.startsWith(item.href);
+          const isActive = item.exact
+            ? pathname === item.href
+            : pathname.startsWith(item.href);
           const Icon = item.icon;
           return (
             <Link

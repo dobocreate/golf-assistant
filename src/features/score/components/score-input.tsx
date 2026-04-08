@@ -10,7 +10,6 @@ import { Stepper } from '@/components/ui/stepper';
 import { upsertScore } from '@/actions/score';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
-import { AdvicePanel } from '@/features/score/components/advice-panel';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
@@ -590,32 +589,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       )}
 
-      {/* ホールアドバイス（冒頭） */}
-      {!editMode && (
-        <AdvicePanel
-          roundId={roundId}
-          holeNumber={currentHole}
-          shotNumber={null}
-          lie="tee"
-          slopeFb={null}
-          slopeLr={null}
-          shotType="tee_shot"
-          remainingDistance={hole.distance}
-          windDirection={windDirection}
-          windStrength={windStrength}
-          weather={weather}
-          elevation={null}
-          gamePlanContext={
-            gamePlanContextForAdvice
-              ? [
-                  gamePlanContextForAdvice.alertText && `【弱点アラート】${gamePlanContextForAdvice.alertText}`,
-                  gamePlanContextForAdvice.planText && `【ゲームプラン】${gamePlanContextForAdvice.planText}`,
-                  gamePlanContextForAdvice.toneLabel && `【戦略トーン】${gamePlanContextForAdvice.toneLabel}`,
-                ].filter(Boolean).join('\n') || null
-              : null
-          }
-        />
-      )}
 
       {/* スコアサマリー */}
       {completedHoles > 0 && (
