@@ -53,7 +53,7 @@ export function Stepper({
       >
         −
       </button>
-      <span className={cn('text-center font-bold text-white', valueSize)}>
+      <span className={cn('text-center font-bold text-white', valueSize)} aria-live="polite">
         {displayValue}
       </span>
       <button
