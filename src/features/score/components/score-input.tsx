@@ -761,10 +761,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           type="button"
           onClick={handleSave}
           disabled={strokes === null || isPending}
-          className="flex items-center justify-center h-14 w-14 rounded-full shadow-lg bg-green-600 text-white hover:bg-green-500 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-green-600 text-white hover:bg-green-500 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           aria-label={isPending ? '保存中...' : '保存'}
         >
-          <Save className="h-6 w-6" />
+          <Save className="h-5 w-5" />
         </button>
 
         {/* 同伴者スコア */}
@@ -784,7 +784,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           <button
             type="button"
             onClick={() => shotActionsRef.current.addShot()}
-            className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-gray-700 text-white hover:bg-gray-600 active:bg-gray-800 transition-colors"
+            className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-amber-600 text-white hover:bg-amber-500 active:bg-amber-700 transition-colors"
             aria-label="ショットを追加"
           >
             <Plus className="h-5 w-5" />
