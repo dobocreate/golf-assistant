@@ -144,14 +144,13 @@ async function buildAdviceContextInternal(
       .order('played_at', { ascending: false })
       .limit(5),
 
-    // ナレッジベース（最新20件に制限、練習法はプレー中除外）
+    // ナレッジベース（全カテゴリ、最新100件）
     supabase
       .from('knowledge')
       .select('title, content, category, tags')
       .eq('user_id', userId)
-      .or('category.is.null,category.neq.練習法')
       .order('updated_at', { ascending: false })
-      .limit(20),
+      .limit(100),
   ]);
 
   return {
@@ -258,8 +257,10 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ナレッジベース
   if (context.knowledge.length > 0) {
-    const MAX_KNOWLEDGE_CONTENT = 500;
+    const MAX_KNOWLEDGE_CONTENT = 1000;
+    const MAX_KNOWLEDGE_SECTION = 15000;
     const lines = ['## ナレッジベース（プレーヤーが蓄積した知識）'];
+    let sectionLength = 0;
     for (const k of context.knowledge) {
       const tags = k.tags ?? [];
       const content = k.content ?? '';
@@ -270,7 +271,12 @@ export function formatContextForPrompt(context: AdviceContext): string {
       if (k.category) line += `（${k.category}）`;
       if (tags.length > 0) line += ` [${tags.join(', ')}]`;
       line += `\n${truncated}`;
+      if (sectionLength + line.length > MAX_KNOWLEDGE_SECTION) {
+        lines.push('（以降省略）');
+        break;
+      }
       lines.push(line);
+      sectionLength += line.length;
     }
     sections.push(lines.join('\n'));
   }
