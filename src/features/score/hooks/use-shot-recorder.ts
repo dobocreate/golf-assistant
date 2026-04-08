@@ -268,7 +268,7 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     if (index < shots.length) return shotToForm(shots[index]);
     const form = emptyShotForm();
     // 1打目の新規ショットにはホール総ヤードをデフォルトセット
-    if (index === 0 && holeDistance) {
+    if (index === 0 && holeDistance != null) {
       form.remainingDistance = holeDistance;
     }
     return form;
