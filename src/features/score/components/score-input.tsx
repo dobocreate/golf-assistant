@@ -3,8 +3,7 @@
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Save, CheckCircle, Users } from 'lucide-react';
-import { SpeedDial } from '@/components/ui/speed-dial';
+import { Save, CheckCircle, Users, Plus } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
@@ -111,7 +110,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
-  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }) });
+  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }), addShot: () => {} });
 
   // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
@@ -755,43 +754,43 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       {/* ナビバー + フローティングボタン分のスペーサー */}
       <div className="h-32" />
 
-      {/* 同伴者スコアFAB（保存ボタンの上） */}
-      {hasCompanions && !editMode && (
+      {/* 右側FABカラム: 上から保存・同伴者・ショット追加 */}
+      <div className="fixed right-4 z-40 bottom-[var(--play-nav-height)] mb-3 flex flex-col gap-3 items-end">
+        {/* 保存 */}
         <button
           type="button"
-          onClick={() => setShowCompanionModal(true)}
-          className="fixed right-4 z-40 bottom-[calc(var(--play-nav-height)+60px)] flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 transition-colors"
-          aria-label="同伴者スコア入力"
+          onClick={handleSave}
+          disabled={strokes === null || isPending}
+          className="flex items-center justify-center h-14 w-14 rounded-full shadow-lg bg-green-600 text-white hover:bg-green-500 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label={isPending ? '保存中...' : '保存'}
         >
-          <Users className="h-5 w-5" />
+          <Save className="h-6 w-6" />
         </button>
-      )}
 
-      {/* フローティング保存ボタン（Speed Dial） */}
-      <SpeedDial
-        aboveNav
-        actions={[
-          {
-            key: 'save',
-            icon: <Save className="h-4 w-4" />,
-            label: isPending ? '保存中...' : '保存',
-            onClick: handleSave,
-            disabled: strokes === null || isPending,
-            variant: 'primary',
-          },
-          ...(editMode
-            ? [
-                {
-                  key: 'complete',
-                  icon: <CheckCircle className="h-4 w-4" />,
-                  label: '完了',
-                  href: `/rounds/${roundId}`,
-                  variant: 'primary' as const,
-                },
-              ]
-            : []),
-        ]}
-      />
+        {/* 同伴者スコア */}
+        {hasCompanions && !editMode && (
+          <button
+            type="button"
+            onClick={() => setShowCompanionModal(true)}
+            className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 transition-colors"
+            aria-label="同伴者スコア入力"
+          >
+            <Users className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* ショット追加 */}
+        {!editMode && (
+          <button
+            type="button"
+            onClick={() => shotActionsRef.current.addShot()}
+            className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-gray-700 text-white hover:bg-gray-600 active:bg-gray-800 transition-colors"
+            aria-label="ショットを追加"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
