@@ -38,8 +38,8 @@ export function Stepper({
     onChange(Math.min(max, next));
   };
 
-  const btnSize = compact ? 'min-h-[40px] min-w-[40px] text-lg' : 'min-h-[48px] min-w-[48px] text-xl';
-  const valueSize = compact ? 'min-w-[28px] text-2xl' : 'min-w-[40px] text-3xl';
+  const btnSize = compact ? 'min-h-[38px] min-w-[38px] text-lg' : 'min-h-[48px] min-w-[48px] text-xl';
+  const valueSize = compact ? 'min-w-[36px] text-2xl' : 'min-w-[40px] text-3xl';
   const gapSize = compact ? 'gap-1' : 'gap-2';
 
   return (
