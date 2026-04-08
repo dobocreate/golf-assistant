@@ -683,6 +683,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
               ].filter(Boolean).join('\n') || null
             : null
         }
+        holeDistance={hole.distance}
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>

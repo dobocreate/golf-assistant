@@ -4,6 +4,8 @@ import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHO
 import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, ELEVATIONS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
 import { AdvicePanel } from '@/features/score/components/advice-panel';
 import type { Shot, ShotFormState, ShotType, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotElevation } from '@/features/score/types';
+import type { WindDirection, WindStrength } from '@/features/round/types';
+import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { distanceToCategory } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
@@ -18,6 +20,8 @@ const SLOPE_LR_TOGGLE = SLOPE_LR_OPTIONS.map(s => ({ value: s.value as ShotSlope
 const MISS_TYPE_TOGGLE = MISS_TYPES.map(mt => ({ value: mt, label: mt }));
 const LANDING_TOGGLE = LANDINGS.map(l => ({ value: l.value as ShotLanding, label: l.label, activeColor: landingColor(l.value) }));
 const ELEVATION_TOGGLE = ELEVATIONS.map(e => ({ value: e.value as ShotElevation, label: e.shortLabel }));
+const WIND_DIR_TOGGLE = (Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([value, label]) => ({ value, label }));
+const WIND_STR_TOGGLE = (Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([value, label]) => ({ value, label }));
 
 interface ShotFormProps {
   slot: {
@@ -313,6 +317,30 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
         </div>
       </div>
 
+      {/* 風（ショット単位） */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風向き</p>
+          <ToggleButtonGrid
+            options={WIND_DIR_TOGGLE}
+            value={form.windDirection}
+            onChange={fieldUpdater('windDirection')}
+            columns={2}
+            className="gap-1"
+          />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-gray-400 mb-1">風の強さ</p>
+          <ToggleButtonGrid
+            options={WIND_STR_TOGGLE}
+            value={form.windStrength}
+            onChange={fieldUpdater('windStrength')}
+            columns={2}
+            className="gap-1"
+          />
+        </div>
+      </div>
+
       {/* AIアドバイス（折りたたみ） */}
       <details className="group">
         <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
@@ -330,8 +358,8 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
             slopeLr={form.slopeLr}
             shotType={form.shotType}
             remainingDistance={form.remainingDistance}
-            windDirection={windDirection}
-            windStrength={windStrength}
+            windDirection={form.windDirection ?? windDirection}
+            windStrength={form.windStrength ?? windStrength}
             weather={weather}
             elevation={form.elevation}
             onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
