@@ -21,6 +21,7 @@ import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
+import { setSession, getSession, removeSession, roundScoresKey, roundCompanionKey, roundDirtyKey } from '@/lib/session-storage';
 
 const WIND_DIR_OPTIONS: ToggleOption<WindDirection>[] =
   (Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([value, label]) => ({ value, label }));
@@ -122,13 +123,25 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
   }, [playRound, currentHole]);
-  const [scores, setScores] = useState<Map<number, Score>>(() => {
+  const [scores, setScoresRaw] = useState<Map<number, Score>>(() => {
+    // sessionStorageから復元を試みる
+    const cached = getSession<Map<number, Score>>(roundScoresKey(roundId));
+    if (cached && cached.size > 0) return cached;
     const map = new Map<number, Score>();
     for (const s of initialScores) {
       map.set(s.hole_number, s);
     }
     return map;
   });
+  // scores更新をラップ（型互換のため）
+  const setScores = useCallback((updater: Map<number, Score> | ((prev: Map<number, Score>) => Map<number, Score>)) => {
+    setScoresRaw(updater);
+  }, []);
+  // scores変更時にsessionStorageに同期
+  useEffect(() => {
+    setSession(roundScoresKey(roundId), scores);
+    setSession(roundDirtyKey(roundId), true);
+  }, [scores, roundId]);
   const totalOBCount = useMemo(
     () => Array.from(scores.values()).reduce((sum, s) => sum + (s.ob_count ?? 0), 0),
     [scores],
@@ -145,40 +158,50 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   useEffect(() => {
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      // アンマウント時: 未保存スコアをstate更新なしで保存
+      // アンマウント時: 現在の入力値をsessionStorageのscores Mapに反映
       const { strokes, putts, greenInReg, windDirection: wd, windStrength: ws, currentHole, scoreId, userTouched } = currentInputRef.current;
-      if (!userTouched || strokes === null) return;
-      const existing = scoresRef.current.get(currentHole);
-      if (!existing || existing.strokes !== strokes || existing.putts !== putts || existing.green_in_reg !== greenInReg || existing.wind_direction !== wd || existing.wind_strength !== ws) {
-        upsertScore({
-          roundId: roundIdRef.current,
-          holeNumber: currentHole,
+      if (userTouched && strokes !== null) {
+        const existing = scoresRef.current.get(currentHole);
+        const updated = new Map(scoresRef.current).set(currentHole, {
+          id: scoreId ?? '',
+          round_id: roundIdRef.current,
+          hole_number: currentHole,
           strokes,
           putts,
-          fairwayHit: null,
-          greenInReg,
-          teeShotLr: null,
-          teeShotFb: null,
-          obCount: 0,
-          bunkerCount: 0,
-          penaltyCount: 0,
-          firstPuttDistance: existing?.first_putt_distance ?? null,
-          firstPuttDistanceM: existing?.first_putt_distance_m ?? null,
-          windDirection: wd,
-          windStrength: ws,
-        }).catch(() => {});
+          first_putt_distance: existing?.first_putt_distance ?? null,
+          first_putt_distance_m: existing?.first_putt_distance_m ?? null,
+          fairway_hit: null,
+          green_in_reg: greenInReg,
+          tee_shot_lr: null,
+          tee_shot_fb: null,
+          ob_count: existing?.ob_count ?? 0,
+          bunker_count: existing?.bunker_count ?? 0,
+          penalty_count: 0,
+          wind_direction: wd,
+          wind_strength: ws,
+        });
+        setSession(roundScoresKey(roundIdRef.current), updated);
+        setSession(roundDirtyKey(roundIdRef.current), true);
       }
-      // アンマウント時: 同伴者スコアも保存
+      // 同伴者スコアもsessionStorageに保存
       const cInputs = companionInputsRef.current;
-      if (cInputs.some(i => i.strokes !== null)) {
-        upsertCompanionScoresBatch({
-          roundId: roundIdRef.current,
-          holeNumber: currentInputRef.current.currentHole,
-          scores: cInputs.map(i => ({ companionId: i.companionId, strokes: i.strokes, putts: i.putts })),
-        }).catch(() => {});
+      if (cInputs.length > 0) {
+        setSession(roundCompanionKey(roundIdRef.current), cInputs);
       }
     };
   }, []);
+  // --- 未保存データのブラウザ離脱警告 ---
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const isDirty = getSession<boolean>(roundDirtyKey(roundId));
+      if (isDirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [roundId]);
+
   // 保存失敗時のリトライ情報
   const [failedSave, setFailedSave] = useState<{
     holeNum: number;
@@ -373,7 +396,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (!scoreChanged && !countsChanged && shotsChanged && !companionChanged) {
       showToast('ショット記録を保存しました', 'success');
     }
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole]);
+    // 保存実行後にdirtyフラグとsessionStorageキャッシュをクリア
+    removeSession(roundDirtyKey(roundId));
+    removeSession(roundScoresKey(roundId));
+    removeSession(roundCompanionKey(roundId));
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole, roundId]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -387,11 +414,30 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     currentInputRef.current = { strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched };
   }, [strokes, putts, greenInReg, windDirection, windStrength, currentHole, score?.id, userTouched]);
 
-  // ホール切り替え時に未保存データがあれば自動保存（ユーザーが操作済みの場合のみ）
+  // ホール切り替え: 現在ホールの入力値をscores Mapに反映してからホール切替（DB保存はしない）
   const switchHole = useCallback((holeNum: number) => {
     const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
-    if (touched && st !== null && hasChanges(ch, st, pt, gir, wd, ws)) {
-      saveHole(ch, st, pt, gir, wd, ws, scoreId);
+    // 現在ホールの入力値をメモリのscores Mapに反映
+    if (touched && st !== null) {
+      const existing = scoresRef.current.get(ch);
+      setScores(prev => new Map(prev).set(ch, {
+        id: scoreId ?? '',
+        round_id: roundId,
+        hole_number: ch,
+        strokes: st,
+        putts: pt,
+        first_putt_distance: existing?.first_putt_distance ?? null,
+        first_putt_distance_m: existing?.first_putt_distance_m ?? null,
+        fairway_hit: null,
+        green_in_reg: gir,
+        tee_shot_lr: null,
+        tee_shot_fb: null,
+        ob_count: existing?.ob_count ?? 0,
+        bunker_count: existing?.bunker_count ?? 0,
+        penalty_count: 0,
+        wind_direction: wd,
+        wind_strength: ws,
+      }));
     }
     setCurrentHole(holeNum);
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
@@ -406,9 +452,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setObCount(s?.ob_count ?? 0);
     setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
-    // 同伴者スコア: 現在ホールを自動保存 → 新ホールの入力値に切替
+    // 同伴者スコア: 新ホールの入力値に切替（DB保存はしない）
     if (hasCompanions) {
-      saveCompanionScoresForHole(currentInputRef.current.currentHole, companionInputsRef.current);
       setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
     }
   }, [saveHole, hasChanges, roundId, hasCompanions, companions, saveCompanionScoresForHole]);
