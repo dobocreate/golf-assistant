@@ -161,15 +161,9 @@ export function AdvicePanel({
         <AdviceDisplay
           text={adviceText}
           isStreaming={isStreaming}
+          error={error}
         />
       </div>
-
-      {/* エラー */}
-      {error && (
-        <div className="rounded-lg bg-red-900/50 border border-red-700 p-3 text-sm text-red-200">
-          {error}
-        </div>
-      )}
 
       {/* 保存済みアドバイスモーダル */}
       <Modal

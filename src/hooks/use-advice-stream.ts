@@ -120,7 +120,7 @@ export function useAdviceStream(): UseAdviceStreamReturn {
         return;
       }
       console.error('Failed to fetch advice:', err);
-      setError('アドバイスの取得に失敗しました。');
+      setError('アドバイスの取得に失敗しました。しばらくしてから再度お試しください。');
       setIsStreaming(false);
     }
   }, []);
