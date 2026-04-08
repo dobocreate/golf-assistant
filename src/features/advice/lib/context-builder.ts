@@ -224,10 +224,10 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ホール情報（プレー順に並び替え）
   if (context.holes.length > 0) {
+    const holes = context.holes as Record<string, unknown>[];
     const holeOrder = context.starting_course === 'in'
-      ? [...(context.holes as Record<string, unknown>[]).filter(h => (h.hole_number as number) >= 10).sort((a, b) => (a.hole_number as number) - (b.hole_number as number)),
-         ...(context.holes as Record<string, unknown>[]).filter(h => (h.hole_number as number) < 10).sort((a, b) => (a.hole_number as number) - (b.hole_number as number))]
-      : (context.holes as Record<string, unknown>[]);
+      ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
+      : holes;
     const lines = [`## ホール情報（${context.starting_course === 'in' ? 'INスタート: 10→18→1→9の順' : 'OUTスタート: 1→9→10→18の順'}）`];
     for (const [i, h] of holeOrder.entries()) {
       let line = `- [${i + 1}番目] Hole ${h.hole_number}: Par${h.par}`;
@@ -300,7 +300,7 @@ export function formatContextForPrompt(context: AdviceContext): string {
  * - 各ホールのスコアとパーとの差分
  * - 疲労・連続ボギー検出による警告ノート
  */
-export async function buildScoreContext(roundId: string, userId?: string, startingCourse?: string | null): Promise<string> {
+export async function buildScoreContext(roundId: string, userId?: string, startingCourse?: string | null, courseId?: string | null): Promise<string> {
   if (!UUID_RE.test(roundId)) return '';
 
   let resolvedUserId = userId;
@@ -312,15 +312,18 @@ export async function buildScoreContext(roundId: string, userId?: string, starti
 
   const supabase = await createClient();
 
-  // ラウンドのコースIDを取得（所有権確認付き）
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('course_id')
-    .eq('id', roundId)
-    .eq('user_id', resolvedUserId)
-    .single();
-
-  if (!round) return '';
+  // courseIdが渡されなかった場合のみDBから取得
+  let resolvedCourseId = courseId;
+  if (!resolvedCourseId) {
+    const { data: round } = await supabase
+      .from('rounds')
+      .select('course_id')
+      .eq('id', roundId)
+      .eq('user_id', resolvedUserId)
+      .single();
+    if (!round) return '';
+    resolvedCourseId = round.course_id;
+  }
 
   // スコアとホール情報を並列取得
   const [scoresResult, holesResult] = await Promise.all([
@@ -332,7 +335,7 @@ export async function buildScoreContext(roundId: string, userId?: string, starti
     supabase
       .from('holes')
       .select('hole_number, par')
-      .eq('course_id', round.course_id)
+      .eq('course_id', resolvedCourseId)
       .order('hole_number'),
   ]);
 

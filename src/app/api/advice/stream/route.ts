@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const snapshotResult = await getOrBuildContextSnapshot(body.roundId, user.id);
     if (!snapshotResult) return jsonError('ラウンド情報の取得に失敗しました。', 404);
 
-    const scoreContext = await buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse);
+    const scoreContext = await buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse, snapshotResult.courseId);
 
     const fullContext = scoreContext
       ? `${snapshotResult.contextText}\n\n${scoreContext}`
