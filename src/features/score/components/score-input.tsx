@@ -8,7 +8,6 @@ import { SpeedDial } from '@/components/ui/speed-dial';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
-import { ToggleButtonGrid, type ToggleOption } from '@/components/ui/toggle-button-grid';
 import { upsertScore } from '@/actions/score';
 import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
@@ -18,15 +17,10 @@ import { usePlayRoundOptional } from '@/features/play/context/play-round-context
 import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
 import { CompanionScoreModal, getCompanionInputsForHole, type CompanionHoleInput } from '@/features/score/components/companion-score-modal';
 import type { WindDirection, WindStrength } from '@/features/round/types';
-import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
 import { setSession, getSession, removeSession, roundScoresKey, roundCompanionKey, roundDirtyKey } from '@/lib/session-storage';
 
-const WIND_DIR_OPTIONS: ToggleOption<WindDirection>[] =
-  (Object.entries(WIND_DIRECTION_LABELS) as [WindDirection, string][]).map(([value, label]) => ({ value, label }));
-const WIND_STR_OPTIONS: ToggleOption<WindStrength>[] =
-  (Object.entries(WIND_STRENGTH_LABELS) as [WindStrength, string][]).map(([value, label]) => ({ value, label }));
 
 interface ClubOption {
   name: string;
@@ -678,29 +672,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </div>
       </div>
 
-      {/* 風（ホール単位） */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <p className="text-xs text-gray-400 mb-1">風向き</p>
-          <ToggleButtonGrid
-            options={WIND_DIR_OPTIONS}
-            value={windDirection}
-            onChange={(v) => { setWindDirection(v); setUserTouched(true); }}
-            columns={2}
-            className="gap-1"
-          />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs text-gray-400 mb-1">風の強さ</p>
-          <ToggleButtonGrid
-            options={WIND_STR_OPTIONS}
-            value={windStrength}
-            onChange={(v) => { setWindStrength(v); setUserTouched(true); }}
-            columns={2}
-            className="gap-1"
-          />
-        </div>
-      </div>
 
       {/* ショット記録 */}
       <div ref={shotRecorderRef}>
