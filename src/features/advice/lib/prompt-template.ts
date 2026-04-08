@@ -44,6 +44,27 @@ const PUTTING_RULES = `
 📏 タッチ: [距離感の目安]
 ⚠️ 注意: [3パットを防ぐためのポイント]`;
 
+const CHAT_SYSTEM_PROMPT = `あなたはプロゴルファーの経験を持つAIキャディーです。
+プレーヤーからのゴルフに関する自由な質問に、具体的で実用的なアドバイスを提供します。
+
+回答のルール:
+1. プレーヤーのプロファイル（ハンディキャップ、ミス傾向、得意クラブ等）を考慮して回答してください
+2. 現在プレー中のコース・ホール情報がある場合は、それを踏まえて回答してください
+3. 簡潔に、わかりやすく回答してください
+4. 日本語で回答してください
+5. 回答は${MAX_ADVICE_CHARACTERS}文字以内に収めてください
+6. 質問がゴルフに関係ない場合は、丁寧にゴルフに関する質問をお願いしてください`;
+
+export const MAX_CHAT_TOKENS = 1024;
+
+export function createChatSystemPrompt(context: string): string {
+  return `${CHAT_SYSTEM_PROMPT}\n\n---\n\n${context}`;
+}
+
+export function createChatUserPrompt(holeNumber: number, question: string): string {
+  return `現在 Hole ${holeNumber} にいます。\n\n質問: ${question}`;
+}
+
 export function createSystemPrompt(context: string, shotType?: string): string {
   const puttingExtra = shotType === 'putt' ? PUTTING_RULES : '';
   return `${SYSTEM_PROMPT}${puttingExtra}\n\n---\n\n${context}`;
