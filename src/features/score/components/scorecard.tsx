@@ -252,7 +252,7 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
             </div>
 
             {/* スコアテーブル */}
-            <div className="overflow-y-auto flex-1 px-4 py-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="overflow-y-auto flex-1 px-4 py-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" tabIndex={0} role="region" aria-labelledby="companion-detail-title">
               {(() => {
                 const csMap = companionScoreMap.get(selectedCompanion.id);
                 const totalStrokes = ALL_HOLES.reduce((sum, h) => sum + (csMap?.get(h)?.strokes ?? 0), 0);
