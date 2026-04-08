@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
-import { CompanionScoreEditor } from '@/features/score/components/companion-score-editor';
 import type { Score, HoleInfo, Companion, CompanionWithScores } from '@/features/score/types';
 
 interface ScorecardProps {
@@ -43,7 +42,6 @@ const ALL_HOLES = [...OUT_HOLES, ...IN_HOLES];
 export function Scorecard({ roundId, holes, scores, courseName, startingCourse, companionData }: ScorecardProps) {
   const [showDetail, setShowDetail] = useState(false);
   const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(null);
-  const [companionOverrides, setCompanionOverrides] = useState<Map<string, Map<number, { strokes: number | null; putts: number | null }>>>(new Map());
 
   const scoreMap = useMemo(() => new Map(scores.map(s => [s.hole_number, s])), [scores]);
   const holeMap = useMemo(() => new Map(holes.map(h => [h.hole_number, h])), [holes]);
@@ -53,27 +51,10 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     for (const { companion, scores: cs } of companionData) {
       const m = new Map<number, { strokes: number | null; putts: number | null }>();
       for (const s of cs) m.set(s.hole_number, { strokes: s.strokes, putts: s.putts });
-      const overrides = companionOverrides.get(companion.id);
-      if (overrides) {
-        for (const [hole, val] of overrides) m.set(hole, val);
-      }
       map.set(companion.id, m);
     }
     return map;
-  }, [companionData, companionOverrides]);
-
-  const handleCompanionSaved = (holeNumber: number, savedScores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => {
-    setCompanionOverrides(prev => {
-      const next = new Map(prev);
-      for (const s of savedScores) {
-        if (s.strokes === null && s.putts === null) continue;
-        const m = new Map(next.get(s.companionId) ?? new Map());
-        m.set(holeNumber, { strokes: s.strokes, putts: s.putts });
-        next.set(s.companionId, m);
-      }
-      return next;
-    });
-  };
+  }, [companionData]);
 
   const sections = startingCourse === 'in'
     ? [{ label: 'IN', holes: IN_HOLES }, { label: 'OUT', holes: OUT_HOLES }]
@@ -163,16 +144,6 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
           {showDetail ? '簡易表示' : 'パット・FW・GIRを表示'}
         </button>
       </div>
-
-      {/* 同伴者スコア入力 */}
-      {companionData.length > 0 && (
-        <CompanionScoreEditor
-          companionData={companionData}
-          roundId={roundId}
-          startingCourse={startingCourse}
-          onSaved={handleCompanionSaved}
-        />
-      )}
 
       {/* セクション（OUT/IN） */}
       <div id="scorecard-tables">
