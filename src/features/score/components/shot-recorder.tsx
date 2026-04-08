@@ -32,6 +32,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     handleAdviceReceived,
     handleAddShot,
     confirmNewShot,
+    confirmEdit,
     cancelNewShot,
     shots,
     loading,
@@ -173,6 +174,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
                 onClick={() => {
                   if (modalSlot.isNew) {
                     confirmNewShot(modalSlot.index);
+                  } else {
+                    confirmEdit(modalSlot.index);
                   }
                   setModalSlotIndex(null);
                 }}

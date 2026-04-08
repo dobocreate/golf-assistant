@@ -27,6 +27,7 @@ type FormsAction =
   | { type: 'UPDATE_CACHE'; holeNumber: number; shots: Shot[]; version: number }
   | { type: 'INCREMENT_SAVE_VERSION'; holeNumber: number }
   | { type: 'CONFIRM_NEW_SHOT'; holeNumber: number; index: number; shot: Shot }
+  | { type: 'CONFIRM_EDIT'; holeNumber: number; index: number; updatedShot: Shot }
   | { type: 'CANCEL_NEW_SHOT'; holeNumber: number; index: number }
   | { type: 'CLEAR_ALL' };
 
@@ -98,6 +99,24 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
       newCache.set(action.holeNumber, holeShots);
       // フォームデータはそのまま保持（batchSave時にDBへ書き込まれる）
       return { ...state, cache: newCache };
+    }
+
+    case 'CONFIRM_EDIT': {
+      // 既存ショットのキャッシュをフォーム値で更新し、フォームをクリア
+      const newCache = new Map(state.cache);
+      const holeShots = [...(newCache.get(action.holeNumber) ?? [])];
+      if (action.index < holeShots.length) {
+        holeShots[action.index] = action.updatedShot;
+        newCache.set(action.holeNumber, holeShots);
+      }
+      const newForms = new Map(state.formsByHole);
+      const holeForms = newForms.get(action.holeNumber);
+      if (holeForms) {
+        const updated = new Map(holeForms);
+        updated.delete(action.index);
+        newForms.set(action.holeNumber, updated);
+      }
+      return { ...state, cache: newCache, formsByHole: newForms };
     }
 
     case 'CANCEL_NEW_SHOT': {
@@ -359,6 +378,35 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     setNewSlotCount(prev => Math.max(0, prev - 1));
   }, [shots]);
 
+  /** 既存ショットの編集をキャッシュに確定（「編集中」表示を解消） */
+  const confirmEdit = useCallback((index: number) => {
+    const form = stateRef.current.formsByHole.get(holeNumberRef.current)?.get(index);
+    const existingShot = stateRef.current.cache.get(holeNumberRef.current)?.[index];
+    if (!form || !existingShot) return;
+
+    const updatedShot: Shot = {
+      ...existingShot,
+      club: form.club,
+      result: form.result,
+      miss_type: form.missType,
+      direction_lr: form.directionLr,
+      direction_fb: form.directionFb,
+      lie: form.lie,
+      slope_fb: form.slopeFb,
+      slope_lr: form.slopeLr,
+      landing: form.landing,
+      shot_type: form.shotType,
+      remaining_distance: form.remainingDistance,
+      note: form.note,
+      wind_direction: form.windDirection,
+      wind_strength: form.windStrength,
+      elevation: form.elevation,
+      advice_text: stateRef.current.adviceByHole.get(holeNumberRef.current)?.get(index) ?? existingShot.advice_text,
+    };
+
+    dispatch({ type: 'CONFIRM_EDIT', holeNumber: holeNumberRef.current, index, updatedShot });
+  }, []);
+
   /** 新規ショットをキャンセル（フォームデータを破棄） */
   const cancelNewShot = useCallback((index: number) => {
     dispatch({ type: 'CANCEL_NEW_SHOT', holeNumber: holeNumberRef.current, index });
@@ -394,6 +442,7 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     handleAdviceReceived,
     handleAddShot,
     confirmNewShot,
+    confirmEdit,
     cancelNewShot,
     shots,
     loading: state.loading,
