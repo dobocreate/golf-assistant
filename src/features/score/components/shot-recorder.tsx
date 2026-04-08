@@ -121,7 +121,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
             key={slot.index}
             type="button"
             onClick={() => {
-              setExpandedIndex(slot.index);
               setModalSlotIndex(slot.index);
             }}
             className="w-full rounded-lg border border-gray-700 p-3 bg-gray-800 text-left hover:bg-gray-750 transition-colors"

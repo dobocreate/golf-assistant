@@ -282,7 +282,6 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
   const handleAddShot = useCallback((): number => {
     const newIndex = shots.length + newSlotCount;
     setNewSlotCount(prev => prev + 1);
-    setExpandedIndex(newIndex);
     return newIndex;
   }, [shots.length, newSlotCount]);
 
