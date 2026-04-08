@@ -514,7 +514,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </Link>
       )}
 
-      {/* スティッキーヘッダー: コース名〜マネジメントバンド */}
+      {/* スティッキーヘッダー: コース名〜ホールナビゲーション */}
       <div className="sticky top-0 z-30 bg-gray-950 -mx-4 px-4 pb-2 space-y-4 border-b border-gray-800">
         {/* ヘッダー: コース名 + 保存状態 */}
         <div className="flex items-center justify-between pt-2">
@@ -546,21 +546,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             )}
           </div>
         </HoleNavigation>
-
-        {/* マネジメントバンド */}
-        {gamePlans.length > 0 && (
-          <ManagementBand
-            gamePlans={gamePlans}
-            currentHole={currentHole}
-            scores={scores}
-            targetScore={targetScore}
-            holeOrder={holeOrder}
-            scoreLevel={scoreLevel}
-            handicap={handicap}
-            totalOBCount={totalOBCount}
-          />
-        )}
       </div>
+
+      {/* マネジメントバンド（スクロール対象） */}
+      {gamePlans.length > 0 && (
+        <ManagementBand
+          gamePlans={gamePlans}
+          currentHole={currentHole}
+          scores={scores}
+          targetScore={targetScore}
+          holeOrder={holeOrder}
+          scoreLevel={scoreLevel}
+          handicap={handicap}
+          totalOBCount={totalOBCount}
+        />
+      )}
 
       {/* ホールアドバイス（冒頭） */}
       {!editMode && (
