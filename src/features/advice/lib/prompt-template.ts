@@ -61,13 +61,14 @@ export function createUserPrompt(situation: {
   windStrength?: string | null;
   weather?: string | null;
   elevation?: string | null;
+  holeProgress?: string | null;
 }): string {
   const lieLabel = LIE_DB_TO_LABEL[situation.lie] ?? situation.lie;
   const shotTypeLabel = SHOT_TYPE_DB_TO_LABEL[situation.shotType] ?? situation.shotType;
 
   const isPutt = situation.shotType === 'putt';
   const parts = [
-    `Hole ${situation.holeNumber}`,
+    `Hole ${situation.holeNumber}${situation.holeProgress ? `（${situation.holeProgress}）` : ''}`,
     `ショット: ${shotTypeLabel}`,
     `残り距離: ${situation.remainingDistance}`,
   ];
