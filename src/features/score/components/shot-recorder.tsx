@@ -159,7 +159,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
           onKeyDown={(e) => { if (e.key === 'Escape') setModalSlotIndex(null); }}
         >
           {/* モーダルヘッダー */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 flex-shrink-0 max-w-md mx-auto w-full">
             <h2 id="shot-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
               <span className="inline-flex items-center justify-center min-w-[36px] h-9 rounded-lg bg-green-600 text-white text-lg font-bold px-2">
                 {modalSlot.shotNumber}
@@ -178,7 +178,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
           </div>
 
           {/* モーダルコンテンツ（スクロール） */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto max-w-md mx-auto w-full">
             <ShotForm
               slot={modalSlot}
               form={getForm(modalSlot.index)}
