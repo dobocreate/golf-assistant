@@ -751,9 +751,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         />
       )}
 
-      {/* ナビバー + フローティングボタン分のスペーサー */}
-      <div className="h-32" />
-
       {/* 右側FABカラム: 上から保存・同伴者・ショット追加 */}
       <div className="fixed right-4 z-40 bottom-[var(--play-nav-height)] mb-3 flex flex-col gap-3 items-end">
         {/* 保存 */}

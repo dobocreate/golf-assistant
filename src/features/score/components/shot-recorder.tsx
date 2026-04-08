@@ -72,69 +72,72 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
   }
 
   return (
-    <div className="space-y-3">
-      {/* ヘッダー + 保存状態 */}
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col" style={{ height: 'calc(100vh - var(--play-nav-height) - 4rem)' }}>
+      {/* stickyヘッダー */}
+      <div className="flex items-center gap-2 py-2 flex-shrink-0">
         <label className="block text-sm font-bold text-gray-200">ショット記録</label>
         <SaveStatusIndicator status={saveStatus} compact showLabel={false} />
       </div>
 
-      {/* ショット一覧（最新順） */}
-      {displaySlots.map((slot) => {
-        const isExpanded = expandedIndex === slot.index;
-        const form = getForm(slot.index);
-        const isChanged = slot.shot ? hasFormChanged(form, slot.shot) : false;
+      {/* 内部スクロール領域 */}
+      <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+        {/* ショット一覧（最新順） */}
+        {displaySlots.map((slot) => {
+          const isExpanded = expandedIndex === slot.index;
+          const form = getForm(slot.index);
+          const isChanged = slot.shot ? hasFormChanged(form, slot.shot) : false;
 
-        return (
-          <div key={slot.index} className="rounded-lg border border-gray-700 overflow-hidden">
-            {/* アコーディオンヘッダー */}
-            <button
-              onClick={() => setExpandedIndex(isExpanded ? null : slot.index)}
-              aria-expanded={isExpanded}
-              className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
-            >
-              <div className="flex items-center gap-2 text-base">
-                <span className="inline-flex items-center justify-center min-w-[36px] h-9 rounded-lg bg-green-600 text-white text-lg font-bold px-2">
-                  {slot.shotNumber}
-                </span>
-                <span className="font-bold text-gray-200">
-                  {slot.isNew ? '新規' : '打目'}
-                </span>
-                {slot.club && <span className="text-gray-400 text-sm">{slot.club}</span>}
-                {slot.shotTypeLabel && <span className="text-gray-400 text-sm">{slot.shotTypeLabel}</span>}
-                {slot.distance != null && <span className="text-gray-400 text-sm">{slot.distance}y</span>}
-                {slot.lieLabel && <span className="text-gray-400 text-sm">{slot.lieLabel}</span>}
-                {slot.isSkipped && <span className="text-xs text-gray-400 bg-gray-700 px-1.5 py-0.5 rounded">スキップ</span>}
-                {slot.hasAdvice && <span className="text-blue-400 text-xs">AI</span>}
-                {isChanged && <span className="text-yellow-400 text-xs">編集中</span>}
-              </div>
-              <span className="text-gray-400">{isExpanded ? '\u25B2' : '\u25BC'}</span>
-            </button>
+          return (
+            <div key={slot.index} className="rounded-lg border border-gray-700 overflow-hidden">
+              {/* アコーディオンヘッダー */}
+              <button
+                onClick={() => setExpandedIndex(isExpanded ? null : slot.index)}
+                aria-expanded={isExpanded}
+                className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
+              >
+                <div className="flex items-center gap-2 text-base">
+                  <span className="inline-flex items-center justify-center min-w-[36px] h-9 rounded-lg bg-green-600 text-white text-lg font-bold px-2">
+                    {slot.shotNumber}
+                  </span>
+                  <span className="font-bold text-gray-200">
+                    {slot.isNew ? '新規' : '打目'}
+                  </span>
+                  {slot.club && <span className="text-gray-400 text-sm">{slot.club}</span>}
+                  {slot.shotTypeLabel && <span className="text-gray-400 text-sm">{slot.shotTypeLabel}</span>}
+                  {slot.distance != null && <span className="text-gray-400 text-sm">{slot.distance}y</span>}
+                  {slot.lieLabel && <span className="text-gray-400 text-sm">{slot.lieLabel}</span>}
+                  {slot.isSkipped && <span className="text-xs text-gray-400 bg-gray-700 px-1.5 py-0.5 rounded">スキップ</span>}
+                  {slot.hasAdvice && <span className="text-blue-400 text-xs">AI</span>}
+                  {isChanged && <span className="text-yellow-400 text-xs">編集中</span>}
+                </div>
+                <span className="text-gray-400">{isExpanded ? '\u25B2' : '\u25BC'}</span>
+              </button>
 
-            {/* 展開時のフォーム */}
-            {isExpanded && (
-              <ShotForm
-                slot={slot}
-                form={form}
-                dispatch={dispatch}
-                clubs={clubs}
-                roundId={roundId}
-                holeNumber={holeNumber}
-                windDirection={windDirection}
-                windStrength={windStrength}
-                weather={weather}
-                onAdviceReceived={handleAdviceReceived}
-                gamePlanContext={gamePlanContext}
-              />
-            )}
-          </div>
-        );
-      })}
+              {/* 展開時のフォーム */}
+              {isExpanded && (
+                <ShotForm
+                  slot={slot}
+                  form={form}
+                  dispatch={dispatch}
+                  clubs={clubs}
+                  roundId={roundId}
+                  holeNumber={holeNumber}
+                  windDirection={windDirection}
+                  windStrength={windStrength}
+                  weather={weather}
+                  onAdviceReceived={handleAdviceReceived}
+                  gamePlanContext={gamePlanContext}
+                />
+              )}
+            </div>
+          );
+        })}
 
-      {/* エラー */}
-      {error && (
-        <p className="text-center text-sm text-red-400">{error}</p>
-      )}
+        {/* エラー */}
+        {error && (
+          <p className="text-center text-sm text-red-400">{error}</p>
+        )}
+      </div>
     </div>
   );
 }
