@@ -67,11 +67,10 @@ export async function POST(request: Request) {
     }
 
     // コンテキスト構築（2回目以降はスナップショットから1クエリで取得）
-    const [snapshotResult, scoreContext] = await Promise.all([
-      getOrBuildContextSnapshot(body.roundId, user.id),
-      buildScoreContext(body.roundId, user.id),
-    ]);
+    const snapshotResult = await getOrBuildContextSnapshot(body.roundId, user.id);
     if (!snapshotResult) return jsonError('ラウンド情報の取得に失敗しました。', 404);
+
+    const scoreContext = await buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse);
 
     const fullContext = scoreContext
       ? `${snapshotResult.contextText}\n\n${scoreContext}`
@@ -89,6 +88,14 @@ export async function POST(request: Request) {
       windStrength: body.windStrength,
       weather: body.weather,
       elevation: body.elevation,
+      holeProgress: (() => {
+        const sc = snapshotResult.startingCourse;
+        const order = sc === 'in'
+          ? [...Array.from({ length: 9 }, (_, i) => i + 10), ...Array.from({ length: 9 }, (_, i) => i + 1)]
+          : Array.from({ length: 18 }, (_, i) => i + 1);
+        const pos = order.indexOf(body.holeNumber);
+        return pos >= 0 ? `${pos + 1}/18ホール目` : null;
+      })(),
     });
 
     return createGeminiStream(systemPrompt, userPrompt, MAX_ADVICE_TOKENS);

@@ -16,7 +16,7 @@ const levelLabels = Object.fromEntries(SCORE_LEVELS.map(({ value, label }) => [v
 export async function getOrBuildContextSnapshot(
   roundId: string,
   userId: string,
-): Promise<{ contextText: string; courseId: string } | null> {
+): Promise<{ contextText: string; courseId: string; startingCourse: string | null } | null> {
   if (!UUID_RE.test(roundId)) return null;
 
   const supabase = await createClient();
@@ -33,7 +33,7 @@ export async function getOrBuildContextSnapshot(
 
   // キャッシュヒット: snapshotがstring（フォーマット済みテキスト）ならそのまま返す
   if (typeof round.context_snapshot === 'string' && round.context_snapshot.length > 0) {
-    return { contextText: round.context_snapshot, courseId: round.course_id };
+    return { contextText: round.context_snapshot, courseId: round.course_id, startingCourse: round.starting_course };
   }
 
   // キャッシュミス: コンテキストを構築（course_id, starting_courseは取得済みなので渡す）
@@ -53,7 +53,7 @@ export async function getOrBuildContextSnapshot(
     console.error('context_snapshot save failed:', error.message);
   }
 
-  return { contextText, courseId: round.course_id };
+  return { contextText, courseId: round.course_id, startingCourse: round.starting_course };
 }
 
 /**
@@ -222,11 +222,15 @@ export function formatContextForPrompt(context: AdviceContext): string {
     sections.push(`## コース\n${course.name}（${course.prefecture ?? ''}）${startLabel ? ` ${startLabel}` : ''}`);
   }
 
-  // ホール情報
+  // ホール情報（プレー順に並び替え）
   if (context.holes.length > 0) {
-    const lines = ['## ホール情報'];
-    for (const h of context.holes as Record<string, unknown>[]) {
-      let line = `- Hole ${h.hole_number}: Par${h.par}`;
+    const holeOrder = context.starting_course === 'in'
+      ? [...(context.holes as Record<string, unknown>[]).filter(h => (h.hole_number as number) >= 10).sort((a, b) => (a.hole_number as number) - (b.hole_number as number)),
+         ...(context.holes as Record<string, unknown>[]).filter(h => (h.hole_number as number) < 10).sort((a, b) => (a.hole_number as number) - (b.hole_number as number))]
+      : (context.holes as Record<string, unknown>[]);
+    const lines = [`## ホール情報（${context.starting_course === 'in' ? 'INスタート: 10→18→1→9の順' : 'OUTスタート: 1→9→10→18の順'}）`];
+    for (const [i, h] of holeOrder.entries()) {
+      let line = `- [${i + 1}番目] Hole ${h.hole_number}: Par${h.par}`;
       if (h.distance) line += ` ${h.distance}y`;
       if (h.hdcp) line += ` HDCP${h.hdcp}`;
       if (h.dogleg && h.dogleg !== 'straight') line += ` ${h.dogleg === 'left' ? '左ドッグレッグ' : '右ドッグレッグ'}`;
@@ -296,7 +300,7 @@ export function formatContextForPrompt(context: AdviceContext): string {
  * - 各ホールのスコアとパーとの差分
  * - 疲労・連続ボギー検出による警告ノート
  */
-export async function buildScoreContext(roundId: string, userId?: string): Promise<string> {
+export async function buildScoreContext(roundId: string, userId?: string, startingCourse?: string | null): Promise<string> {
   if (!UUID_RE.test(roundId)) return '';
 
   let resolvedUserId = userId;
@@ -332,24 +336,31 @@ export async function buildScoreContext(roundId: string, userId?: string): Promi
       .order('hole_number'),
   ]);
 
-  const scores = scoresResult.data ?? [];
+  const rawScores = scoresResult.data ?? [];
   const holes = holesResult.data ?? [];
 
-  if (scores.length === 0) return '';
+  if (rawScores.length === 0) return '';
+
+  // プレー順にソート
+  const playOrder = startingCourse === 'in'
+    ? [...Array.from({ length: 9 }, (_, i) => i + 10), ...Array.from({ length: 9 }, (_, i) => i + 1)]
+    : Array.from({ length: 18 }, (_, i) => i + 1);
+  const orderMap = new Map(playOrder.map((h, i) => [h, i]));
+  const scores = [...rawScores].sort((a, b) => (orderMap.get(a.hole_number) ?? 0) - (orderMap.get(b.hole_number) ?? 0));
 
   const parMap = new Map(holes.map(h => [h.hole_number, h.par as number]));
 
-  const lines = ['## 当日のスコア推移'];
+  const lines = ['## 当日のスコア推移（プレー順）'];
   let totalStrokes = 0;
   let totalPar = 0;
   let consecutiveBogeys = 0;
-  const lastHoleNumber = Math.max(...scores.map(s => s.hole_number));
+  const lastHoleNumber = scores[scores.length - 1].hole_number;
 
-  for (const s of scores) {
+  for (const [idx, s] of scores.entries()) {
     const par = parMap.get(s.hole_number) ?? 0;
     const diff = s.strokes - par;
     const diffStr = diff > 0 ? `+${diff}` : diff === 0 ? 'E' : `${diff}`;
-    let line = `- Hole ${s.hole_number}: ${s.strokes}打 (Par${par}, ${diffStr})`;
+    let line = `- [${idx + 1}番目] Hole ${s.hole_number}: ${s.strokes}打 (Par${par}, ${diffStr})`;
     if (s.putts !== null) line += ` パット${s.putts}`;
     lines.push(line);
     totalStrokes += s.strokes;
@@ -393,8 +404,8 @@ export async function buildScoreContext(roundId: string, userId?: string): Promi
 
   // 疲労・メンタル警告
   const warnings: string[] = [];
-  if (lastHoleNumber >= 14) {
-    warnings.push('終盤（14H以降）に入っています。疲労を考慮した安全なクラブ選択を推奨してください。');
+  if (scores.length >= 14) {
+    warnings.push(`${scores.length}ホール消化し終盤に入っています。疲労を考慮した安全なクラブ選択を推奨してください。`);
   }
   if (consecutiveBogeys >= 2) {
     warnings.push(`直近${consecutiveBogeys}ホール連続でボギー以上です。メンタルリセットを促し、守りの戦略を推奨してください。`);
