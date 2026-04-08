@@ -218,19 +218,32 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     };
   }, []);
 
-  // --- 新規スロット表示管理 ---
-  const [showNewSlot, setShowNewSlot] = useState(false);
-  // ホール切替時に新規スロットを非表示にリセット
+  // --- 新規スロット表示管理（複数追加対応） ---
+  const [newSlotCount, setNewSlotCount] = useState(0);
+  // ホール切替時にリセット
   useEffect(() => {
-    setShowNewSlot(false);
+    setNewSlotCount(0);
   }, [holeNumber]);
 
   // --- スロット一覧 ---
-  const nextShotNumber = shots.length > 0
+  const baseShotNumber = shots.length > 0
     ? Math.max(...shots.map(s => s.shot_number)) + 1
     : 1;
 
   const holeForms = state.formsByHole.get(holeNumber);
+
+  const newSlots: ShotSlot[] = Array.from({ length: newSlotCount }, (_, i) => ({
+    index: shots.length + i,
+    shotNumber: baseShotNumber + i,
+    isNew: true,
+    shot: null,
+    club: null,
+    shotTypeLabel: null,
+    distance: null,
+    lieLabel: null,
+    hasAdvice: false,
+    isSkipped: false,
+  }));
 
   const allSlots: ShotSlot[] = [
     ...shots.map((shot, i) => ({
@@ -245,18 +258,7 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
       hasAdvice: !!shot.advice_text,
       isSkipped: shot.result === null && shot.club === null && shot.shot_type === null,
     })),
-    ...(showNewSlot ? [{
-      index: shots.length,
-      shotNumber: nextShotNumber,
-      isNew: true,
-      shot: null,
-      club: null,
-      shotTypeLabel: null,
-      distance: null,
-      lieLabel: null,
-      hasAdvice: false,
-      isSkipped: false,
-    }] : []),
+    ...newSlots,
   ];
 
   const displaySlots = [...allSlots].reverse();
@@ -278,9 +280,9 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
   }, []);
 
   const handleAddShot = useCallback(() => {
-    setShowNewSlot(true);
-    setExpandedIndex(shots.length);
-  }, [shots.length]);
+    setNewSlotCount(prev => prev + 1);
+    setExpandedIndex(shots.length + newSlotCount);
+  }, [shots.length, newSlotCount]);
 
   // dispatch ラッパー: shot-form からの action に holeNumber を自動付与
   const dispatchWithHole = useCallback((action: ShotFormAction) => {
