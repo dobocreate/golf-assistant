@@ -195,8 +195,7 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     }
   }, []);
 
-  // --- ホール切替: 前ホール保存のみ（読込はキャッシュから自動） ---
-  // batchSave は useCallback([], []) で安定しているため直接参照可能
+  // --- ホール切替: 前ホールのショットをDB保存（ショットはuseReducer管理のため画面遷移で消える） ---
   useEffect(() => {
     if (prevHoleRef.current !== holeNumber) {
       const prevHole = prevHoleRef.current;
@@ -205,7 +204,7 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     }
   }, [holeNumber, batchSave]);
 
-  // --- アンマウント時: 現在のホールの未保存データを fire-and-forget で保存 ---
+  // --- アンマウント時: 現在のホールのショットをDB保存 ---
   useEffect(() => {
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);

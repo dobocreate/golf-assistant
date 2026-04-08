@@ -95,13 +95,16 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
               className="w-full flex items-center justify-between p-3 bg-gray-800 text-left"
             >
               <div className="flex items-center gap-2 text-base">
-                <span className="font-bold text-gray-200">
-                  {slot.isNew ? `新規（第${slot.shotNumber}打）` : `第${slot.shotNumber}打`}
+                <span className="inline-flex items-center justify-center min-w-[36px] h-9 rounded-lg bg-green-600 text-white text-lg font-bold px-2">
+                  {slot.shotNumber}
                 </span>
-                {slot.club && <span className="text-gray-400">{slot.club}</span>}
-                {slot.shotTypeLabel && <span className="text-gray-400">{slot.shotTypeLabel}</span>}
-                {slot.distance != null && <span className="text-gray-400">{slot.distance}y</span>}
-                {slot.lieLabel && <span className="text-gray-400">{slot.lieLabel}</span>}
+                <span className="font-bold text-gray-200">
+                  {slot.isNew ? '新規' : '打目'}
+                </span>
+                {slot.club && <span className="text-gray-400 text-sm">{slot.club}</span>}
+                {slot.shotTypeLabel && <span className="text-gray-400 text-sm">{slot.shotTypeLabel}</span>}
+                {slot.distance != null && <span className="text-gray-400 text-sm">{slot.distance}y</span>}
+                {slot.lieLabel && <span className="text-gray-400 text-sm">{slot.lieLabel}</span>}
                 {slot.isSkipped && <span className="text-xs text-gray-400 bg-gray-700 px-1.5 py-0.5 rounded">スキップ</span>}
                 {slot.hasAdvice && <span className="text-blue-400 text-xs">AI</span>}
                 {isChanged && <span className="text-yellow-400 text-xs">編集中</span>}
