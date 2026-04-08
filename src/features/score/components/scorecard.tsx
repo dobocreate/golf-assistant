@@ -70,6 +70,27 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
     return { totalPar, totalStrokes, totalPutts, totalCount };
   }, [holeMap, scoreMap]);
 
+  /** 列幅を揃えるための colgroup（全テーブル共通） */
+  function renderColGroup() {
+    return (
+      <colgroup>
+        <col className="w-[36px]" />
+        <col className="w-[40px]" />
+        <col />
+        {showDetail && (
+          <>
+            <col className="w-[40px]" />
+            <col className="w-[40px]" />
+            <col className="w-[40px]" />
+          </>
+        )}
+        {companions.map(c => (
+          <col key={c.id} />
+        ))}
+      </colgroup>
+    );
+  }
+
   /** OUT/INのtheadと同一構造のヘッダー行（列幅を揃えるため） */
   function renderTheadRow(label: string) {
     return (
@@ -149,7 +170,8 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
       <div id="scorecard-tables">
       {sections.map(section => (
         <div key={section.label} className="rounded-xl border border-gray-700 overflow-x-auto mb-5">
-          <table className="w-full text-sm tabular-nums" aria-label={`${section.label}スコア`}>
+          <table className="w-full table-fixed text-sm tabular-nums" aria-label={`${section.label}スコア`}>
+            {renderColGroup()}
             <thead>{renderTheadRow(section.label)}</thead>
             <tbody className="divide-y divide-gray-800">
               {section.holes.map(h => {
@@ -195,7 +217,8 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
       {/* 合計（OUT/INと同じthead構造で列幅を揃える） */}
       <div className="rounded-xl border border-gray-600 overflow-x-auto">
-        <table className="w-full text-sm tabular-nums" aria-label="合計スコア">
+        <table className="w-full table-fixed text-sm tabular-nums" aria-label="合計スコア">
+          {renderColGroup()}
           {/* 非表示のthead: OUT/INと同じ列構造を持たせて列幅を揃える */}
           <thead className="h-0 overflow-hidden" aria-hidden="true">
             {renderTheadRow('合計')}
@@ -268,7 +291,13 @@ export function Scorecard({ roundId, holes, scores, courseName, startingCourse, 
 
                       return (
                         <div key={section.label} className="mb-3">
-                          <table className="w-full text-sm tabular-nums">
+                          <table className="w-full table-fixed text-sm tabular-nums">
+                            <colgroup>
+                              <col className="w-[36px]" />
+                              <col className="w-[40px]" />
+                              <col />
+                              <col />
+                            </colgroup>
                             <thead>
                               <tr className="text-gray-400 text-xs">
                                 <th className="px-1 py-1 text-left font-bold">{section.label}</th>
