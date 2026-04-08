@@ -2,19 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
-import { AdvicePanel } from '@/features/score/components/advice-panel';
-import type { Score, HoleInfo } from '@/features/score/types';
-import type { GamePlan } from '@/features/game-plan/types';
+import { ChatPanel } from '@/features/advice/components/chat-panel';
+import type { HoleInfo } from '@/features/score/types';
 
 interface AdvicePageProps {
   roundId: string;
   courseName: string;
   holes: HoleInfo[];
-  scores: Score[];
   startingCourse: 'out' | 'in';
-  weather?: string | null;
-  gamePlans?: GamePlan[];
-  targetScore?: number | null;
 }
 
 function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
@@ -24,7 +19,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function AdvicePage({ roundId, courseName, holes, scores, startingCourse, weather, gamePlans = [], targetScore }: AdvicePageProps) {
+export function AdvicePage({ roundId, courseName, holes, startingCourse }: AdvicePageProps) {
   const holeOrder = useMemo(() => getHoleOrder(startingCourse), [startingCourse]);
 
   // 初期ホール: localStorageから復元
@@ -72,30 +67,10 @@ export function AdvicePage({ roundId, courseName, holes, scores, startingCourse,
         </div>
       </HoleNavigation>
 
-      {/* AIアドバイス */}
-      <AdvicePanel
+      {/* AIキャディーに質問 */}
+      <ChatPanel
         roundId={roundId}
         holeNumber={currentHole}
-        shotNumber={null}
-        lie="tee"
-        slopeFb={null}
-        slopeLr={null}
-        shotType="tee_shot"
-        remainingDistance={hole.distance}
-        windDirection={null}
-        windStrength={null}
-        weather={weather}
-        elevation={null}
-        gamePlanContext={
-          (() => {
-            const plan = gamePlans.find(p => p.hole_number === currentHole);
-            if (!plan) return null;
-            const parts: string[] = [];
-            if (plan.alert_text) parts.push(`【弱点アラート】${plan.alert_text}`);
-            if (plan.plan_text) parts.push(`【ゲームプラン】${plan.plan_text}`);
-            return parts.join('\n') || null;
-          })()
-        }
       />
 
       {/* スペーサー */}
