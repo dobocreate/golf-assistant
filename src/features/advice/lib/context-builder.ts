@@ -144,14 +144,12 @@ async function buildAdviceContextInternal(
       .order('played_at', { ascending: false })
       .limit(5),
 
-    // ナレッジベース（最新20件に制限、練習法はプレー中除外）
+    // ナレッジベース（全件取得）
     supabase
       .from('knowledge')
       .select('title, content, category, tags')
       .eq('user_id', userId)
-      .or('category.is.null,category.neq.練習法')
-      .order('updated_at', { ascending: false })
-      .limit(20),
+      .order('updated_at', { ascending: false }),
   ]);
 
   return {
@@ -254,7 +252,7 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ナレッジベース
   if (context.knowledge.length > 0) {
-    const MAX_KNOWLEDGE_CONTENT = 500;
+    const MAX_KNOWLEDGE_CONTENT = 1000;
     const lines = ['## ナレッジベース（プレーヤーが蓄積した知識）'];
     for (const k of context.knowledge) {
       const tags = k.tags ?? [];
