@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Save, CheckCircle, Users, Plus } from 'lucide-react';
+import { Save, CheckCircle, Users, Plus, MessageCircle, X } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
@@ -68,6 +68,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const playRound = usePlayRoundOptional();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const completeDismissedRef = useRef(false);
+  const [showStrategyModal, setShowStrategyModal] = useState(false);
 
   // 初期ホール決定: searchParams > localStorage > holeOrder[0]
   const initialHoleResolved = useMemo(() => {
@@ -541,18 +542,44 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         </HoleNavigation>
       </div>
 
-      {/* マネジメントバンド（スクロール対象） */}
-      {gamePlans.length > 0 && (
-        <ManagementBand
-          gamePlans={gamePlans}
-          currentHole={currentHole}
-          scores={scores}
-          targetScore={targetScore}
-          holeOrder={holeOrder}
-          scoreLevel={scoreLevel}
-          handicap={handicap}
-          totalOBCount={totalOBCount}
-        />
+      {/* 戦略モーダル */}
+      {showStrategyModal && gamePlans.length > 0 && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="strategy-modal-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowStrategyModal(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowStrategyModal(false); }}
+        >
+          <div className="mx-4 w-full max-w-sm max-h-[80vh] rounded-xl bg-gray-800 border border-gray-600 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <h2 id="strategy-modal-title" className="text-lg font-bold text-white">戦略アドバイス</h2>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setShowStrategyModal(false)}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                aria-label="閉じる"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4">
+              <ManagementBand
+                gamePlans={gamePlans}
+                currentHole={currentHole}
+                scores={scores}
+                targetScore={targetScore}
+                holeOrder={holeOrder}
+                scoreLevel={scoreLevel}
+                handicap={handicap}
+                totalOBCount={totalOBCount}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ホールアドバイス（冒頭） */}
@@ -773,6 +800,18 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             aria-label="同伴者スコア入力"
           >
             <Users className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* 戦略アドバイス */}
+        {gamePlans.length > 0 && !editMode && (
+          <button
+            type="button"
+            onClick={() => setShowStrategyModal(true)}
+            className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 transition-colors"
+            aria-label="戦略アドバイス"
+          >
+            <MessageCircle className="h-5 w-5" />
           </button>
         )}
 
