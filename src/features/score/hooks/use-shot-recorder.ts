@@ -22,7 +22,7 @@ export type ShotFormAction =
 
 type FormsAction =
   | { type: 'INIT_ROUND'; allShots: Shot[] }
-  | { type: 'UPDATE_FIELD'; holeNumber: number; index: number; updater: (prev: ShotFormState) => ShotFormState }
+  | { type: 'UPDATE_FIELD'; holeNumber: number; index: number; updater: (prev: ShotFormState) => ShotFormState; defaultDistance?: number | null }
   | { type: 'SET_ADVICE'; holeNumber: number; index: number; text: string }
   | { type: 'UPDATE_CACHE'; holeNumber: number; shots: Shot[]; version: number }
   | { type: 'INCREMENT_SAVE_VERSION'; holeNumber: number }
@@ -57,8 +57,18 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
     case 'UPDATE_FIELD': {
       const holeForms = new Map(state.formsByHole.get(action.holeNumber) ?? new Map());
       const holeShots = state.cache.get(action.holeNumber) ?? [];
-      const current = holeForms.get(action.index)
-        ?? (action.index < holeShots.length ? shotToForm(holeShots[action.index]) : emptyShotForm());
+      let current = holeForms.get(action.index);
+      if (!current) {
+        if (action.index < holeShots.length) {
+          current = shotToForm(holeShots[action.index]);
+        } else {
+          current = emptyShotForm();
+          // 新規1打目にはデフォルト距離を引き継ぐ（getFormと同じロジック）
+          if (action.index === 0 && action.defaultDistance != null) {
+            current = { ...current, remainingDistance: action.defaultDistance };
+          }
+        }
+      }
       holeForms.set(action.index, action.updater(current));
       const next = new Map(state.formsByHole);
       next.set(action.holeNumber, holeForms);
@@ -414,9 +424,12 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
   }, []);
 
   // dispatch ラッパー: shot-form からの action に holeNumber を自動付与
+  const holeDistanceRef = useRef(holeDistance);
+  useEffect(() => { holeDistanceRef.current = holeDistance; }, [holeDistance]);
+
   const dispatchWithHole = useCallback((action: ShotFormAction) => {
     if (action.type === 'UPDATE_FIELD') {
-      dispatch({ ...action, holeNumber: holeNumberRef.current });
+      dispatch({ ...action, holeNumber: holeNumberRef.current, defaultDistance: holeDistanceRef.current });
     }
   }, []);
 
