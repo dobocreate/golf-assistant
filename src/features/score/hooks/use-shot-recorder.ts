@@ -111,7 +111,7 @@ export interface ShotSlot {
 
 // --- Hook ---
 
-export function useShotRecorder(roundId: string, holeNumber: number) {
+export function useShotRecorder(roundId: string, holeNumber: number, holeDistance?: number | null) {
   const [state, dispatch] = useReducer(formsReducer, INITIAL_STATE);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -263,9 +263,16 @@ export function useShotRecorder(roundId: string, holeNumber: number) {
   const displaySlots = [...allSlots].reverse();
 
   const getForm = useCallback((index: number): ShotFormState => {
-    return holeForms?.get(index)
-      ?? (index < shots.length ? shotToForm(shots[index]) : emptyShotForm());
-  }, [holeForms, shots]);
+    const saved = holeForms?.get(index);
+    if (saved) return saved;
+    if (index < shots.length) return shotToForm(shots[index]);
+    const form = emptyShotForm();
+    // 1打目の新規ショットにはホール総ヤードをデフォルトセット
+    if (index === 0 && holeDistance != null) {
+      form.remainingDistance = holeDistance;
+    }
+    return form;
+  }, [holeForms, shots, holeDistance]);
 
   const handleAdviceReceived = useCallback((index: number, text: string) => {
     dispatch({ type: 'SET_ADVICE', holeNumber: holeNumberRef.current, index, text });

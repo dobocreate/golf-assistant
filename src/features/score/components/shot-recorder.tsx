@@ -15,11 +15,12 @@ interface ShotRecorderProps {
   windStrength?: string | null;
   weather?: string | null;
   gamePlanContext?: string | null;
+  holeDistance?: number | null;
   /** 親に saveCurrentHole / hasPendingShots / getLandingCounts を公開するコールバック */
   onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number } }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, onShotActionsReady }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -34,7 +35,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     loading,
     saveCurrentHole,
     hasPendingShots,
-  } = useShotRecorder(roundId, holeNumber);
+  } = useShotRecorder(roundId, holeNumber, holeDistance);
 
   // ショットのlanding集計
   const getLandingCounts = useCallback(() => {
