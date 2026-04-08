@@ -279,9 +279,11 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     dispatch({ type: 'SET_ADVICE', holeNumber: holeNumberRef.current, index, text });
   }, []);
 
-  const handleAddShot = useCallback(() => {
+  const handleAddShot = useCallback((): number => {
+    const newIndex = shots.length + newSlotCount;
     setNewSlotCount(prev => prev + 1);
-    setExpandedIndex(shots.length + newSlotCount);
+    setExpandedIndex(newIndex);
+    return newIndex;
   }, [shots.length, newSlotCount]);
 
   // dispatch ラッパー: shot-form からの action に holeNumber を自動付与
