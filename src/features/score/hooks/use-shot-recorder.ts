@@ -26,6 +26,8 @@ type FormsAction =
   | { type: 'SET_ADVICE'; holeNumber: number; index: number; text: string }
   | { type: 'UPDATE_CACHE'; holeNumber: number; shots: Shot[]; version: number }
   | { type: 'INCREMENT_SAVE_VERSION'; holeNumber: number }
+  | { type: 'CONFIRM_NEW_SHOT'; holeNumber: number; index: number; shot: Shot }
+  | { type: 'CANCEL_NEW_SHOT'; holeNumber: number; index: number }
   | { type: 'CLEAR_ALL' };
 
 function groupByHole(shots: Shot[]): Map<number, Shot[]> {
@@ -87,6 +89,41 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
       const newVersions = new Map(state.saveVersionByHole);
       newVersions.set(action.holeNumber, (newVersions.get(action.holeNumber) ?? 0) + 1);
       return { ...state, saveVersionByHole: newVersions };
+    }
+
+    case 'CONFIRM_NEW_SHOT': {
+      // 新規ショットをキャッシュに仮追加（isNew → 既存ショットとして扱う）
+      const newCache = new Map(state.cache);
+      const holeShots = [...(newCache.get(action.holeNumber) ?? []), action.shot];
+      newCache.set(action.holeNumber, holeShots);
+      // フォームデータはそのまま保持（batchSave時にDBへ書き込まれる）
+      return { ...state, cache: newCache };
+    }
+
+    case 'CANCEL_NEW_SHOT': {
+      // 新規ショットのフォームデータとアドバイスを破棄し、後続スロットを再インデックス
+      const newForms = new Map(state.formsByHole);
+      const holeForms = newForms.get(action.holeNumber);
+      if (holeForms) {
+        const updated = new Map<number, ShotFormState>();
+        for (const [key, val] of holeForms) {
+          if (key < action.index) updated.set(key, val);
+          else if (key > action.index) updated.set(key - 1, val);
+          // key === action.index は破棄
+        }
+        newForms.set(action.holeNumber, updated);
+      }
+      const newAdvice = new Map(state.adviceByHole);
+      const holeAdvice = newAdvice.get(action.holeNumber);
+      if (holeAdvice) {
+        const updated = new Map<number, string>();
+        for (const [key, val] of holeAdvice) {
+          if (key < action.index) updated.set(key, val);
+          else if (key > action.index) updated.set(key - 1, val);
+        }
+        newAdvice.set(action.holeNumber, updated);
+      }
+      return { ...state, formsByHole: newForms, adviceByHole: newAdvice };
     }
 
     case 'CLEAR_ALL':
@@ -285,6 +322,49 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     return newIndex;
   }, [shots.length, newSlotCount]);
 
+  /** 新規ショットをキャッシュに確定（一覧に表示されるようになる） */
+  const confirmNewShot = useCallback((index: number) => {
+    const form = stateRef.current.formsByHole.get(holeNumberRef.current)?.get(index);
+    if (!form || !shouldSaveForm(form)) return;
+
+    const shotNumber = shots.length > 0
+      ? Math.max(...shots.map(s => s.shot_number)) + 1 + (index - shots.length)
+      : index + 1;
+
+    // キャッシュ用の仮Shotオブジェクト（DBのIDはbatchSave後に付与される）
+    const tempShot: Shot = {
+      id: '',
+      round_id: roundIdRef.current,
+      hole_number: holeNumberRef.current,
+      shot_number: shotNumber,
+      club: form.club,
+      result: form.result,
+      miss_type: form.missType,
+      direction_lr: form.directionLr,
+      direction_fb: form.directionFb,
+      lie: form.lie,
+      slope_fb: form.slopeFb,
+      slope_lr: form.slopeLr,
+      landing: form.landing,
+      shot_type: form.shotType,
+      remaining_distance: form.remainingDistance,
+      note: form.note,
+      advice_text: stateRef.current.adviceByHole.get(holeNumberRef.current)?.get(index) ?? null,
+      wind_direction: form.windDirection,
+      wind_strength: form.windStrength,
+      elevation: form.elevation,
+    };
+
+    dispatch({ type: 'CONFIRM_NEW_SHOT', holeNumber: holeNumberRef.current, index, shot: tempShot });
+    setNewSlotCount(prev => Math.max(0, prev - 1));
+  }, [shots]);
+
+  /** 新規ショットをキャンセル（フォームデータを破棄） */
+  const cancelNewShot = useCallback((index: number) => {
+    dispatch({ type: 'CANCEL_NEW_SHOT', holeNumber: holeNumberRef.current, index });
+    setNewSlotCount(prev => Math.max(0, prev - 1));
+  }, []);
+
   // dispatch ラッパー: shot-form からの action に holeNumber を自動付与
   const dispatchWithHole = useCallback((action: ShotFormAction) => {
     if (action.type === 'UPDATE_FIELD') {
@@ -313,6 +393,8 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     saveStatus,
     handleAdviceReceived,
     handleAddShot,
+    confirmNewShot,
+    cancelNewShot,
     shots,
     loading: state.loading,
     saveCurrentHole,

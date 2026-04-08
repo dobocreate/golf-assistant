@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
-import { hasFormChanged, type ClubOption } from '@/features/score/shot-constants';
+import { hasFormChanged, shouldSaveForm, type ClubOption } from '@/features/score/shot-constants';
 
 interface ShotRecorderProps {
   roundId: string;
@@ -31,6 +31,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     saveStatus,
     handleAdviceReceived,
     handleAddShot,
+    confirmNewShot,
+    cancelNewShot,
     shots,
     loading,
     saveCurrentHole,
@@ -165,15 +167,45 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
               </span>
               {modalSlot.isNew ? '新規ショット' : '打目'}
             </h2>
-            <button
-              type="button"
-              autoFocus
-              onClick={() => setModalSlotIndex(null)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-              aria-label="閉じる"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {modalSlot.isNew ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      confirmNewShot(modalSlot.index);
+                      setModalSlotIndex(null);
+                    }}
+                    disabled={!shouldSaveForm(getForm(modalSlot.index))}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-green-400 hover:text-green-300 hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="保存"
+                  >
+                    <Check className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      cancelNewShot(modalSlot.index);
+                      setModalSlotIndex(null);
+                    }}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                    aria-label="キャンセル"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setModalSlotIndex(null)}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  aria-label="閉じる"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* モーダルコンテンツ（スクロール） */}
