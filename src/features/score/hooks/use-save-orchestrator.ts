@@ -376,40 +376,31 @@ export function useSaveOrchestrator(roundId: string) {
         // 1. Flush to IndexedDB (local persistence - the real guarantee)
         const { scoreVersion, shotVersion } = await collectAndFlush(op.holeNumber);
 
-        // 2. If online, attempt keepalive fetch (optimization, not guarantee)
+        // 2. If online, attempt keepalive fetch for SCORE ONLY (optimization)
+        //    Shots and companions use replace RPC (delete+insert) which causes
+        //    race conditions with holeSwitch/saveButton Server Actions.
+        //    Score uses upsert (safe to race). Shots/companions are synced
+        //    only via holeSwitch/saveButton/onlineRestore (awaited operations).
         if (typeof navigator !== 'undefined' && navigator.onLine) {
           try {
-            const payloads: Record<string, unknown> = {};
-
             const scorePayload = scoreCallbacksRef.current?.buildSyncPayload(op.holeNumber);
             if (scorePayload) {
               const { roundId: _r, holeNumber: _h, skipRevalidate: _s, ...scoreFields } = scorePayload;
-              payloads.score = scoreFields;
-            }
-
-            const shotPayload = shotCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (shotPayload) payloads.shots = shotPayload.shots;
-
-            const companionPayload = companionCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (companionPayload) payloads.companions = companionPayload.scores;
-
-            if (Object.keys(payloads).length > 0) {
               fetch('/api/sync', {
                 method: 'POST',
                 body: JSON.stringify({
                   roundId: roundIdRef.current,
                   holeNumber: op.holeNumber,
-                  ...payloads,
+                  score: scoreFields,
                 }),
                 keepalive: true,
                 headers: { 'Content-Type': 'application/json' },
               }).catch(() => {
-                // Fire-and-forget: failure is expected and acceptable.
-                // Data is safe in IndexedDB.
+                // Fire-and-forget: failure is acceptable. Data is in IndexedDB.
               });
             }
           } catch {
-            // Building payloads failed - data is still in IndexedDB
+            // Building payload failed - data is still in IndexedDB
           }
         } else {
           // Offline: enqueue for later sync
