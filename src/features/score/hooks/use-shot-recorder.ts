@@ -542,37 +542,36 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     return result.length > 0 ? result : null;
   }, []);
 
-  /** Build the replaceShotsForHole server action payload for a given hole */
+  /** Build the replaceShotsForHole server action payload for a given hole.
+   *  Uses getShotsForHoleLocal to send ALL shots (replace strategy requires full state). */
   const buildShotSyncPayload = useCallback((holeNum: number): Parameters<typeof replaceShotsForHole>[0] | null => {
-    const snapshot = stateRef.current;
-    const payload = collectPendingShotsSync(snapshot, holeNum, roundIdRef.current);
-    if (payload.shots.length === 0) return null;
-
+    const localShots = getShotsForHoleLocal(holeNum);
+    // Return payload even if empty (empty array = delete all on server)
     return {
-      roundId: payload.roundId,
-      holeNumber: payload.holeNumber,
-      shots: payload.shots.map(s => ({
-        clientId: crypto.randomUUID(),
-        shotNumber: s.shotNumber,
+      roundId: roundIdRef.current,
+      holeNumber: holeNum,
+      shots: (localShots ?? []).map(s => ({
+        clientId: s.clientId,
+        shotNumber: s.shot_number,
         club: s.club,
         result: s.result,
-        missType: s.missType,
-        directionLr: s.directionLr,
-        directionFb: s.directionFb,
+        missType: s.miss_type,
+        directionLr: s.direction_lr,
+        directionFb: s.direction_fb,
         lie: s.lie,
-        slopeFb: s.slopeFb,
-        slopeLr: s.slopeLr,
+        slopeFb: s.slope_fb,
+        slopeLr: s.slope_lr,
         landing: s.landing,
-        shotType: s.shotType,
-        remainingDistance: s.remainingDistance,
+        shotType: s.shot_type,
+        remainingDistance: s.remaining_distance,
         note: s.note,
-        adviceText: s.adviceText,
-        windDirection: s.windDirection,
-        windStrength: s.windStrength,
+        adviceText: s.advice_text,
+        windDirection: s.wind_direction,
+        windStrength: s.wind_strength,
         elevation: s.elevation,
       })),
     };
-  }, []);
+  }, [getShotsForHoleLocal]);
 
   return {
     displaySlots,

@@ -230,32 +230,21 @@ export async function replaceCompanionScoresForHole(data: {
     }
   }
 
-  // 1. このホールの既存スコアをすべて削除（ラウンドに属する同伴者のみ）
-  if (ownedCompanionIds.size > 0) {
-    const { error: deleteErr } = await supabase
-      .from('companion_scores')
-      .delete()
-      .in('companion_id', Array.from(ownedCompanionIds))
-      .eq('hole_number', data.holeNumber);
+  // RPC でアトミックに delete + insert（トランザクション保証）
+  const scoresJson = data.scores.map(s => ({
+    companion_id: s.companionId,
+    strokes: s.strokes,
+    putts: s.putts,
+  }));
 
-    if (deleteErr) return { error: '同伴者スコアの削除に失敗しました。' };
-  }
+  const { error: rpcErr } = await supabase
+    .rpc('replace_companion_scores_for_hole', {
+      p_round_id: data.roundId,
+      p_hole_number: data.holeNumber,
+      p_scores: scoresJson,
+    });
 
-  // 2. 新しいスコアを一括挿入（strokes/putts両方nullのエントリも挿入して「クリア済み」を表現）
-  if (data.scores.length > 0) {
-    const { error: insertErr } = await supabase
-      .from('companion_scores')
-      .insert(
-        data.scores.map(s => ({
-          companion_id: s.companionId,
-          hole_number: data.holeNumber,
-          strokes: s.strokes,
-          putts: s.putts,
-        }))
-      );
-
-    if (insertErr) return { error: '同伴者スコアの保存に失敗しました。' };
-  }
+  if (rpcErr) return { error: '同伴者スコアの保存に失敗しました。' };
 
   if (!data.skipRevalidate) {
     revalidatePath(`/play/${data.roundId}/scorecard`);

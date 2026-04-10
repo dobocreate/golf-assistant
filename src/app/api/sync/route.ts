@@ -147,23 +147,19 @@ export async function POST(request: Request) {
     // Save shots (replace all for hole)
     if (shots) {
       try {
-        if (shots.length === 0) {
-          // Empty array = delete all shots for this hole
-          const { error: deleteError } = await supabase
-            .from('shots')
-            .delete()
-            .eq('round_id', roundId)
-            .eq('hole_number', holeNumber);
+        // Delete all existing shots for this hole, then insert new ones.
+        // This is the keepalive endpoint (best-effort). If it fails partway,
+        // data is safe in IndexedDB and will be retried via the sync queue.
+        const { error: deleteError } = await supabase
+          .from('shots')
+          .delete()
+          .eq('round_id', roundId)
+          .eq('hole_number', holeNumber);
 
-          if (deleteError) {
-            result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
-          } else {
-            result.shots = { success: true };
-          }
-        } else {
-          // Upsert all shots (atomic - no delete+insert gap)
-          const upsertRows = shots.map((s) => ({
-            ...(s.id ? { id: s.id } : {}),
+        if (deleteError) {
+          result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
+        } else if (shots.length > 0) {
+          const insertRows = shots.map((s) => ({
             round_id: roundId,
             hole_number: holeNumber,
             shot_number: s.shotNumber,
@@ -185,25 +181,17 @@ export async function POST(request: Request) {
             elevation: s.elevation,
           }));
 
-          const { error: upsertError } = await supabase
+          const { error: insertError } = await supabase
             .from('shots')
-            .upsert(upsertRows, { onConflict: 'id' });
+            .insert(insertRows);
 
-          if (upsertError) {
+          if (insertError) {
             result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
           } else {
-            // Delete shots that are no longer in the payload
-            const upsertedIds = shots.filter((s) => s.id).map((s) => s.id!);
-            if (upsertedIds.length > 0) {
-              await supabase
-                .from('shots')
-                .delete()
-                .eq('round_id', roundId)
-                .eq('hole_number', holeNumber)
-                .not('id', 'in', `(${upsertedIds.join(',')})`);
-            }
             result.shots = { success: true };
           }
+        } else {
+          result.shots = { success: true };
         }
       } catch {
         result.shots = { success: false, error: 'ショットの保存に失敗しました。' };

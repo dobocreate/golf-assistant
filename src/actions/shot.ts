@@ -528,26 +528,8 @@ export async function replaceShotsForHole(data: {
     if (validationError) return { error: `第${shot.shotNumber}打: ${validationError}` };
   }
 
-  // 1. 既存ショットをすべて削除
-  const { error: deleteErr } = await supabase
-    .from('shots')
-    .delete()
-    .eq('round_id', data.roundId)
-    .eq('hole_number', data.holeNumber);
-
-  if (deleteErr) return { error: 'ショットの削除に失敗しました。' };
-
-  // 2. 新しいショットを一括挿入（空配列の場合はスキップ）
-  if (data.shots.length === 0) {
-    if (!data.skipRevalidate) {
-      revalidatePath(`/play/${data.roundId}/score`);
-    }
-    return { shots: [] };
-  }
-
-  const insertRows = data.shots.map(s => ({
-    round_id: data.roundId,
-    hole_number: data.holeNumber,
+  // RPC でアトミックに delete + insert（トランザクション保証）
+  const shotsJson = data.shots.map(s => ({
     shot_number: s.shotNumber,
     club: s.club,
     result: s.result,
@@ -567,12 +549,14 @@ export async function replaceShotsForHole(data: {
     elevation: s.elevation ?? null,
   }));
 
-  const { data: insertedShots, error: insertErr } = await supabase
-    .from('shots')
-    .insert(insertRows)
-    .select('*');
+  const { data: insertedShots, error: rpcErr } = await supabase
+    .rpc('replace_shots_for_hole', {
+      p_round_id: data.roundId,
+      p_hole_number: data.holeNumber,
+      p_shots: shotsJson,
+    });
 
-  if (insertErr) return { error: 'ショットの保存に失敗しました。' };
+  if (rpcErr) return { error: 'ショットの保存に失敗しました。' };
 
   if (!data.skipRevalidate) {
     revalidatePath(`/play/${data.roundId}/score`);
