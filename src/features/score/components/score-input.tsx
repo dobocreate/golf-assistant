@@ -18,6 +18,9 @@ import type { WindDirection, WindStrength } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
 import { setSession, getSession, removeSession, roundScoresKey, roundCompanionKey, roundDirtyKey } from '@/lib/session-storage';
+import { useSaveOrchestrator } from '@/features/score/hooks/use-save-orchestrator';
+import type { LocalScore, LocalShot } from '@/lib/offline-store';
+import type { replaceShotsForHole } from '@/actions/shot';
 
 
 interface ClubOption {
@@ -118,7 +121,18 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
-  const shotActionsRef = useRef<{ saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }), addShot: () => {} });
+  const shotActionsRef = useRef<{
+    saveCurrentHole: () => void;
+    hasPendingShots: () => boolean;
+    getLandingCounts: () => { ob: number; bunker: number };
+    addShot: () => void;
+    getShotsForHoleLocal?: (hole: number) => LocalShot[] | null;
+    buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null;
+  }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }), addShot: () => {} });
+
+  // --- Save Orchestrator ---
+  const orchestrator = useSaveOrchestrator(roundId);
+  const currentHoleRef = useRef(initialHoleResolved);
 
   // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
@@ -383,24 +397,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       showToast('変更なし', 'info');
       return;
     }
-    if (scoreChanged || countsChanged) {
-      saveHole(currentHole, strokes, putts, greenInReg, windDirection, windStrength, score?.id, editMode ? obCount : undefined, editMode ? bunkerCount : undefined);
-    }
-    if (shotsChanged) {
-      shotActionsRef.current.saveCurrentHole();
-    }
-    // 同伴者スコアも同時保存
-    if (companionChanged) {
-      saveCompanionScoresForHole(currentHole, companionInputsRef.current);
-    }
-    if (!scoreChanged && !countsChanged && shotsChanged && !companionChanged) {
-      showToast('ショット記録を保存しました', 'success');
-    }
+    // Orchestrator handles IndexedDB + DB sync for all data types
+    orchestrator.onSaveButton(currentHole);
     // 保存実行後にdirtyフラグとsessionStorageキャッシュをクリア
     removeSession(roundDirtyKey(roundId));
     removeSession(roundScoresKey(roundId));
     removeSession(roundCompanionKey(roundId));
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole, roundId]);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole, roundId, orchestrator]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -414,7 +417,140 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     currentInputRef.current = { strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched };
   }, [strokes, putts, greenInReg, windDirection, windStrength, currentHole, score?.id, userTouched]);
 
-  // ホール切り替え: 現在ホールの入力値をscores Mapに反映してからホール切替（DB保存はしない）
+  // --- Register orchestrator score callbacks ---
+  useEffect(() => {
+    orchestrator.registerScoreCallbacks({
+      collectData: (hole: number): Partial<LocalScore> | null => {
+        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched } = currentInputRef.current;
+        // Only collect data for the current hole being edited
+        if (hole === ch && touched && st !== null) {
+          const existing = scoresRef.current.get(hole);
+          const landing = shotActionsRef.current.getLandingCounts();
+          return {
+            id: existing?.id ?? '',
+            round_id: roundIdRef.current,
+            hole_number: hole,
+            strokes: st,
+            putts: pt,
+            green_in_reg: gir,
+            wind_direction: wd,
+            wind_strength: ws,
+            ob_count: landing.ob,
+            bunker_count: landing.bunker,
+          } as Partial<LocalScore>;
+        }
+        // For non-current holes, check the scores Map
+        const saved = scoresRef.current.get(hole);
+        if (saved) {
+          return { ...saved } as Partial<LocalScore>;
+        }
+        return null;
+      },
+      buildSyncPayload: (hole: number) => {
+        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched } = currentInputRef.current;
+        let s: number | null = null;
+        let p: number | null = null;
+        let g: boolean | null = null;
+        let wDir: WindDirection | null = null;
+        let wStr: WindStrength | null = null;
+
+        if (hole === ch && touched) {
+          s = st;
+          p = pt;
+          g = gir;
+          wDir = wd;
+          wStr = ws;
+        } else {
+          const saved = scoresRef.current.get(hole);
+          if (saved) {
+            s = saved.strokes;
+            p = saved.putts;
+            g = saved.green_in_reg;
+            wDir = saved.wind_direction;
+            wStr = saved.wind_strength;
+          }
+        }
+
+        if (s === null) return null;
+
+        const existing = scoresRef.current.get(hole);
+        const landing = shotActionsRef.current.getLandingCounts();
+        return {
+          roundId: roundIdRef.current,
+          holeNumber: hole,
+          strokes: s,
+          putts: p,
+          fairwayHit: null,
+          greenInReg: g,
+          teeShotLr: null,
+          teeShotFb: null,
+          obCount: landing.ob,
+          bunkerCount: landing.bunker,
+          penaltyCount: 0,
+          firstPuttDistance: existing?.first_putt_distance ?? null,
+          firstPuttDistanceM: existing?.first_putt_distance_m ?? null,
+          windDirection: wDir,
+          windStrength: wStr,
+          skipRevalidate: true,
+        };
+      },
+    });
+  }); // Intentionally no deps - always register latest closures
+
+  // --- Register orchestrator shot callbacks ---
+  useEffect(() => {
+    orchestrator.registerShotCallbacks({
+      collectData: (hole: number) => {
+        return shotActionsRef.current.getShotsForHoleLocal?.(hole) ?? null;
+      },
+      buildSyncPayload: (hole: number) => {
+        return shotActionsRef.current.buildShotSyncPayload?.(hole) ?? null;
+      },
+    });
+  }); // Intentionally no deps
+
+  // Keep currentHoleRef in sync
+  useEffect(() => {
+    currentHoleRef.current = currentHole;
+  }, [currentHole]);
+
+  // --- Orchestrator triggers: visibilitychange, idle 5s, unmount, online restore ---
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden) orchestrator.onBackgroundSave(currentHoleRef.current);
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [orchestrator]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => orchestrator.onBackgroundSave(currentHoleRef.current), 5000);
+    };
+    const events = ['touchstart', 'click', 'keydown'] as const;
+    events.forEach(e => document.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => document.removeEventListener(e, resetTimer));
+    };
+  }, [orchestrator]);
+
+  useEffect(() => {
+    const handler = () => { orchestrator.onOnlineRestore(); };
+    window.addEventListener('online', handler);
+    return () => window.removeEventListener('online', handler);
+  }, [orchestrator]);
+
+  // Orchestrator unmount save
+  useEffect(() => {
+    return () => orchestrator.onBackgroundSave(currentHoleRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ホール切り替え: 現在ホールの入力値をscores Mapに反映してからホール切替
   const switchHole = useCallback((holeNum: number) => {
     const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
     // 現在ホールの入力値をメモリのscores Mapに反映
@@ -432,6 +568,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         wind_strength: ws,
       }));
     }
+    // Orchestrator: flush prevHole to IndexedDB + try DB sync
+    orchestrator.onHoleSwitch(ch, holeNum);
+
     setCurrentHole(holeNum);
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
     setSaveStatus('idle');
@@ -449,7 +588,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (hasCompanions) {
       setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
     }
-  }, [saveHole, hasChanges, roundId, hasCompanions, companions, saveCompanionScoresForHole]);
+  }, [saveHole, hasChanges, roundId, hasCompanions, companions, saveCompanionScoresForHole, orchestrator]);
 
 
   // スコアラベル
@@ -699,6 +838,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             : null
         }
         holeDistance={hole.distance}
+        useOrchestratorSave
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>

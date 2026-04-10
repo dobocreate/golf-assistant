@@ -155,6 +155,7 @@ export async function upsertCompanionScoresBatch(data: {
   roundId: string;
   holeNumber: number;
   scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>;
+  skipRevalidate?: boolean;
 }): Promise<{ error?: string }> {
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
@@ -189,5 +190,76 @@ export async function upsertCompanionScoresBatch(data: {
     );
 
   if (upsertError) return { error: '同伴者スコアの保存に失敗しました。' };
+  return {};
+}
+
+/** ホール単位の同伴者スコア全件入れ替え（delete all + insert all）— オフライン同期用 */
+export async function replaceCompanionScoresForHole(data: {
+  roundId: string;
+  holeNumber: number;
+  scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>;
+  skipRevalidate?: boolean;
+}): Promise<{ error?: string }> {
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
+    return { error: 'ホール番号が不正です。' };
+  }
+
+  // 各エントリのバリデーション
+  for (const s of data.scores) {
+    if (!isValidUUID(s.companionId)) return { error: 'IDが不正です。' };
+    const scoreError = validateCompanionScore(s);
+    if (scoreError) return { error: scoreError };
+  }
+
+  // 認証+所有権チェック
+  const { error, supabase } = await verifyRoundOwnership(data.roundId);
+  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
+
+  // このラウンドに属する同伴者IDを取得（所有権担保）
+  const { data: companions } = await supabase
+    .from('companions')
+    .select('id')
+    .eq('round_id', data.roundId);
+
+  const ownedCompanionIds = new Set((companions ?? []).map(c => c.id));
+
+  // 入力された全companionIdがこのラウンドに属するか確認
+  for (const s of data.scores) {
+    if (!ownedCompanionIds.has(s.companionId)) {
+      return { error: '同伴者がこのラウンドに属していません。' };
+    }
+  }
+
+  // 1. このホールの既存スコアをすべて削除（ラウンドに属する同伴者のみ）
+  if (ownedCompanionIds.size > 0) {
+    const { error: deleteErr } = await supabase
+      .from('companion_scores')
+      .delete()
+      .in('companion_id', Array.from(ownedCompanionIds))
+      .eq('hole_number', data.holeNumber);
+
+    if (deleteErr) return { error: '同伴者スコアの削除に失敗しました。' };
+  }
+
+  // 2. 新しいスコアを一括挿入（strokes/putts両方nullのエントリも挿入して「クリア済み」を表現）
+  if (data.scores.length > 0) {
+    const { error: insertErr } = await supabase
+      .from('companion_scores')
+      .insert(
+        data.scores.map(s => ({
+          companion_id: s.companionId,
+          hole_number: data.holeNumber,
+          strokes: s.strokes,
+          putts: s.putts,
+        }))
+      );
+
+    if (insertErr) return { error: '同伴者スコアの保存に失敗しました。' };
+  }
+
+  if (!data.skipRevalidate) {
+    revalidatePath(`/play/${data.roundId}/scorecard`);
+  }
+
   return {};
 }
