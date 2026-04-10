@@ -520,6 +520,42 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     });
   }); // Intentionally no deps
 
+  // --- Register orchestrator companion callbacks ---
+  useEffect(() => {
+    orchestrator.registerCompanionCallbacks({
+      collectData: (hole: number) => {
+        const inputs = hole === currentHole
+          ? companionInputsRef.current
+          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        if (!inputs || inputs.length === 0) return null;
+        const map: Map<string, { strokes: string; putts: string }> = new Map();
+        inputs.forEach(i => {
+          map.set(i.companionId, {
+            strokes: i.strokes !== null ? String(i.strokes) : '',
+            putts: i.putts !== null ? String(i.putts) : '',
+          });
+        });
+        return map;
+      },
+      buildSyncPayload: (hole: number) => {
+        if (!hasCompanions) return null;
+        const inputs = hole === currentHole
+          ? companionInputsRef.current
+          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        if (!inputs || inputs.length === 0) return null;
+        return {
+          roundId,
+          holeNumber: hole,
+          scores: inputs.map(i => ({
+            companionId: i.companionId,
+            strokes: i.strokes,
+            putts: i.putts,
+          })),
+        };
+      },
+    });
+  }); // Intentionally no deps
+
   // Keep currentHoleRef in sync
   useEffect(() => {
     currentHoleRef.current = currentHole;

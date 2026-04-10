@@ -181,15 +181,19 @@ export function useSyncEngine(roundId: string) {
 
   // --- processQueue ---
 
+  const isSyncingRef = useRef(false);
+
   const processQueue = useCallback(async (): Promise<{
     synced: number;
     failed: number;
   }> => {
+    if (isSyncingRef.current) return { synced: 0, failed: 0 };
     if (!navigator.onLine) {
       if (mountedRef.current) setSyncStatus('offline');
       return { synced: 0, failed: 0 };
     }
 
+    isSyncingRef.current = true;
     if (mountedRef.current) setSyncStatus('syncing');
 
     // Recover stale syncing items (stuck for more than 30s)
@@ -239,6 +243,7 @@ export function useSyncEngine(roundId: string) {
       }
     }
 
+    isSyncingRef.current = false;
     return { synced, failed };
   }, [roundId, syncOne, refreshPendingCount]);
 

@@ -144,24 +144,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Save shots (replace all for hole)
+    // Save shots via RPC (atomic delete+insert in transaction)
     if (shots) {
       try {
-        // Delete all existing shots for this hole, then insert new ones.
-        // This is the keepalive endpoint (best-effort). If it fails partway,
-        // data is safe in IndexedDB and will be retried via the sync queue.
-        const { error: deleteError } = await supabase
-          .from('shots')
-          .delete()
-          .eq('round_id', roundId)
-          .eq('hole_number', holeNumber);
-
-        if (deleteError) {
-          result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
-        } else if (shots.length > 0) {
-          const insertRows = shots.map((s) => ({
-            round_id: roundId,
-            hole_number: holeNumber,
+        const { error: rpcError } = await supabase.rpc('replace_shots_for_hole', {
+          p_round_id: roundId,
+          p_hole_number: holeNumber,
+          p_shots: shots.map((s) => ({
             shot_number: s.shotNumber,
             club: s.club,
             result: s.result,
@@ -179,66 +168,33 @@ export async function POST(request: Request) {
             wind_direction: s.windDirection,
             wind_strength: s.windStrength,
             elevation: s.elevation,
-          }));
+          })),
+        });
 
-          const { error: insertError } = await supabase
-            .from('shots')
-            .insert(insertRows);
-
-          if (insertError) {
-            result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
-          } else {
-            result.shots = { success: true };
-          }
-        } else {
-          result.shots = { success: true };
-        }
+        result.shots = rpcError
+          ? { success: false, error: 'ショットの保存に失敗しました。' }
+          : { success: true };
       } catch {
         result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
       }
     }
 
-    // Save companion scores (replace all for hole)
+    // Save companion scores via RPC (atomic delete+insert in transaction)
     if (companions) {
       try {
-        const validScores = companions.filter((s) => s.strokes !== null || s.putts !== null);
+        const { error: rpcError } = await supabase.rpc('replace_companion_scores_for_hole', {
+          p_round_id: roundId,
+          p_hole_number: holeNumber,
+          p_scores: companions.map((s) => ({
+            companion_id: s.companionId,
+            strokes: s.strokes,
+            putts: s.putts,
+          })),
+        });
 
-        if (validScores.length > 0) {
-          // Upsert companion scores (atomic - no delete+insert gap)
-          const { error: upsertError } = await supabase
-            .from('companion_scores')
-            .upsert(
-              validScores.map((s) => ({
-                companion_id: s.companionId,
-                hole_number: holeNumber,
-                strokes: s.strokes,
-                putts: s.putts,
-              })),
-              { onConflict: 'companion_id,hole_number' }
-            );
-
-          if (upsertError) {
-            result.companions = { success: false, error: '同伴者スコアの保存に失敗しました。' };
-          } else {
-            result.companions = { success: true };
-          }
-        } else {
-          // No valid scores - delete all for this hole
-          const { data: roundCompanions } = await supabase
-            .from('companions')
-            .select('id')
-            .eq('round_id', roundId);
-
-          if (roundCompanions && roundCompanions.length > 0) {
-            const companionIds = roundCompanions.map((c: { id: string }) => c.id);
-            await supabase
-              .from('companion_scores')
-              .delete()
-              .in('companion_id', companionIds)
-              .eq('hole_number', holeNumber);
-          }
-          result.companions = { success: true };
-        }
+        result.companions = rpcError
+          ? { success: false, error: '同伴者スコアの保存に失敗しました。' }
+          : { success: true };
       } catch {
         result.companions = { success: false, error: '同伴者スコアの保存に失敗しました。' };
       }
