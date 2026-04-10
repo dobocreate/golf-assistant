@@ -39,6 +39,7 @@ export async function upsertScore(data: {
   firstPuttDistanceM?: number | null;
   windDirection: string | null;
   windStrength: string | null;
+  skipRevalidate?: boolean;
 }): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -111,10 +112,12 @@ export async function upsertScore(data: {
       .eq('id', data.roundId);
   }
 
-  revalidatePath(`/play/${data.roundId}/score`);
-  revalidatePath(`/rounds/${data.roundId}`);
-  revalidatePath('/rounds');
-  revalidatePath('/rounds/stats');
+  if (!data.skipRevalidate) {
+    revalidatePath(`/play/${data.roundId}/score`);
+    revalidatePath(`/rounds/${data.roundId}`);
+    revalidatePath('/rounds');
+    revalidatePath('/rounds/stats');
+  }
   return {};
 }
 

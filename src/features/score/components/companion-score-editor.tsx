@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
+import { useState, useEffect, useTransition, useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Save } from 'lucide-react';
 import { SpeedDial } from '@/components/ui/speed-dial';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
-import { upsertCompanionScoresBatch } from '@/actions/companion';
+import { upsertCompanionScoresBatch, type replaceCompanionScoresForHole } from '@/actions/companion';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
 import type { CompanionWithScores } from '@/features/score/types';
 
@@ -14,9 +14,17 @@ interface CompanionScoreEditorProps {
   roundId: string;
   startingCourse?: 'out' | 'in';
   onSaved?: (holeNumber: number, scores: Array<{ companionId: string; strokes: number | null; putts: number | null }>) => void;
+  /** When true, disable self-managed save triggers (orchestrator handles saves) */
+  useOrchestratorSave?: boolean;
 }
 
-type HoleInputs = Map<string, { strokes: string; putts: string }>;
+export type HoleInputs = Map<string, { strokes: string; putts: string }>;
+
+/** Handle exposed to parent for orchestrator integration */
+export interface CompanionScoreEditorHandle {
+  getCompanionInputs(holeNumber: number): HoleInputs | null;
+  buildCompanionSyncPayload(holeNumber: number): Parameters<typeof replaceCompanionScoresForHole>[0] | null;
+}
 
 function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   if (startingCourse === 'in') {
@@ -47,7 +55,7 @@ function parseScore(value: string): number | null {
   return !isNaN(n) ? n : null;
 }
 
-export function CompanionScoreEditor({ companionData, roundId, startingCourse = 'out', onSaved }: CompanionScoreEditorProps) {
+export const CompanionScoreEditor = forwardRef<CompanionScoreEditorHandle, CompanionScoreEditorProps>(function CompanionScoreEditor({ companionData, roundId, startingCourse = 'out', onSaved, useOrchestratorSave = false }, ref) {
   const playRound = usePlayRoundOptional();
   const holeOrder = getHoleOrder(startingCourse);
   const [editingHole, setEditingHole] = useState(playRound?.currentHole ?? holeOrder[0]);
@@ -114,6 +122,29 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
     return false;
   }, []);
 
+  // --- Orchestrator integration via imperative handle ---
+  useImperativeHandle(ref, () => ({
+    getCompanionInputs(holeNumber: number): HoleInputs | null {
+      const inputs = allInputsRef.current.get(holeNumber);
+      if (!inputs || inputs.size === 0) return null;
+      return inputs;
+    },
+    buildCompanionSyncPayload(holeNumber: number): Parameters<typeof replaceCompanionScoresForHole>[0] | null {
+      if (!hasChanges(holeNumber)) return null;
+      const holeInputs = allInputsRef.current.get(holeNumber);
+      if (!holeInputs) return null;
+      return {
+        roundId: roundIdRef.current,
+        holeNumber,
+        scores: [...holeInputs].map(([companionId, input]) => ({
+          companionId,
+          strokes: parseScore(input.strokes),
+          putts: parseScore(input.putts),
+        })),
+      };
+    },
+  }), [hasChanges]);
+
   // --- ホール単位のDB保存（競合防止付き） ---
   const saveHole = useCallback((holeNumber: number) => {
     if (savingHolesRef.current.has(holeNumber)) return;
@@ -156,12 +187,12 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
   // --- ホール切替（保存→切替） ---
   const switchHole = useCallback((newHole: number) => {
     const currentHole = editingHoleRef.current;
-    if (currentHole !== newHole) {
+    if (currentHole !== newHole && !useOrchestratorSave) {
       saveHole(currentHole);
     }
     setEditingHole(newHole);
     setSaveResult('idle');
-  }, [saveHole]);
+  }, [saveHole, useOrchestratorSave]);
 
   // --- Context連動（スコア画面のホール変更に追従、初回/同値ガード付き） ---
   const prevContextHoleRef = useRef(playRound?.currentHole);
@@ -170,17 +201,23 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
     if (incoming && incoming !== prevContextHoleRef.current) {
       prevContextHoleRef.current = incoming;
       if (incoming !== editingHoleRef.current) {
-        saveHole(editingHoleRef.current);
+        if (!useOrchestratorSave) {
+          saveHole(editingHoleRef.current);
+        }
         setEditingHole(incoming);
         setSaveResult('idle');
       }
     }
-  }, [playRound?.currentHole, saveHole]);
+  }, [playRound?.currentHole, saveHole, useOrchestratorSave]);
 
   // --- アンマウント時: 全dirtyホールをfire-and-forget保存 ---
+  // When orchestrator manages saves, skip this (orchestrator handles unmount save)
+  const useOrchestratorSaveRef = useRef(useOrchestratorSave);
+  useEffect(() => { useOrchestratorSaveRef.current = useOrchestratorSave; }, [useOrchestratorSave]);
   useEffect(() => {
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+      if (useOrchestratorSaveRef.current) return;
       // 現在ホールのdirty判定
       const current = editingHoleRef.current;
       const currentInputs = allInputsRef.current.get(current);
@@ -307,4 +344,4 @@ export function CompanionScoreEditor({ companionData, roundId, startingCourse = 
       />
     </div>
   );
-}
+});

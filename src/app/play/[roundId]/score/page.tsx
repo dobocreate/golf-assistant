@@ -4,8 +4,8 @@ import { getGamePlans } from '@/actions/game-plan';
 import { getProfile } from '@/actions/profile';
 import { getCompanions, getCompanionScores } from '@/actions/companion';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
-import { redirect, notFound } from 'next/navigation';
-import { ScoreInput } from '@/features/score/components/score-input';
+import { redirect } from 'next/navigation';
+import { ScoreClientShell, type ServerData } from '@/features/score/components/score-client-shell';
 
 export default async function ScoreInputPage({
   params,
@@ -23,37 +23,44 @@ export default async function ScoreInputPage({
   const parsed = hole ? parseInt(hole, 10) : undefined;
   const initialHole = parsed && !isNaN(parsed) ? parsed : undefined;
 
-  const [data, clubs, gamePlans, profile, companions, companionData] = await Promise.all([
-    getScoresWithHoles(roundId),
-    getClubs(),
-    getGamePlans(roundId),
-    getProfile(),
-    getCompanions(roundId),
-    getCompanionScores(roundId),
-  ]);
+  let serverData: ServerData | null = null;
 
-  if (!data) notFound();
+  try {
+    const [data, clubs, gamePlans, profile, companions, companionData] = await Promise.all([
+      getScoresWithHoles(roundId),
+      getClubs(),
+      getGamePlans(roundId),
+      getProfile(),
+      getCompanions(roundId),
+      getCompanionScores(roundId),
+    ]);
 
-  // 同伴者スコアをフラットな配列に変換
-  const allCompanionScores = companionData.flatMap(cd => cd.scores);
+    if (data) {
+      // 同伴者スコアをフラットな配列に変換
+      const allCompanionScores = companionData.flatMap(cd => cd.scores);
 
-  return (
-    <ScoreInput
-      roundId={roundId}
-      holes={data.holes}
-      initialScores={data.scores}
-      courseName={data.round.courseName}
-      clubs={clubs.map(c => ({ name: c.name }))}
-      editMode={editMode}
-      startingCourse={data.round.startingCourse}
-      initialHole={initialHole}
-      weather={data.round.weather}
-      gamePlans={gamePlans}
-      targetScore={data.round.targetScore}
-      scoreLevel={profile?.score_level}
-      handicap={profile?.handicap}
-      companions={companions}
-      initialCompanionScores={allCompanionScores}
-    />
-  );
+      serverData = {
+        roundId,
+        holes: data.holes,
+        initialScores: data.scores,
+        courseName: data.round.courseName,
+        clubs: clubs.map(c => ({ name: c.name })),
+        editMode,
+        startingCourse: data.round.startingCourse,
+        initialHole,
+        weather: data.round.weather,
+        gamePlans,
+        targetScore: data.round.targetScore,
+        scoreLevel: profile?.score_level ?? null,
+        handicap: profile?.handicap ?? null,
+        companions,
+        initialCompanionScores: allCompanionScores,
+      };
+    }
+  } catch {
+    // サーバーデータ取得失敗 → serverData = null のまま
+    // Client Shellがオフラインモードで復帰を試みる
+  }
+
+  return <ScoreClientShell serverData={serverData} roundId={roundId} />;
 }

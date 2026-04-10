@@ -3,6 +3,7 @@ import { getRoundWithCourse } from '@/actions/round';
 import { getScores } from '@/actions/score';
 import { redirect, notFound } from 'next/navigation';
 import { CompleteRoundForm } from '@/features/round/components/complete-round-form';
+import { RoundCleanup } from '@/features/score/components/round-cleanup';
 
 export default async function RoundCompletePage({
   params,
@@ -73,6 +74,7 @@ export default async function RoundCompletePage({
         </div>
       )}
 
+      <RoundCleanup roundId={roundId} />
       <CompleteRoundForm roundId={roundId} />
     </div>
   );

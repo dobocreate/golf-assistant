@@ -391,6 +391,7 @@ export async function saveShotsForHole(data: {
     windStrength: string | null;
     elevation: string | null;
   }>;
+  skipRevalidate?: boolean;
 }): Promise<{ error?: string; shots?: Shot[] }> {
   if (data.shots.length === 0) return { shots: [] };
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
@@ -464,4 +465,102 @@ export async function saveShotsForHole(data: {
     .order('shot_number');
 
   return { shots: (savedShots as Shot[]) ?? [] };
+}
+
+/** ホール単位の全件入れ替え（delete all + insert all）— オフライン同期用 */
+export async function replaceShotsForHole(data: {
+  roundId: string;
+  holeNumber: number;
+  shots: Array<{
+    clientId: string;
+    shotNumber: number;
+    club: string | null;
+    result: string | null;
+    missType: string | null;
+    directionLr: string | null;
+    directionFb: string | null;
+    lie: string | null;
+    slopeFb: string | null;
+    slopeLr: string | null;
+    landing: string | null;
+    shotType: string | null;
+    remainingDistance: number | null;
+    note: string | null;
+    adviceText: string | null;
+    windDirection: string | null;
+    windStrength: string | null;
+    elevation: string | null;
+  }>;
+  skipRevalidate?: boolean;
+}): Promise<{ error?: string; shots?: Shot[] }> {
+  if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
+    return { error: 'ホール番号が不正です。' };
+  }
+
+  const { error: authError, supabase } = await verifyRoundOwnership(data.roundId, 'in_progress');
+  if (authError || !supabase) return { error: authError ?? 'エラー' };
+
+  // 全ショットをバリデーション
+  for (const shot of data.shots) {
+    if (!shot.clientId || typeof shot.clientId !== 'string') {
+      return { error: 'clientIdが不正です。' };
+    }
+    if (!Number.isInteger(shot.shotNumber) || shot.shotNumber < 1 || shot.shotNumber > 20) {
+      return { error: `ショット番号 ${shot.shotNumber} が不正です。` };
+    }
+    if (shot.note && shot.note.length > SHOT_NOTE_MAX_LENGTH) {
+      return { error: `第${shot.shotNumber}打: メモが長すぎます。` };
+    }
+    const validationError = validateShotFields({
+      club: shot.club,
+      result: shot.result as ShotResult | null,
+      missType: shot.missType,
+      directionLr: shot.directionLr,
+      directionFb: shot.directionFb,
+      lie: shot.lie,
+      slopeFb: shot.slopeFb,
+      slopeLr: shot.slopeLr,
+      landing: shot.landing,
+      shotType: shot.shotType,
+      remainingDistance: shot.remainingDistance,
+      elevation: shot.elevation,
+    });
+    if (validationError) return { error: `第${shot.shotNumber}打: ${validationError}` };
+  }
+
+  // RPC でアトミックに delete + insert（トランザクション保証）
+  const shotsJson = data.shots.map(s => ({
+    shot_number: s.shotNumber,
+    club: s.club,
+    result: s.result,
+    miss_type: s.missType,
+    direction_lr: s.directionLr,
+    direction_fb: s.directionFb,
+    lie: s.lie,
+    slope_fb: s.slopeFb,
+    slope_lr: s.slopeLr,
+    landing: s.landing,
+    shot_type: s.shotType,
+    remaining_distance: s.remainingDistance,
+    note: s.note,
+    advice_text: s.adviceText,
+    wind_direction: s.windDirection ?? null,
+    wind_strength: s.windStrength ?? null,
+    elevation: s.elevation ?? null,
+  }));
+
+  const { data: insertedShots, error: rpcErr } = await supabase
+    .rpc('replace_shots_for_hole', {
+      p_round_id: data.roundId,
+      p_hole_number: data.holeNumber,
+      p_shots: shotsJson,
+    });
+
+  if (rpcErr) return { error: 'ショットの保存に失敗しました。' };
+
+  if (!data.skipRevalidate) {
+    revalidatePath(`/play/${data.roundId}/score`);
+  }
+
+  return { shots: (insertedShots as Shot[]) ?? [] };
 }

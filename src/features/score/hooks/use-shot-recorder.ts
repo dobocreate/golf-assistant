@@ -1,10 +1,11 @@
 import { useReducer, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { getShotsForRound, saveShotsForHole } from '@/actions/shot';
+import { getShotsForRound, saveShotsForHole, type replaceShotsForHole } from '@/actions/shot';
 import { updateFirstPuttDistance } from '@/actions/score';
 import { emptyShotForm, shotToForm, hasFormChanged, shouldSaveForm } from '@/features/score/shot-constants';
 import type { Shot, ShotFormState } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
 import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
+import type { LocalShot } from '@/lib/offline-store';
 
 // --- State & Reducer ---
 
@@ -177,7 +178,8 @@ export interface ShotSlot {
 
 // --- Hook ---
 
-export function useShotRecorder(roundId: string, holeNumber: number, holeDistance?: number | null) {
+export function useShotRecorder(roundId: string, holeNumber: number, holeDistance?: number | null, options?: { useOrchestratorSave?: boolean }) {
+  const useOrchestratorSave = options?.useOrchestratorSave ?? false;
   const [state, dispatch] = useReducer(formsReducer, INITIAL_STATE);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -262,16 +264,24 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
   }, []);
 
   // --- ホール切替: 前ホールのショットをDB保存（ショットはuseReducer管理のため画面遷移で消える） ---
+  // When orchestrator manages saves, skip this auto-save (orchestrator handles it)
   useEffect(() => {
+    if (useOrchestratorSave) {
+      // Still track prevHole for the orchestrator to know when holes change
+      prevHoleRef.current = holeNumber;
+      return;
+    }
     if (prevHoleRef.current !== holeNumber) {
       const prevHole = prevHoleRef.current;
       prevHoleRef.current = holeNumber;
       batchSave(prevHole, stateRef.current);
     }
-  }, [holeNumber, batchSave]);
+  }, [holeNumber, batchSave, useOrchestratorSave]);
 
   // --- アンマウント時: 現在のホールのショットをDB保存 ---
+  // When orchestrator manages saves, skip this (orchestrator handles unmount save)
   useEffect(() => {
+    if (useOrchestratorSave) return;
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
       const snapshot = stateRef.current;
@@ -282,7 +292,8 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
         saveShotsForHole(payload).catch(() => {});
       }
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useOrchestratorSave]);
 
   // --- 新規スロット表示管理（複数追加対応） ---
   const [newSlotCount, setNewSlotCount] = useState(0);
@@ -444,6 +455,124 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     return payload.shots.length > 0;
   }, []);
 
+  // --- Orchestrator integration methods ---
+
+  /** Collect shots for a given hole as LocalShot[] for IndexedDB storage */
+  const getShotsForHoleLocal = useCallback((holeNum: number): LocalShot[] | null => {
+    const snapshot = stateRef.current;
+    const holeShots = snapshot.cache.get(holeNum) ?? [];
+    const holeForms = snapshot.formsByHole.get(holeNum);
+    const holeAdvice = snapshot.adviceByHole.get(holeNum);
+
+    // If no forms edited and no cached shots, nothing to save
+    if (holeShots.length === 0 && (!holeForms || holeForms.size === 0)) return null;
+
+    // Build LocalShot[] from cache + form overrides
+    const result: LocalShot[] = [];
+
+    // Existing shots (with form overrides if any)
+    for (let i = 0; i < holeShots.length; i++) {
+      const shot = holeShots[i];
+      const form = holeForms?.get(i);
+      const advice = holeAdvice?.get(i);
+      const base = form ? {
+        ...shot,
+        club: form.club,
+        result: form.result,
+        miss_type: form.missType,
+        direction_lr: form.directionLr,
+        direction_fb: form.directionFb,
+        lie: form.lie,
+        slope_fb: form.slopeFb,
+        slope_lr: form.slopeLr,
+        landing: form.landing,
+        shot_type: form.shotType,
+        remaining_distance: form.remainingDistance,
+        note: form.note,
+        wind_direction: form.windDirection,
+        wind_strength: form.windStrength,
+        elevation: form.elevation,
+        advice_text: advice ?? shot.advice_text,
+      } : shot;
+      result.push({
+        ...base,
+        clientId: (base as LocalShot).clientId || crypto.randomUUID(),
+        version: 0,
+        syncedVersion: 0,
+      } as LocalShot);
+    }
+
+    // New slots (form entries beyond cache length)
+    if (holeForms) {
+      const newKeys = Array.from(holeForms.keys()).filter(k => k >= holeShots.length).sort((a, b) => a - b);
+      for (const i of newKeys) {
+        const form = holeForms.get(i)!;
+        if (!shouldSaveForm(form)) continue;
+        const nextShotNum = holeShots.length > 0
+          ? Math.max(...holeShots.map(s => s.shot_number)) + 1 + (i - holeShots.length)
+          : i + 1;
+        result.push({
+          id: '',
+          round_id: roundIdRef.current,
+          hole_number: holeNum,
+          shot_number: nextShotNum,
+          club: form.club,
+          result: form.result,
+          miss_type: form.missType,
+          direction_lr: form.directionLr,
+          direction_fb: form.directionFb,
+          lie: form.lie,
+          slope_fb: form.slopeFb,
+          slope_lr: form.slopeLr,
+          landing: form.landing,
+          shot_type: form.shotType,
+          remaining_distance: form.remainingDistance,
+          note: form.note,
+          advice_text: holeAdvice?.get(i) ?? null,
+          wind_direction: form.windDirection,
+          wind_strength: form.windStrength,
+          elevation: form.elevation,
+          clientId: crypto.randomUUID(),
+          version: 0,
+          syncedVersion: 0,
+        } as LocalShot);
+      }
+    }
+
+    return result.length > 0 ? result : null;
+  }, []);
+
+  /** Build the replaceShotsForHole server action payload for a given hole.
+   *  Uses getShotsForHoleLocal to send ALL shots (replace strategy requires full state). */
+  const buildShotSyncPayload = useCallback((holeNum: number): Parameters<typeof replaceShotsForHole>[0] | null => {
+    const localShots = getShotsForHoleLocal(holeNum);
+    // Return payload even if empty (empty array = delete all on server)
+    return {
+      roundId: roundIdRef.current,
+      holeNumber: holeNum,
+      shots: (localShots ?? []).map(s => ({
+        clientId: s.clientId,
+        shotNumber: s.shot_number,
+        club: s.club,
+        result: s.result,
+        missType: s.miss_type,
+        directionLr: s.direction_lr,
+        directionFb: s.direction_fb,
+        lie: s.lie,
+        slopeFb: s.slope_fb,
+        slopeLr: s.slope_lr,
+        landing: s.landing,
+        shotType: s.shot_type,
+        remainingDistance: s.remaining_distance,
+        note: s.note,
+        adviceText: s.advice_text,
+        windDirection: s.wind_direction,
+        windStrength: s.wind_strength,
+        elevation: s.elevation,
+      })),
+    };
+  }, [getShotsForHoleLocal]);
+
   return {
     displaySlots,
     expandedIndex,
@@ -461,6 +590,9 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     loading: state.loading,
     saveCurrentHole,
     hasPendingShots,
+    // Orchestrator integration
+    getShotsForHoleLocal,
+    buildShotSyncPayload,
   };
 }
 

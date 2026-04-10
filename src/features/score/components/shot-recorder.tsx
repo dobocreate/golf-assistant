@@ -7,6 +7,9 @@ import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
 import { hasFormChanged, shouldSaveForm, shotToForm, type ClubOption } from '@/features/score/shot-constants';
 
+import type { LocalShot } from '@/lib/offline-store';
+import type { replaceShotsForHole } from '@/actions/shot';
+
 interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
@@ -16,11 +19,13 @@ interface ShotRecorderProps {
   weather?: string | null;
   gamePlanContext?: string | null;
   holeDistance?: number | null;
+  /** When true, disable self-managed save triggers (orchestrator handles saves) */
+  useOrchestratorSave?: boolean;
   /** 親に saveCurrentHole / hasPendingShots / getLandingCounts / addShot を公開するコールバック */
-  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void }) => void;
+  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void; getShotsForHoleLocal?: (hole: number) => LocalShot[] | null; buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, onShotActionsReady }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, useOrchestratorSave, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -38,7 +43,9 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     loading,
     saveCurrentHole,
     hasPendingShots,
-  } = useShotRecorder(roundId, holeNumber, holeDistance);
+    getShotsForHoleLocal,
+    buildShotSyncPayload,
+  } = useShotRecorder(roundId, holeNumber, holeDistance, { useOrchestratorSave });
 
   // モーダル表示中のスロットindex（null=閉じている）
   const [modalSlotIndex, setModalSlotIndex] = useState<number | null>(null);
@@ -67,8 +74,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
 
   // 親コンポーネントにショット保存関数を公開
   useEffect(() => {
-    onShotActionsReady?.({ saveCurrentHole, hasPendingShots, getLandingCounts, addShot: handleAddAndOpen });
-  }, [saveCurrentHole, hasPendingShots, getLandingCounts, handleAddAndOpen, onShotActionsReady]);
+    onShotActionsReady?.({ saveCurrentHole, hasPendingShots, getLandingCounts, addShot: handleAddAndOpen, getShotsForHoleLocal, buildShotSyncPayload });
+  }, [saveCurrentHole, hasPendingShots, getLandingCounts, handleAddAndOpen, onShotActionsReady, getShotsForHoleLocal, buildShotSyncPayload]);
 
   // モーダル用: 背景スクロール防止
   useEffect(() => {
