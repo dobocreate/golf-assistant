@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Save, CheckCircle, Users, Plus, MessageCircle, X } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
+import { SyncStatusIndicator } from '@/features/score/components/sync-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
 import { upsertScore } from '@/actions/score';
@@ -170,6 +171,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // 保存状態: 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // ローカル変更の有無（保存済みバッジ表示制御）
+  const [isDirty, setIsDirty] = useState(false);
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // アンマウント時にタイマーをクリーンアップ + 未保存スコアをfire-and-forget保存
   const roundIdRef = useRef(roundId);
@@ -239,6 +242,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [bunkerCount, setBunkerCount] = useState<number>(score?.bunker_count ?? 0);
   // ユーザーが明示的にスコアを操作したかどうか（デフォルト値の自動保存防止用）
   const [userTouched, setUserTouched] = useState(score !== undefined);
+
+  // ユーザー入力でdirty、保存・ホール切替でクリア
+  const dirtySkipRef = useRef(true); // 初期render・ホール切替のsetState起因をスキップ
+  useEffect(() => {
+    if (dirtySkipRef.current) { dirtySkipRef.current = false; return; }
+    setIsDirty(true);
+  }, [strokes, putts, windDirection, windStrength, obCount, bunkerCount]);
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
@@ -399,6 +409,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
     // Orchestrator handles IndexedDB + DB sync for all data types
     orchestrator.onSaveButton(currentHole);
+    setIsDirty(false);
     // 保存実行後にdirtyフラグとsessionStorageキャッシュをクリア
     removeSession(roundDirtyKey(roundId));
     removeSession(roundScoresKey(roundId));
@@ -575,6 +586,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
     setSaveStatus('idle');
     setFailedSave(null);
+    setIsDirty(false);
+    dirtySkipRef.current = true; // 以下のsetState群でdirtyにならないようスキップ
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
@@ -659,9 +672,13 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         {/* ヘッダー: コース名 + 保存状態 */}
         <div className="flex items-center justify-between pt-2">
           <p className="text-sm text-gray-300 truncate flex-1">{courseName}</p>
-          <SaveStatusIndicator
-            status={saveStatus}
-            onRetry={failedSave ? () => saveHole(failedSave.holeNum, failedSave.strokes, failedSave.putts, failedSave.gir, failedSave.wd, failedSave.ws, failedSave.existingId) : undefined}
+          <SyncStatusIndicator
+            syncStatus={orchestrator.syncStatus}
+            pendingCount={orchestrator.pendingCount}
+            isOnline={orchestrator.isOnline}
+            isProcessing={orchestrator.isProcessing}
+            isDirty={isDirty}
+            compact
           />
         </div>
 

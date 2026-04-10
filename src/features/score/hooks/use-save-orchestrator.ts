@@ -512,6 +512,7 @@ export function useSaveOrchestrator(roundId: string) {
 
     syncStatus: syncEngine.syncStatus,
     pendingCount: syncEngine.pendingCount,
+    isOnline: syncEngine.isOnline,
     isProcessing,
   };
 }

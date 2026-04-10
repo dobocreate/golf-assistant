@@ -9,6 +9,8 @@ export interface SyncStatusIndicatorProps {
   isOnline: boolean;
   isProcessing?: boolean;
   idbAvailable?: boolean;
+  /** true when there are unsaved local changes (hides "保存済み" badge) */
+  isDirty?: boolean;
   onRetry?: () => void;
   compact?: boolean;
   className?: string;
@@ -27,6 +29,7 @@ export interface SyncStatusIndicatorProps {
  */
 type DisplayState =
   | 'idle'
+  | 'synced'
   | 'syncing'
   | 'offline-saved'
   | 'offline-pending'
@@ -39,6 +42,7 @@ function deriveDisplayState(
   isOnline: boolean,
   isProcessing: boolean,
   idbAvailable: boolean,
+  isDirty: boolean,
 ): DisplayState {
   if (!idbAvailable) return 'idb-unavailable';
   if (syncStatus === 'error') return 'error';
@@ -46,8 +50,9 @@ function deriveDisplayState(
   if (!isOnline || syncStatus === 'offline') {
     return pendingCount > 0 ? 'offline-pending' : 'offline-saved';
   }
-  // Online + idle: check if there are still pending items (edge case)
   if (pendingCount > 0) return 'offline-pending';
+  // Online + idle + no pending: show "synced" badge unless dirty
+  if (!isDirty) return 'synced';
   return 'idle';
 }
 
@@ -57,6 +62,7 @@ export function SyncStatusIndicator({
   isOnline,
   isProcessing = false,
   idbAvailable = true,
+  isDirty = false,
   onRetry,
   compact = false,
   className,
@@ -67,9 +73,10 @@ export function SyncStatusIndicator({
     isOnline,
     isProcessing,
     idbAvailable,
+    isDirty,
   );
 
-  // Online + fully synced: render nothing
+  // Dirty + online + idle: nothing to show
   if (state === 'idle') return null;
 
   const iconSize = compact ? 'h-3 w-3' : 'h-3.5 w-3.5';
@@ -82,6 +89,15 @@ export function SyncStatusIndicator({
         className,
       )}
     >
+      {state === 'synced' && (
+        <>
+          <Check className={cn(iconSize, 'text-emerald-400')} />
+          <span className={cn(textSize, 'text-emerald-400 font-medium')}>
+            保存済み
+          </span>
+        </>
+      )}
+
       {state === 'syncing' && (
         <RefreshCw
           className={cn(iconSize, 'animate-spin text-blue-400')}
