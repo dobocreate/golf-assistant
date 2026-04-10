@@ -376,33 +376,13 @@ export function useSaveOrchestrator(roundId: string) {
         // 1. Flush to IndexedDB (local persistence - the real guarantee)
         const { scoreVersion, shotVersion } = await collectAndFlush(op.holeNumber);
 
-        // 2. If online, attempt keepalive fetch for SCORE ONLY (optimization)
-        //    Shots and companions use replace RPC (delete+insert) which causes
-        //    race conditions with holeSwitch/saveButton Server Actions.
-        //    Score uses upsert (safe to race). Shots/companions are synced
-        //    only via holeSwitch/saveButton/onlineRestore (awaited operations).
-        if (typeof navigator !== 'undefined' && navigator.onLine) {
-          try {
-            const scorePayload = scoreCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (scorePayload) {
-              const { roundId: _r, holeNumber: _h, skipRevalidate: _s, ...scoreFields } = scorePayload;
-              fetch('/api/sync', {
-                method: 'POST',
-                body: JSON.stringify({
-                  roundId: roundIdRef.current,
-                  holeNumber: op.holeNumber,
-                  score: scoreFields,
-                }),
-                keepalive: true,
-                headers: { 'Content-Type': 'application/json' },
-              }).catch(() => {
-                // Fire-and-forget: failure is acceptable. Data is in IndexedDB.
-              });
-            }
-          } catch {
-            // Building payload failed - data is still in IndexedDB
-          }
-        } else {
+        // 2. DB sync is NOT attempted here (no keepalive fetch).
+        //    Fire-and-forget fetches race with holeSwitch/saveButton Server Actions,
+        //    causing older data to overwrite newer data.
+        //    DB sync happens only via awaited operations:
+        //    holeSwitch, saveButton, onlineRestore.
+        //    If offline, enqueue for later sync.
+        if (typeof navigator === 'undefined' || !navigator.onLine) {
           // Offline: enqueue for later sync
           try {
             const scorePayload = scoreCallbacksRef.current?.buildSyncPayload(op.holeNumber);
