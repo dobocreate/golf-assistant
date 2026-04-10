@@ -376,42 +376,13 @@ export function useSaveOrchestrator(roundId: string) {
         // 1. Flush to IndexedDB (local persistence - the real guarantee)
         const { scoreVersion, shotVersion } = await collectAndFlush(op.holeNumber);
 
-        // 2. If online, attempt keepalive fetch (optimization, not guarantee)
-        if (typeof navigator !== 'undefined' && navigator.onLine) {
-          try {
-            const payloads: Record<string, unknown> = {};
-
-            const scorePayload = scoreCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (scorePayload) {
-              const { roundId: _r, holeNumber: _h, skipRevalidate: _s, ...scoreFields } = scorePayload;
-              payloads.score = scoreFields;
-            }
-
-            const shotPayload = shotCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (shotPayload) payloads.shots = shotPayload.shots;
-
-            const companionPayload = companionCallbacksRef.current?.buildSyncPayload(op.holeNumber);
-            if (companionPayload) payloads.companions = companionPayload.scores;
-
-            if (Object.keys(payloads).length > 0) {
-              fetch('/api/sync', {
-                method: 'POST',
-                body: JSON.stringify({
-                  roundId: roundIdRef.current,
-                  holeNumber: op.holeNumber,
-                  ...payloads,
-                }),
-                keepalive: true,
-                headers: { 'Content-Type': 'application/json' },
-              }).catch(() => {
-                // Fire-and-forget: failure is expected and acceptable.
-                // Data is safe in IndexedDB.
-              });
-            }
-          } catch {
-            // Building payloads failed - data is still in IndexedDB
-          }
-        } else {
+        // 2. DB sync is NOT attempted here (no keepalive fetch).
+        //    Fire-and-forget fetches race with holeSwitch/saveButton Server Actions,
+        //    causing older data to overwrite newer data.
+        //    DB sync happens only via awaited operations:
+        //    holeSwitch, saveButton, onlineRestore.
+        //    If offline, enqueue for later sync.
+        if (typeof navigator === 'undefined' || !navigator.onLine) {
           // Offline: enqueue for later sync
           try {
             const scorePayload = scoreCallbacksRef.current?.buildSyncPayload(op.holeNumber);
