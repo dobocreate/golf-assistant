@@ -111,7 +111,15 @@ async function flushScoreToIDB(
   const key = `scores:${roundId}`;
   const scores = (await getFromDataStore<Map<number, LocalScore>>(key)) ?? new Map<number, LocalScore>();
   const existing = scores.get(holeNumber);
-  const nextVersion = (existing?.version ?? 0) + 1;
+  // Only increment version when data actually changed (avoid unsynced count inflation)
+  // Compare all score fields present in partial against existing
+  const hasChanged = !existing
+    || Object.keys(partial).some((k) => {
+      if (k === 'version' || k === 'syncedVersion') return false;
+      return (existing as unknown as Record<string, unknown>)[k] !== (partial as unknown as Record<string, unknown>)[k];
+    });
+  const currentVersion = existing?.version ?? 0;
+  const nextVersion = hasChanged ? currentVersion + 1 : currentVersion;
   const merged: LocalScore = {
     ...(existing ?? ({} as LocalScore)),
     ...partial,
@@ -130,13 +138,19 @@ async function flushShotsToIDB(
 ): Promise<number> {
   const key = `shots:${roundId}`;
   const all = (await getFromDataStore<Map<number, LocalShot[]>>(key)) ?? new Map<number, LocalShot[]>();
-  // Determine next version: max of existing versions + 1
   const existing = all.get(holeNumber);
   const maxExistingVersion = existing
     ? Math.max(0, ...existing.map((s) => s.version))
     : 0;
-  const nextVersion = maxExistingVersion + 1;
-  // Apply version to all shots
+  // Only increment version when shots actually changed (compare all fields)
+  const stripVersionFields = (s: LocalShot) => {
+    const { version: _v, syncedVersion: _sv, ...rest } = s;
+    return rest;
+  };
+  const hasChanged = !existing
+    || existing.length !== shots.length
+    || JSON.stringify(shots.map(stripVersionFields)) !== JSON.stringify(existing.map(stripVersionFields));
+  const nextVersion = hasChanged ? maxExistingVersion + 1 : maxExistingVersion;
   const versioned = shots.map((s) => ({
     ...s,
     version: nextVersion,

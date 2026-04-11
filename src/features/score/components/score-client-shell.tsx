@@ -84,12 +84,26 @@ export function ScoreClientShell({ serverData, roundId }: ScoreClientShellProps)
           return;
         }
 
-        // Build a minimal ServerData from cached read data
-        // Write data (scores, shots, companions) will be loaded separately by ScoreInput
+        // Build ServerData from cached read data + write data (scores from IndexedDB)
+        const localScores = await offlineStore.loadScoresLocal();
+
+        // Convert LocalScore Map to Score[] for ScoreInput
+        const initialScores: Score[] = [];
+        if (localScores) {
+          for (const [, ls] of localScores) {
+            // Strip version/syncedVersion fields for Score compatibility
+            const { version: _v, syncedVersion: _sv, ...score } = ls as Score & { version: number; syncedVersion: number };
+            initialScores.push(score);
+          }
+        }
+        // NOTE: Shots and companion scores are restored by the orchestrator
+        // via IndexedDB when ScoreInput mounts. They don't need to be passed
+        // through ServerData props.
+
         const offlineData: ServerData = {
           roundId,
           holes: cached.holes,
-          initialScores: [],
+          initialScores,
           courseName: cached.roundMeta.courseName,
           clubs: cached.clubs.map(c => ({ name: c.name })),
           editMode: false,

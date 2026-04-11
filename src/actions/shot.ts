@@ -530,6 +530,7 @@ export async function replaceShotsForHole(data: {
 
   // RPC でアトミックに delete + insert（トランザクション保証）
   const shotsJson = data.shots.map(s => ({
+    client_id: s.clientId,
     shot_number: s.shotNumber,
     club: s.club,
     result: s.result,
