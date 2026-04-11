@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { AlertTriangle, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMemo } from 'react';
+import { AlertTriangle, ClipboardList } from 'lucide-react';
 import type { GamePlan } from '@/features/game-plan/types';
 import { RISK_LEVEL_LABELS } from '@/features/game-plan/types';
 import type { Score } from '@/features/score/types';
@@ -131,8 +131,6 @@ export function ManagementBand({
   handicap,
   totalOBCount = 0,
 }: ManagementBandProps) {
-  const [collapsed, setCollapsed] = useState(true);
-
   const plan = useMemo(
     () => gamePlans.find(p => p.hole_number === currentHole),
     [gamePlans, currentHole],
@@ -163,51 +161,40 @@ export function ManagementBand({
       role="status"
       aria-live="polite"
     >
-      {/* トーン行（常に表示、タップで開閉） */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between"
-      >
+      {/* トーン行 */}
+      <div className="flex items-center justify-between">
         <p className={`text-sm font-semibold ${toneStyle?.text ?? riskStyle.text}`}>
           {toneInfo && toneStyle ? `${toneStyle.icon} ${toneInfo.label}` : plan.alert_text?.slice(0, 25) ?? 'プラン'}
         </p>
-        <div className="flex items-center gap-2">
-          {toneInfo && <span className="text-xs text-gray-400">{toneInfo.paceText}</span>}
-          {collapsed ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronUp className="h-4 w-4 text-gray-400" />}
+        {toneInfo && <span className="text-xs text-gray-400">{toneInfo.paceText}</span>}
+      </div>
+
+      {/* 弱点アラート */}
+      {plan.alert_text && (
+        <div className="flex items-start gap-2">
+          <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${riskStyle.text}`} />
+          <p className="text-base font-bold text-gray-100 leading-snug">
+            {plan.alert_text}
+            {plan.risk_level && (
+              <span className={`ml-2 text-xs font-normal ${riskStyle.text}`}>
+                ({RISK_LEVEL_LABELS[plan.risk_level]})
+              </span>
+            )}
+          </p>
         </div>
-      </button>
+      )}
 
-      {/* 詳細（展開時のみ） */}
-      {!collapsed && (
-        <>
-          {/* 弱点アラート */}
-          {plan.alert_text && (
-            <div className="flex items-start gap-2">
-              <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${riskStyle.text}`} />
-              <p className="text-base font-bold text-gray-100 leading-snug">
-                {plan.alert_text}
-                {plan.risk_level && (
-                  <span className={`ml-2 text-xs font-normal ${riskStyle.text}`}>
-                    ({RISK_LEVEL_LABELS[plan.risk_level]})
-                  </span>
-                )}
-              </p>
-            </div>
-          )}
+      {/* ゲームプラン */}
+      {plan.plan_text && (
+        <div className="flex items-start gap-2">
+          <ClipboardList className="h-4 w-4 mt-0.5 shrink-0 text-gray-400" />
+          <p className="text-sm text-gray-300 leading-snug">{plan.plan_text}</p>
+        </div>
+      )}
 
-          {/* ゲームプラン */}
-          {plan.plan_text && (
-            <div className="flex items-start gap-2">
-              <ClipboardList className="h-4 w-4 mt-0.5 shrink-0 text-gray-400" />
-              <p className="text-sm text-gray-300 leading-snug">{plan.plan_text}</p>
-            </div>
-          )}
-
-          {/* 平均パー表示 */}
-          {avgPar && (
-            <p className="text-sm text-gray-400 pl-6">HC換算目安: {avgPar}打</p>
-          )}
-        </>
+      {/* 平均パー表示 */}
+      {avgPar && (
+        <p className="text-sm text-gray-400 pl-6">HC換算目安: {avgPar}打</p>
       )}
 
       {/* OB累積警告 */}
