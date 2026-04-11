@@ -154,4 +154,23 @@ export const syncQueue = {
     const items = await getAllItems();
     return items.filter((item) => item.roundId === roundId).length;
   },
+
+  /** Reset all failed items for a round back to pending (for manual retry via save button) */
+  async resetFailedForRound(roundId: string): Promise<number> {
+    const items = await getAllItems();
+    let reset = 0;
+    for (const item of items) {
+      if (item.roundId === roundId && item.status === 'failed') {
+        const updated: SyncQueueItem = {
+          ...item,
+          status: 'pending',
+          retryCount: 0,
+          syncingStartedAt: null,
+        };
+        await set(syncKey(item.id), updated, syncStore);
+        reset++;
+      }
+    }
+    return reset;
+  },
 };

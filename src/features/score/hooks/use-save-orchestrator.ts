@@ -360,10 +360,11 @@ export function useSaveOrchestrator(roundId: string) {
         const { scoreVersion, shotVersion } = await collectAndFlush(op.holeNumber);
         // 2. Try DB sync
         await trySyncToServer(op.holeNumber, scoreVersion, shotVersion);
-        // 3. If queue has pending items, process them too
+        // 3. If queue has items, reset failed ones and process
         try {
           const count = await syncQueue.countByRound(roundIdRef.current);
           if (count > 0) {
+            await syncQueue.resetFailedForRound(roundIdRef.current);
             await syncEngineRef.current.processQueue();
           }
         } catch {
