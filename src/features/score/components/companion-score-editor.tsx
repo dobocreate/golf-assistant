@@ -328,20 +328,22 @@ export const CompanionScoreEditor = forwardRef<CompanionScoreEditorHandle, Compa
 
       </div>
 
-      {/* フローティング保存ボタン */}
-      <SpeedDial
-        aboveNav
-        actions={[
-          {
-            key: 'save',
-            icon: <Save className="h-4 w-4" />,
-            label: isPending ? '保存中...' : '保存',
-            onClick: () => saveHole(editingHole),
-            disabled: isPending,
-            variant: 'primary',
-          },
-        ]}
-      />
+      {/* フローティング保存ボタン（orchestrator使用時は非表示 — 親が保存を管理） */}
+      {!useOrchestratorSave && (
+        <SpeedDial
+          aboveNav
+          actions={[
+            {
+              key: 'save',
+              icon: <Save className="h-4 w-4" />,
+              label: isPending ? '保存中...' : '保存',
+              onClick: () => saveHole(editingHole),
+              disabled: isPending,
+              variant: 'primary',
+            },
+          ]}
+        />
+      )}
     </div>
   );
 });

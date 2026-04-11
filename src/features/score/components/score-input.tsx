@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Save, CheckCircle, Users, Plus, MessageCircle, X } from 'lucide-react';
@@ -8,8 +8,6 @@ import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { SyncStatusIndicator } from '@/features/score/components/sync-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
-import { upsertScore } from '@/actions/score';
-import { upsertCompanionScoresBatch } from '@/actions/companion';
 import { ShotRecorder } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
@@ -18,9 +16,8 @@ import { CompanionScoreModal, getCompanionInputsForHole, type CompanionHoleInput
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
-import { setSession, getSession, removeSession, roundScoresKey, roundCompanionKey, roundDirtyKey } from '@/lib/session-storage';
 import { useSaveOrchestrator } from '@/features/score/hooks/use-save-orchestrator';
-import type { LocalScore, LocalShot } from '@/lib/offline-store';
+import { checkIndexedDBAvailability, type LocalScore, type LocalShot } from '@/lib/offline-store';
 import type { replaceShotsForHole } from '@/actions/shot';
 
 
@@ -135,14 +132,17 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const orchestrator = useSaveOrchestrator(roundId);
   const currentHoleRef = useRef(initialHoleResolved);
 
+  // --- IndexedDB availability check (once on mount) ---
+  const [idbAvailable, setIdbAvailable] = useState(true);
+  useEffect(() => {
+    checkIndexedDBAvailability().then(setIdbAvailable);
+  }, []);
+
   // PlayRoundContext の currentHole をローカルステートと同期（ローカル→Context 一方向）
   useEffect(() => {
     playRound?.setCurrentHole(currentHole);
   }, [playRound, currentHole]);
   const [scores, setScoresRaw] = useState<Map<number, Score>>(() => {
-    // sessionStorageから復元を試みる
-    const cached = getSession<Map<number, Score>>(roundScoresKey(roundId));
-    if (cached && cached.size > 0) return cached;
     const map = new Map<number, Score>();
     for (const s of initialScores) {
       map.set(s.hole_number, s);
@@ -153,22 +153,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const setScores = useCallback((updater: Map<number, Score> | ((prev: Map<number, Score>) => Map<number, Score>)) => {
     setScoresRaw(updater);
   }, []);
-  // scores変更時にsessionStorageに同期（初回マウントはスキップ）
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    setSession(roundScoresKey(roundId), scores);
-    setSession(roundDirtyKey(roundId), true);
-  }, [scores, roundId]);
   const totalOBCount = useMemo(
     () => Array.from(scores.values()).reduce((sum, s) => sum + (s.ob_count ?? 0), 0),
     [scores],
   );
-  const [isPending, startTransition] = useTransition();
-
   // 保存状態: 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // ショット変更のdirtyフラグ（ShotRecorderから通知される）
@@ -181,44 +169,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   useEffect(() => {
     return () => {
       if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-      // アンマウント時: 現在の入力値をsessionStorageのscores Mapに反映
-      const { strokes, putts, greenInReg, windDirection: wd, windStrength: ws, currentHole, scoreId, userTouched } = currentInputRef.current;
-      if (userTouched && strokes !== null) {
-        const existing = scoresRef.current.get(currentHole);
-        const updated = new Map(scoresRef.current).set(currentHole, {
-          ...(existing ?? {} as Score),
-          id: scoreId ?? existing?.id ?? '',
-          round_id: roundIdRef.current,
-          hole_number: currentHole,
-          strokes,
-          putts,
-          green_in_reg: greenInReg,
-          wind_direction: wd,
-          wind_strength: ws,
-        });
-        setSession(roundScoresKey(roundIdRef.current), updated);
-        setSession(roundDirtyKey(roundIdRef.current), true);
-      }
-      // 同伴者スコアもsessionStorageに保存
-      const cInputs = companionInputsRef.current;
-      if (cInputs.length > 0) {
-        setSession(roundCompanionKey(roundIdRef.current), cInputs);
-      }
+      // アンマウント時の保存はオーケストレーターが担当（orchestrator.onBackgroundSave）
     };
   }, []);
-  // --- 未保存データのブラウザ離脱警告 ---
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const isDirty = getSession<boolean>(roundDirtyKey(roundId));
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [roundId]);
-
   // 保存失敗時のリトライ情報
   const [failedSave, setFailedSave] = useState<{
     holeNum: number;
@@ -258,6 +211,20 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       || (saved.bunker_count ?? 0) !== bunkerCount;
   }, [scores, currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, shotsDirty]);
 
+  // --- 未保存データのブラウザ離脱警告 ---
+  const isDirtyRef = useRef(false);
+  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [roundId]);
+
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
 
@@ -272,135 +239,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setGreenInReg(computeGreenInReg(strokes, putts, hole.par));
   }, [strokes, putts, hole.par, computeGreenInReg]);
 
-  const saveHole = useCallback((
-    holeNum: number,
-    s: number,
-    p: number | null,
-    gir: boolean | null,
-    wd: WindDirection | null,
-    ws: WindStrength | null,
-    existingId?: string,
-    overrideOb?: number,
-    overrideBunker?: number,
-  ) => {
-    // プレー中: ショット記録から自動集計、編集モード: 手動値を使用
-    const landing = shotActionsRef.current.getLandingCounts();
-    const finalOb = overrideOb ?? landing.ob;
-    const finalBunker = overrideBunker ?? landing.bunker;
-
-    const existingScore = scoresRef.current.get(holeNum);
-    const newScore: Score = {
-      id: existingId ?? '',
-      round_id: roundId,
-      hole_number: holeNum,
-      strokes: s,
-      putts: p,
-      first_putt_distance: existingScore?.first_putt_distance ?? null,
-      first_putt_distance_m: existingScore?.first_putt_distance_m ?? null,
-      fairway_hit: null,
-      green_in_reg: gir,
-      tee_shot_lr: null,
-      tee_shot_fb: null,
-      ob_count: finalOb,
-      bunker_count: finalBunker,
-      penalty_count: 0,
-      wind_direction: wd,
-      wind_strength: ws,
-    };
-
-    // 楽観的更新
-    setScores(prev => {
-      previousScoreRef.current = prev.get(holeNum);
-      return new Map(prev).set(holeNum, newScore);
-    });
-    // 保存状態を更新
-    setSaveStatus('saving');
-    setFailedSave(null);
-    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
-
-    startTransition(async () => {
-      const result = await upsertScore({
-        roundId,
-        holeNumber: holeNum,
-        strokes: s,
-        putts: p,
-        fairwayHit: null,
-        greenInReg: gir,
-        teeShotLr: null,
-        teeShotFb: null,
-        obCount: finalOb,
-        bunkerCount: finalBunker,
-        penaltyCount: 0,
-        firstPuttDistance: existingScore?.first_putt_distance ?? null,
-        firstPuttDistanceM: existingScore?.first_putt_distance_m ?? null,
-        windDirection: wd,
-        windStrength: ws,
-      });
-      if (result.error) {
-        const prev = previousScoreRef.current;
-        if (prev) {
-          setScores(m => new Map(m).set(holeNum, prev));
-        } else {
-          setScores(m => { const next = new Map(m); next.delete(holeNum); return next; });
-        }
-        setSaveStatus('error');
-        setFailedSave({ holeNum, strokes: s, putts: p, gir, wd, ws, existingId });
-      } else {
-        setSaveStatus('saved');
-        setFailedSave(null);
-        saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000);
-        // 全ホール入力完了チェック（楽観的更新済みのサイズを計算）
-        const expectedSize = scoresRef.current.has(holeNum)
-          ? scoresRef.current.size
-          : scoresRef.current.size + 1;
-        if (expectedSize >= holes.length && !editMode && !completeDismissedRef.current) {
-          setShowCompleteDialog(true);
-        }
-      }
-    });
-  }, [roundId, editMode, holes.length]);
-
-  // 変更検知: 現在の入力値とscores Mapの保存済み値を比較
-  const hasChanges = useCallback((holeNum: number, s: number | null, p: number | null, gir: boolean | null, wd: WindDirection | null, ws: WindStrength | null): boolean => {
-    if (s === null) return false;
-    const saved = scoresRef.current.get(holeNum);
-    if (!saved) return true;
-    return saved.strokes !== s || saved.putts !== p || saved.green_in_reg !== gir || saved.wind_direction !== wd || saved.wind_strength !== ws;
-  }, []);
-
-  // 同伴者スコア保存
-  const saveCompanionScoresForHole = useCallback((holeNum: number, inputs: CompanionHoleInput[]) => {
-    const hasData = inputs.some(i => i.strokes !== null || i.putts !== null);
-    if (!hasData) return;
-    upsertCompanionScoresBatch({
-      roundId,
-      holeNumber: holeNum,
-      scores: inputs.map(i => ({ companionId: i.companionId, strokes: i.strokes, putts: i.putts })),
-    }).then((result) => {
-      if (result.error) {
-        showToast('同伴者スコアの保存に失敗しました', 'error');
-        return;
-      }
-      // 成功時のみローカルMapを更新
-      const csMap = companionScoresMapRef.current!;
-      for (const input of inputs) {
-        if (!csMap.has(input.companionId)) csMap.set(input.companionId, new Map());
-        const holeMap = csMap.get(input.companionId)!;
-        holeMap.set(holeNum, {
-          id: holeMap.get(holeNum)?.id ?? '',
-          companion_id: input.companionId,
-          hole_number: holeNum,
-          strokes: input.strokes,
-          putts: input.putts,
-        });
-      }
-    }).catch(() => {
-      showToast('同伴者スコアの保存に失敗しました', 'error');
-    });
-  }, [roundId, showToast]);
-
   const handleSave = useCallback(() => {
     if (strokes === null) return;
+    setUserTouched(true);
     // 設計通り、変更検知なしで無条件にオーケストレーターに委譲
     // オーケストレーターが全データタイプ（スコア/ショット/同伴者）を
     // collectData → IndexedDB → buildSyncPayload → DB同期する
@@ -423,10 +264,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       bunker_count: landing.bunker,
     });
     setScores(scoresRef.current);
-    // sessionStorageキャッシュをクリア
-    removeSession(roundDirtyKey(roundId));
-    removeSession(roundScoresKey(roundId));
-    removeSession(roundCompanionKey(roundId));
   }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, roundId, orchestrator]);
 
   // スコアMapへの参照（switchHoleでの同期用）
@@ -652,7 +489,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (hasCompanions) {
       setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
     }
-  }, [saveHole, hasChanges, roundId, hasCompanions, companions, saveCompanionScoresForHole, orchestrator]);
+  }, [roundId, hasCompanions, companions, orchestrator]);
 
 
   // スコアラベル
@@ -728,6 +565,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             pendingCount={orchestrator.pendingCount}
             isOnline={orchestrator.isOnline}
             isProcessing={orchestrator.isProcessing}
+            idbAvailable={idbAvailable}
             isDirty={isDirty}
             compact
           />
@@ -974,9 +812,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         <button
           type="button"
           onClick={handleSave}
-          disabled={strokes === null || isPending}
+          disabled={strokes === null || orchestrator.isProcessing}
           className="flex items-center justify-center h-12 w-12 rounded-full shadow-lg bg-green-600 text-white hover:bg-green-500 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          aria-label={isPending ? '保存中...' : '保存'}
+          aria-label={orchestrator.isProcessing ? '保存中...' : '保存'}
         >
           <Save className="h-5 w-5" />
         </button>

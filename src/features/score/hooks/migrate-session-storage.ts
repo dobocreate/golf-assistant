@@ -30,17 +30,15 @@ export async function migrateFromSessionStorage(
   roundId: string,
   serverScores: Score[],
 ): Promise<void> {
-  // Skip if IndexedDB already has data for this round
-  const existingScores = await getFromDataStore<Map<number, LocalScore>>(
-    `scores:${roundId}`,
-  );
-  if (existingScores && existingScores.size > 0) return;
-
+  // Each data type is migrated independently (scores being done doesn't skip shots/companions)
   let migrated = false;
 
   // --- Migrate scores ---
+  const existingScores = await getFromDataStore<Map<number, LocalScore>>(
+    `scores:${roundId}`,
+  );
   const sessionScores = getSession<Map<number, Score>>(roundScoresKey(roundId));
-  if (sessionScores && sessionScores.size > 0) {
+  if (!existingScores && sessionScores && sessionScores.size > 0) {
     const serverScoreMap = new Map<number, Score>();
     for (const s of serverScores) {
       serverScoreMap.set(s.hole_number, s);
@@ -111,9 +109,12 @@ export async function migrateFromSessionStorage(
     migrated = true;
   }
 
-  // --- Migrate shots ---
+  // --- Migrate shots (independent check) ---
+  const existingShots = await getFromDataStore<Map<number, LocalShot[]>>(
+    `shots:${roundId}`,
+  );
   const sessionShots = getSession<Map<number, Shot[]>>(roundShotsKey(roundId));
-  if (sessionShots && sessionShots.size > 0) {
+  if (!existingShots && sessionShots && sessionShots.size > 0) {
     const localShots = new Map<number, LocalShot[]>();
 
     for (const [holeNumber, shots] of sessionShots) {
@@ -132,11 +133,14 @@ export async function migrateFromSessionStorage(
     }
   }
 
-  // --- Migrate companion data ---
+  // --- Migrate companion data (independent check) ---
+  const existingCompanions = await getFromDataStore<Map<number, HoleInputs>>(
+    `companions:${roundId}`,
+  );
   const sessionCompanions = getSession<Map<number, HoleInputs>>(
     roundCompanionKey(roundId),
   );
-  if (sessionCompanions && sessionCompanions.size > 0) {
+  if (!existingCompanions && sessionCompanions && sessionCompanions.size > 0) {
     await setToDataStore(`companions:${roundId}`, sessionCompanions);
     migrated = true;
   }

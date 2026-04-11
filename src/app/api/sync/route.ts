@@ -151,6 +151,7 @@ export async function POST(request: Request) {
           p_round_id: roundId,
           p_hole_number: holeNumber,
           p_shots: shots.map((s) => ({
+            client_id: s.clientId,
             shot_number: s.shotNumber,
             club: s.club,
             result: s.result,
