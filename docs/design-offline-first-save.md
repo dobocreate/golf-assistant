@@ -1,4 +1,4 @@
-# オフラインファースト保存アーキテクチャ設計書 v3
+# オフラインファースト保存アーキテクチャ設計書 v4
 
 ## 変更履歴
 
@@ -7,6 +7,18 @@
 | v1 | 初版（Party Mode議論ベース） |
 | v2 | 社内Adversarial Review 12件の指摘を反映 |
 | v3 | Codex Review 8件の指摘 + 追加テスト6件を反映 |
+| v4 | 実装フィードバックによる設計修正（PR #182〜#191） |
+
+### v4 での主な変更点
+
+1. **backgroundSaveからDB同期を完全廃止** — keepalive fetchはholeSwitch/saveButtonのawait操作とレースコンディションを起こすため廃止。backgroundSave（idle 5秒/visibilitychange/unmount）はIndexedDB保存のみ
+2. **syncOneをAPI Route経由に変更** — Server ActionはIndexedDBのstructured cloneデータとシリアライゼーション互換性がないため、processQueue内の同期は`/api/sync` API Route経由（fetch + JSON）で実行
+3. **replace APIをSupabase RPCに変更** — delete+insertの非アトミック問題を解消。`replace_shots_for_hole`/`replace_companion_scores_for_hole` DB関数でトランザクション保証
+4. **processQueueにロック機構追加** — `isSyncingRef` + try/finallyで例外時のロックスタックを防止
+5. **failedアイテムの再試行** — `resetFailedForRound()`で保存ボタン押下時にmaxRetries到達のfailedアイテムもpendingにリセット
+6. **保存ボタンは無条件でオーケストレーターに委譲** — 旧変更検知ロジック（hasChanges/hasPendingShots）を削除。設計通り全データタイプをcollectData→buildSyncPayload
+7. **isDirtyをuseMemoで導出** — scoresMap比較 + shotsDirtyフラグ。ホール切替時に確実にfalseを返す
+8. **scoresRefの同期更新** — switchHole内でsetScores（非同期）の前にscoresRefを同期更新。executorのbuildSyncPayloadが正しいデータを参照できるようにする
 
 ### v3 での主な変更点
 
@@ -192,15 +204,16 @@ function mergeScore(local: LocalScore | undefined, server: Score | undefined): L
 | **データ変更時** | デバウンス1秒 | - | 非同期 | ローカル永続化（**真の保証**） |
 | **保存ボタン** | 即座（flush） | 同期 | await + 操作キュー | 明示的な確実保存 |
 | **ホール切替** | 即座（flush） | 同期 | await + 操作キュー | ホール完了時の永続化 |
-| **idle 5秒** | flush（未保存時） | 同期 | fire-and-forget | DB同期の機会提供 |
-| **visibilitychange (hidden)** | flush（未保存時） | 同期 | keepalive fetch | **最適化**（保証ではない） |
-| **unmount** | flush（未保存時） | 同期 | keepalive fetch | **最適化**（保証ではない） |
+| **idle 5秒** | flush（未保存時） | - | 操作キュー | ローカル永続化のみ |
+| **visibilitychange (hidden)** | flush（未保存時） | - | 操作キュー | ローカル永続化のみ |
+| **unmount** | flush（未保存時） | - | 操作キュー | ローカル永続化のみ |
 | **online復帰** | - | キュー処理 | バックグラウンド | オフライン復帰時の一括同期 |
 
-> **v2からの変更:** visibilitychange/unmountでのDB同期は「最後の安全網」ではなく
-> 「運が良ければ追加同期できる**最適化**」と位置付ける。
-> 真のデータ保証はIndexedDBへのデバウンス1秒書き込み + トリガー時のflush。
-> keepalive fetchが成功すればボーナス、失敗してもIndexedDBにデータは残る。
+> **v4での変更:** idle 5秒/visibilitychange/unmountでのDB同期（keepalive fetch）を
+> **完全廃止**。fire-and-forgetのfetchはholeSwitch/saveButtonのawait操作と
+> レースコンディションを起こし、古いデータで新しいデータを上書きする問題があった。
+> これらのトリガーではIndexedDB保存のみ行い、DB同期は保存ボタン・ホール切替・
+> online復帰の**await操作でのみ**実行する。
 
 ### 重複実行の防止（操作キュー）
 
@@ -254,32 +267,26 @@ class OperationQueue {
 > **v2との違い:** `onSaveButton(5)` → `onHoleSwitch(5,6)` が連続で来ても、
 > 両方の操作が引数付きでキューに入り、順次実行される。引数が消えない。
 
-### visibilitychange / unmount の位置付け
+### visibilitychange / unmount / idle 5秒 の位置付け
 
-モバイルブラウザではページがhiddenになった後、ネットワーク接続が数秒で切断される可能性がある。
+これらのトリガーでは**IndexedDB保存のみ**行い、DB同期は行わない。
 
 ```typescript
 function onBackgroundSave(holeNumber: number) {
-  // 1. IndexedDBへの書き込み（ローカル永続化 — これが真の保証）
+  // IndexedDBへの書き込み（ローカル永続化 — これが唯一の処理）
   flushToIndexedDB(holeNumber);
-
-  // 2. DB同期の試行（最適化 — 成功すればボーナス）
-  const payload = buildSyncPayload(holeNumber);
-  if (payload && navigator.onLine) {
-    fetch('/api/sync', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      keepalive: true,
-      headers: { 'Content-Type': 'application/json' },
-    }).catch(() => {
-      // 失敗は想定内 — IndexedDBに保存済みなので次回アクセス時に回復
-    });
-  }
+  // DB同期は行わない。次のholeSwitch/saveButton/onlineRestoreで同期される。
+  // オフライン時は同期キューにenqueueし、online復帰時に処理。
 }
 ```
 
-> **keepalive制約:** body上限64KB。1ホール分のデータ（1-2KB）は問題ない。
-> visibilitychange時は**現在ホールのみ**を同期対象とする。
+> **v4での設計変更:** v3ではkeepalive fetchによるDB同期を「最適化（ボーナス）」と
+> 位置付けていたが、実装段階でfire-and-forgetのfetchがawait操作
+> （holeSwitch/saveButton）とレースコンディションを起こし、古いデータで
+> 新しいデータを上書きする問題が発生した。replace方式（全削除+全挿入）では
+> 最後に到着した方が勝つため、タイミング次第でショットが消える。
+> この問題はupsert方式のスコアでも同様に起こりうるため、
+> backgroundSaveからのDB同期を**全面廃止**した。
 
 ### 新規APIエンドポイント
 
@@ -491,9 +498,20 @@ export async function replaceCompanionScoresForHole(data: {
 ```
 
 > **トレードオフ:** replace方式はupsertより負荷が高いが、1ホール分のデータ量（ショット最大10件程度）
-> では問題にならない。delete→insertはトランザクション内で実行し、中途半端な状態を防ぐ。
+> では問題にならない。delete→insertは**Supabase RPC（DB関数）**内で実行し、トランザクション保証する。
+> Server Action内でのdelete+insertでは、insert失敗時にデータロスのリスクがあった。
 
 ### 4.4 同期エンジン
+
+> **v4での変更:** syncOne（processQueue内でキューアイテムをDB同期する関数）は
+> **Server Actionではなく`/api/sync` API Route経由**（fetch + JSON）で実行する。
+> IndexedDBに保存されたデータはstructured cloneでシリアライズされており、
+> Next.jsのServer Actionシリアライゼーションとの互換性がない。
+> API Routeは標準のfetch + JSONで通信するため、この問題が発生しない。
+>
+> なお、trySyncToServer（holeSwitch/saveButton時の直接同期）は引き続き
+> Server Actionを使用する。こちらはコールバックで取得した新鮮なデータを
+> そのまま渡すため、シリアライゼーションの問題がない。
 
 ```typescript
 export function useSyncEngine(roundId: string) {
@@ -521,7 +539,7 @@ processQueue()
   │
   └─ for item of retryable:
        ├─ syncQueue.markSyncing(item.id)
-       ├─ result = await executeServerAction(item.action, item.payload)
+       ├─ result = await fetch('/api/sync', { method: 'POST', body: payload })
        │
        ├─ 成功:
        │   ├─ syncQueue.remove(item.id)
@@ -622,10 +640,11 @@ export function useSaveOrchestrator(roundId: string) {
 **backgroundSave操作:**
 ```
 1. 全collectData(holeNumber) → IndexedDB即時書き込み（flush）
-2. navigator.onLine === true の場合:
-   fetch('/api/sync', { keepalive: true, ... })
-   失敗しても問題なし（IndexedDBに保存済み）
+2. DB同期は行わない（IndexedDB保存のみ）
+   オフライン時は同期キューにenqueue（online復帰時に処理）
 ```
+> **v4での変更:** keepalive fetchを廃止。DB同期はholeSwitch/saveButton/
+> onlineRestoreのawait操作でのみ実行する。
 
 ## 5. UI変更
 
