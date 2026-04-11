@@ -601,9 +601,10 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const switchHole = useCallback((holeNum: number) => {
     const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
     // 現在ホールの入力値をメモリのscores Mapに反映
+    // scoresRefも同期的に更新（orchestrator executorがbuildSyncPayloadで参照するため）
     if (touched && st !== null) {
       const existing = scoresRef.current.get(ch);
-      setScores(prev => new Map(prev).set(ch, {
+      const updatedScore = {
         ...(existing ?? {} as Score),
         id: scoreId ?? existing?.id ?? '',
         round_id: roundId,
@@ -613,7 +614,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         green_in_reg: gir,
         wind_direction: wd,
         wind_strength: ws,
-      }));
+      };
+      scoresRef.current = new Map(scoresRef.current).set(ch, updatedScore);
+      setScores(scoresRef.current);
     }
     // Orchestrator: flush prevHole to IndexedDB + try DB sync
     orchestrator.onHoleSwitch(ch, holeNum);
