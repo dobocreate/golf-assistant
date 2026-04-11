@@ -3,9 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { syncQueue, type SyncQueueItem } from '@/lib/sync-queue';
 import { getFromDataStore, setToDataStore, type LocalScore, type LocalShot } from '@/lib/offline-store';
-import { upsertScore } from '@/actions/score';
-import { replaceShotsForHole } from '@/actions/shot';
-import { replaceCompanionScoresForHole } from '@/actions/companion';
 
 type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -117,48 +114,71 @@ export function useSyncEngine(roundId: string) {
     [roundId],
   );
 
-  // --- syncOne ---
+  // --- syncOne (via /api/sync API Route) ---
+  // Server Actions have serialization issues with IndexedDB-sourced payloads.
+  // API Route uses standard fetch + JSON, which is reliable.
 
   const syncOne = useCallback(
     async (item: SyncQueueItem): Promise<boolean> => {
       await syncQueue.markSyncing(item.id);
 
       try {
-        let result: { error?: string };
+        // Build the /api/sync request body from the queue item
+        const body: Record<string, unknown> = {
+          roundId: item.roundId,
+          holeNumber: item.holeNumber,
+        };
+
+        const payload = item.payload as Record<string, unknown>;
 
         switch (item.action) {
           case 'replaceScoreForHole': {
-            const payload = item.payload as Parameters<typeof upsertScore>[0];
-            result = await upsertScore({ ...payload, skipRevalidate: true });
+            // Extract score fields (exclude roundId, holeNumber, skipRevalidate)
+            const { roundId: _r, holeNumber: _h, skipRevalidate: _s, ...scoreFields } = payload;
+            body.score = scoreFields;
             break;
           }
           case 'replaceShotsForHole': {
-            const payload = item.payload as Parameters<typeof replaceShotsForHole>[0];
-            result = await replaceShotsForHole({ ...payload, skipRevalidate: true });
+            body.shots = payload.shots;
             break;
           }
           case 'replaceCompanionScoresForHole': {
-            const payload = item.payload as Parameters<typeof replaceCompanionScoresForHole>[0];
-            result = await replaceCompanionScoresForHole({
-              ...payload,
-              skipRevalidate: true,
-            });
+            body.companions = payload.scores;
             break;
           }
           default: {
-            // Unknown action type - mark as permanent failure
             await syncQueue.markFailed(item.id);
             return false;
           }
         }
 
-        if (result.error) {
-          console.error('[SyncEngine] syncOne failed:', item.action, item.holeNumber, result.error);
-          if (isPermanentError(result)) {
+        const res = await fetch('/api/sync', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) {
+          const statusCode = res.status;
+          console.error('[SyncEngine] syncOne HTTP error:', statusCode, item.action, item.holeNumber);
+          if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+            // Permanent failure
             await syncQueue.remove(item.id);
           } else {
             await syncQueue.markFailed(item.id);
           }
+          return false;
+        }
+
+        const data = await res.json();
+        const resultKey = item.action === 'replaceScoreForHole' ? 'score'
+          : item.action === 'replaceShotsForHole' ? 'shots'
+          : 'companions';
+        const sectionResult = data.result?.[resultKey];
+
+        if (sectionResult && !sectionResult.success) {
+          console.error('[SyncEngine] syncOne failed:', item.action, item.holeNumber, sectionResult.error);
+          await syncQueue.markFailed(item.id);
           return false;
         }
 
