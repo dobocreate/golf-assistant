@@ -49,12 +49,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     buildShotSyncPayload,
   } = useShotRecorder(roundId, holeNumber, holeDistance, { useOrchestratorSave });
 
-  // ショット変更を親に通知
-  useEffect(() => {
-    onShotsChanged?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shots.length]);
-
   // モーダル表示中のスロットindex（null=閉じている）
   const [modalSlotIndex, setModalSlotIndex] = useState<number | null>(null);
 
@@ -192,6 +186,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
                   } else {
                     confirmEdit(modalSlot.index);
                   }
+                  onShotsChanged?.();
                   setModalSlotIndex(null);
                 }}
                 disabled={modalSlot.isNew && !shouldSaveForm(getForm(modalSlot.index))}
