@@ -171,7 +171,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // 保存状態: 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  // isDirty は scores Map との比較で導出（後述の useMemo）
+  // ショット変更のdirtyフラグ（ShotRecorderから通知される）
+  const [shotsDirty, setShotsDirty] = useState(false);
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // アンマウント時にタイマーをクリーンアップ + 未保存スコアをfire-and-forget保存
   const roundIdRef = useRef(roundId);
@@ -244,6 +245,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // isDirty: scores Map（保存済みデータ）と現在入力値の比較で導出
   const isDirty = useMemo(() => {
+    if (shotsDirty) return true; // ショット変更あり
     if (strokes === null) return false; // 未入力 → dirty ではない
     const saved = scores.get(currentHole);
     if (!saved) return true; // 保存データなし、入力あり → dirty
@@ -254,7 +256,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       || saved.wind_strength !== windStrength
       || (saved.ob_count ?? 0) !== obCount
       || (saved.bunker_count ?? 0) !== bunkerCount;
-  }, [scores, currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount]);
+  }, [scores, currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, shotsDirty]);
 
   // 直前のスコアを保持（ロールバック用）
   const previousScoreRef = useRef<Score | undefined>(undefined);
@@ -399,47 +401,33 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
-    const scoreChanged = hasChanges(currentHole, strokes, putts, greenInReg, windDirection, windStrength);
-    const shotsChanged = shotActionsRef.current.hasPendingShots();
-    // バンカー/OBの変更も検知
-    const existingScore = scoresRef.current.get(currentHole);
-    const countsChanged = (existingScore?.ob_count ?? 0) !== obCount || (existingScore?.bunker_count ?? 0) !== bunkerCount;
-    // 同伴者スコアの変更検知（保存済みデータと比較、クリア操作も検知）
-    const companionChanged = hasCompanions && companionInputsRef.current.some(i => {
-      const saved = companionScoresMapRef.current?.get(i.companionId)?.get(currentHole);
-      return (saved?.strokes ?? null) !== i.strokes || (saved?.putts ?? null) !== i.putts;
-    });
-    const hasPendingSync = orchestrator.pendingCount > 0;
-    if (!scoreChanged && !shotsChanged && !countsChanged && !companionChanged && !hasPendingSync) {
-      showToast('変更なし', 'info');
-      return;
-    }
-    // Orchestrator handles IndexedDB + DB sync for all data types
+    // 設計通り、変更検知なしで無条件にオーケストレーターに委譲
+    // オーケストレーターが全データタイプ（スコア/ショット/同伴者）を
+    // collectData → IndexedDB → buildSyncPayload → DB同期する
     orchestrator.onSaveButton(currentHole);
+    setShotsDirty(false);
     // scoresMapを同期更新（isDirty useMemoが即座にfalseを返すように）
-    if (strokes !== null) {
-      const existing = scoresRef.current.get(currentHole);
-      const landing = shotActionsRef.current.getLandingCounts();
-      scoresRef.current = new Map(scoresRef.current).set(currentHole, {
-        ...(existing ?? {} as Score),
-        id: existing?.id ?? '',
-        round_id: roundId,
-        hole_number: currentHole,
-        strokes,
-        putts,
-        green_in_reg: greenInReg,
-        wind_direction: windDirection,
-        wind_strength: windStrength,
-        ob_count: landing.ob,
-        bunker_count: landing.bunker,
-      });
-      setScores(scoresRef.current);
-    }
-    // 保存実行後にdirtyフラグとsessionStorageキャッシュをクリア
+    const existing = scoresRef.current.get(currentHole);
+    const landing = shotActionsRef.current.getLandingCounts();
+    scoresRef.current = new Map(scoresRef.current).set(currentHole, {
+      ...(existing ?? {} as Score),
+      id: existing?.id ?? '',
+      round_id: roundId,
+      hole_number: currentHole,
+      strokes,
+      putts,
+      green_in_reg: greenInReg,
+      wind_direction: windDirection,
+      wind_strength: windStrength,
+      ob_count: landing.ob,
+      bunker_count: landing.bunker,
+    });
+    setScores(scoresRef.current);
+    // sessionStorageキャッシュをクリア
     removeSession(roundDirtyKey(roundId));
     removeSession(roundScoresKey(roundId));
     removeSession(roundCompanionKey(roundId));
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, score?.id, editMode, saveHole, hasChanges, showToast, hasCompanions, saveCompanionScoresForHole, roundId, orchestrator]);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, roundId, orchestrator]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -650,6 +638,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     try { localStorage.setItem(`golf-last-hole-${roundId}`, String(holeNum)); } catch {}
     setSaveStatus('idle');
     setFailedSave(null);
+    setShotsDirty(false);
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
@@ -918,6 +907,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         }
         holeDistance={hole.distance}
         useOrchestratorSave
+        onShotsChanged={() => setShotsDirty(true)}
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>

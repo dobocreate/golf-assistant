@@ -21,11 +21,13 @@ interface ShotRecorderProps {
   holeDistance?: number | null;
   /** When true, disable self-managed save triggers (orchestrator handles saves) */
   useOrchestratorSave?: boolean;
+  /** ショット変更時（追加・編集・削除）に呼ばれるコールバック */
+  onShotsChanged?: () => void;
   /** 親に saveCurrentHole / hasPendingShots / getLandingCounts / addShot を公開するコールバック */
   onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void; getShotsForHoleLocal?: (hole: number) => LocalShot[] | null; buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, useOrchestratorSave, onShotActionsReady }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, useOrchestratorSave, onShotsChanged, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -46,6 +48,12 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     getShotsForHoleLocal,
     buildShotSyncPayload,
   } = useShotRecorder(roundId, holeNumber, holeDistance, { useOrchestratorSave });
+
+  // ショット変更を親に通知
+  useEffect(() => {
+    onShotsChanged?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shots.length]);
 
   // モーダル表示中のスロットindex（null=閉じている）
   const [modalSlotIndex, setModalSlotIndex] = useState<number | null>(null);
