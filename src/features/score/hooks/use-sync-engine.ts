@@ -153,8 +153,8 @@ export function useSyncEngine(roundId: string) {
         }
 
         if (result.error) {
+          console.error('[SyncEngine] syncOne failed:', item.action, item.holeNumber, result.error);
           if (isPermanentError(result)) {
-            // Permanent failure (401/403/404) - remove from queue, no retry
             await syncQueue.remove(item.id);
           } else {
             await syncQueue.markFailed(item.id);
@@ -167,11 +167,7 @@ export function useSyncEngine(roundId: string) {
         await updateSyncedVersion(item);
         return true;
       } catch (err) {
-        if (isNetworkError(err)) {
-          await syncQueue.markFailed(item.id);
-          return false;
-        }
-        // Unexpected error - still mark as failed for retry
+        console.error('[SyncEngine] syncOne threw:', item.action, item.holeNumber, err);
         await syncQueue.markFailed(item.id);
         return false;
       }
@@ -196,39 +192,47 @@ export function useSyncEngine(roundId: string) {
     isSyncingRef.current = true;
     if (mountedRef.current) setSyncStatus('syncing');
 
-    // Recover stale syncing items (stuck for more than 30s)
-    await syncQueue.recoverStale(30_000);
-
-    const retryable = await syncQueue.getRetryable();
     let synced = 0;
     let failed = 0;
     let networkError = false;
 
-    for (const item of retryable) {
-      // Only process items for this round
-      if (item.roundId !== roundId) continue;
+    try {
+      // Recover stale syncing items (stuck for more than 30s)
+      await syncQueue.recoverStale(30_000);
 
-      if (networkError) {
-        // Stop processing if we hit a network error
-        failed++;
-        continue;
-      }
+      const retryable = await syncQueue.getRetryable();
 
-      try {
-        const success = await syncOne(item);
-        if (success) {
-          synced++;
-        } else {
+      for (const item of retryable) {
+        // Only process items for this round
+        if (item.roundId !== roundId) continue;
+
+        if (networkError) {
+          // Stop processing if we hit a network error
           failed++;
-          // Check if this was likely a network error
-          if (!navigator.onLine) {
-            networkError = true;
-          }
+          continue;
         }
-      } catch {
-        failed++;
-        networkError = true;
+
+        try {
+          const success = await syncOne(item);
+          if (success) {
+            synced++;
+          } else {
+            failed++;
+            // Check if this was likely a network error
+            if (!navigator.onLine) {
+              networkError = true;
+            }
+          }
+        } catch {
+          failed++;
+          networkError = true;
+        }
       }
+    } catch (err) {
+      console.error('[SyncEngine] processQueue error:', err);
+      failed++;
+    } finally {
+      isSyncingRef.current = false;
     }
 
     await refreshPendingCount();
@@ -243,7 +247,6 @@ export function useSyncEngine(roundId: string) {
       }
     }
 
-    isSyncingRef.current = false;
     return { synced, failed };
   }, [roundId, syncOne, refreshPendingCount]);
 
