@@ -409,7 +409,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       const saved = companionScoresMapRef.current?.get(i.companionId)?.get(currentHole);
       return (saved?.strokes ?? null) !== i.strokes || (saved?.putts ?? null) !== i.putts;
     });
-    if (!scoreChanged && !shotsChanged && !countsChanged && !companionChanged) {
+    const hasPendingSync = orchestrator.pendingCount > 0;
+    if (!scoreChanged && !shotsChanged && !countsChanged && !companionChanged && !hasPendingSync) {
       showToast('変更なし', 'info');
       return;
     }
