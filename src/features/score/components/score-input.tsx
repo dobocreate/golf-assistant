@@ -241,6 +241,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   const handleSave = useCallback(() => {
     if (strokes === null) return;
+    setUserTouched(true);
     // 設計通り、変更検知なしで無条件にオーケストレーターに委譲
     // オーケストレーターが全データタイプ（スコア/ショット/同伴者）を
     // collectData → IndexedDB → buildSyncPayload → DB同期する
