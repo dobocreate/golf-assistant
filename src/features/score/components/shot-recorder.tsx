@@ -14,10 +14,6 @@ interface ShotRecorderProps {
   roundId: string;
   holeNumber: number;
   clubs: ClubOption[];
-  windDirection?: string | null;
-  windStrength?: string | null;
-  weather?: string | null;
-  gamePlanContext?: string | null;
   holeDistance?: number | null;
   /** When true, disable self-managed save triggers (orchestrator handles saves) */
   useOrchestratorSave?: boolean;
@@ -27,7 +23,7 @@ interface ShotRecorderProps {
   onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void; getShotsForHoleLocal?: (hole: number) => LocalShot[] | null; buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windStrength, weather, gamePlanContext, holeDistance, useOrchestratorSave, onShotsChanged, onShotActionsReady }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrchestratorSave, onShotsChanged, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -36,7 +32,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
     dispatch,
     error,
     saveStatus,
-    handleAdviceReceived,
     handleAddShot,
     confirmNewShot,
     confirmEdit,
@@ -221,13 +216,6 @@ export function ShotRecorder({ roundId, holeNumber, clubs, windDirection, windSt
               form={getForm(modalSlot.index)}
               dispatch={dispatch}
               clubs={clubs}
-              roundId={roundId}
-              holeNumber={holeNumber}
-              windDirection={windDirection}
-              windStrength={windStrength}
-              weather={weather}
-              onAdviceReceived={handleAdviceReceived}
-              gamePlanContext={gamePlanContext}
             />
           </div>
         </div>

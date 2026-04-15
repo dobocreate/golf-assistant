@@ -14,7 +14,7 @@ import { usePlayRoundOptional } from '@/features/play/context/play-round-context
 import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
 import { CompanionScoreModal, getCompanionInputsForHole, type CompanionHoleInput } from '@/features/score/components/companion-score-modal';
 import type { WindDirection, WindStrength } from '@/features/round/types';
-import { ManagementBand, type ManagementBandContext } from '@/features/score/components/management-band';
+import { ManagementBand } from '@/features/score/components/management-band';
 import type { GamePlan } from '@/features/game-plan/types';
 import { useSaveOrchestrator } from '@/features/score/hooks/use-save-orchestrator';
 import { checkIndexedDBAvailability, type LocalScore, type LocalShot } from '@/lib/offline-store';
@@ -149,7 +149,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
-  const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
   const shotActionsRef = useRef<{
     saveCurrentHole: () => void;
     hasPendingShots: () => boolean;
@@ -772,18 +771,6 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         roundId={roundId}
         holeNumber={currentHole}
         clubs={clubs}
-        windDirection={windDirection}
-        windStrength={windStrength}
-        weather={weather}
-        gamePlanContext={
-          gamePlanContextForAdvice
-            ? [
-                gamePlanContextForAdvice.alertText && `【弱点アラート】${gamePlanContextForAdvice.alertText}`,
-                gamePlanContextForAdvice.planText && `【ゲームプラン】${gamePlanContextForAdvice.planText}`,
-                gamePlanContextForAdvice.toneLabel && `【戦略トーン】${gamePlanContextForAdvice.toneLabel}`,
-              ].filter(Boolean).join('\n') || null
-            : null
-        }
         holeDistance={hole.distance}
         useOrchestratorSave
         onShotsChanged={() => setShotsDirty(true)}

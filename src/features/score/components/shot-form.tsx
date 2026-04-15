@@ -2,7 +2,6 @@
 
 import { LIE_OPTIONS, SLOPE_FB_OPTIONS, SLOPE_LR_OPTIONS, SHOT_TYPE_OPTIONS, SHOT_NOTE_MAX_LENGTH } from '@/lib/golf-constants';
 import { RESULT_OPTIONS, MISS_TYPES, LANDINGS, ELEVATIONS, DIRECTION_GRID, landingColor } from '@/features/score/shot-constants';
-import { AdvicePanel } from '@/features/score/components/advice-panel';
 import type { Shot, ShotFormState, ShotType, ShotLie, ShotSlopeFB, ShotSlopeLR, ShotLanding, ShotElevation } from '@/features/score/types';
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { WIND_DIRECTION_LABELS, WIND_STRENGTH_LABELS } from '@/features/round/types';
@@ -34,16 +33,9 @@ interface ShotFormProps {
   form: ShotFormState;
   dispatch: React.Dispatch<ShotFormAction>;
   clubs: ClubOption[];
-  roundId: string;
-  holeNumber: number;
-  windDirection?: string | null;
-  windStrength?: string | null;
-  weather?: string | null;
-  onAdviceReceived: (index: number, text: string) => void;
-  gamePlanContext?: string | null;
 }
 
-export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, windDirection, windStrength, weather, onAdviceReceived, gamePlanContext }: ShotFormProps) {
+export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
   const showMissType = form.result === 'fair' || form.result === 'poor';
   const isPutt = form.shotType === 'putt';
 
@@ -132,32 +124,6 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
             ))}
           </div>
         </div>
-
-        {/* パットアドバイス（折りたたみ） */}
-        <details className="group">
-          <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
-            <span className="group-open:rotate-90 transition-transform" aria-hidden="true">▶</span>
-            AIアドバイス
-          </summary>
-          <div className="mt-2">
-            <AdvicePanel
-              roundId={roundId}
-              holeNumber={holeNumber}
-              shotNumber={slot.shotNumber}
-              lie="green"
-              slopeFb={null}
-              slopeLr={null}
-              shotType="putt"
-              remainingDistance={form.puttDistanceMeters}
-              windDirection={windDirection}
-              windStrength={windStrength}
-              weather={weather}
-              savedAdviceText={slot.shot?.advice_text}
-              onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
-              gamePlanContext={gamePlanContext}
-            />
-          </div>
-        </details>
 
         <div className="border-t border-gray-700 my-1" />
 
@@ -340,33 +306,6 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber, win
           />
         </div>
       </div>
-
-      {/* AIアドバイス（折りたたみ） */}
-      <details className="group">
-        <summary className="min-h-[48px] flex items-center gap-1 text-sm text-green-400 cursor-pointer hover:text-green-300 list-none [&::-webkit-details-marker]:hidden">
-          <span className="group-open:rotate-90 transition-transform" aria-hidden="true">▶</span>
-          AIアドバイス
-        </summary>
-        <div className="mt-2">
-          <AdvicePanel
-            roundId={roundId}
-            holeNumber={holeNumber}
-            shotNumber={slot.shotNumber}
-            lie={form.lie}
-            slopeFb={form.slopeFb}
-            savedAdviceText={slot.shot?.advice_text}
-            slopeLr={form.slopeLr}
-            shotType={form.shotType}
-            remainingDistance={form.remainingDistance}
-            windDirection={form.windDirection ?? windDirection}
-            windStrength={form.windStrength ?? windStrength}
-            weather={weather}
-            elevation={form.elevation}
-            onAdviceReceived={(text) => onAdviceReceived(slot.index, text)}
-            gamePlanContext={gamePlanContext}
-          />
-        </div>
-      </details>
 
       <div className="border-t border-gray-700 my-1" />
 
