@@ -233,14 +233,19 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (strokes === null) return false; // 未入力 → dirty ではない
     const saved = scores.get(currentHole);
     if (!saved) return true; // 保存データなし、入力あり → dirty
+    // 非editMode では OB/バンカー数はショット記録から導出される（landing）
+    // editMode では stepper で直接入力された obCount/bunkerCount を使う
+    const landing = shotActionsRef.current.getLandingCounts();
+    const effectiveOb = editMode ? obCount : landing.ob;
+    const effectiveBunker = editMode ? bunkerCount : landing.bunker;
     return saved.strokes !== strokes
       || saved.putts !== putts
       || saved.green_in_reg !== greenInReg
       || saved.wind_direction !== windDirection
       || saved.wind_strength !== windStrength
-      || (saved.ob_count ?? 0) !== obCount
-      || (saved.bunker_count ?? 0) !== bunkerCount;
-  }, [scores, currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, shotsDirty]);
+      || (saved.ob_count ?? 0) !== effectiveOb
+      || (saved.bunker_count ?? 0) !== effectiveBunker;
+  }, [scores, currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, shotsDirty, editMode]);
 
   // --- 未保存データのブラウザ離脱警告 ---
   const isDirtyRef = useRef(false);
