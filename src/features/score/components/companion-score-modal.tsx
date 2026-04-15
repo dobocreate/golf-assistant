@@ -49,8 +49,8 @@ export function CompanionScoreModal({
 
   if (!open) return null;
 
-  const updateDraft = (companionId: string, field: 'strokes' | 'putts', value: number | null) => {
-    setDraft(prev => prev.map(i => i.companionId === companionId ? { ...i, [field]: value } : i));
+  const updateDraft = (companionId: string, updates: Partial<CompanionHoleInput>) => {
+    setDraft(prev => prev.map(i => i.companionId === companionId ? { ...i, ...updates } : i));
   };
 
   const handleCommit = () => {
@@ -118,10 +118,9 @@ export function CompanionScoreModal({
                       label="打数"
                       compact
                       onChange={(v) => {
-                        updateDraft(companion.id, 'strokes', v);
-                        if (putts !== null && v !== null && putts > v) {
-                          updateDraft(companion.id, 'putts', v);
-                        }
+                        const updates: Partial<CompanionHoleInput> = { strokes: v };
+                        if (putts !== null && v !== null && putts > v) updates.putts = v;
+                        updateDraft(companion.id, updates);
                       }}
                     />
                   </div>
@@ -135,7 +134,7 @@ export function CompanionScoreModal({
                       fallbackDisplay="-"
                       label="パット"
                       compact
-                      onChange={(v) => updateDraft(companion.id, 'putts', v)}
+                      onChange={(v) => updateDraft(companion.id, { putts: v })}
                     />
                   </div>
                 </div>
