@@ -352,10 +352,6 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     return form;
   }, [holeForms, shots, holeDistance]);
 
-  const handleAdviceReceived = useCallback((index: number, text: string) => {
-    dispatch({ type: 'SET_ADVICE', holeNumber: holeNumberRef.current, index, text });
-  }, []);
-
   const handleAddShot = useCallback((): number => {
     const newIndex = shots.length + newSlotCount;
     setNewSlotCount(prev => prev + 1);
@@ -581,7 +577,6 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
     dispatch: dispatchWithHole,
     error,
     saveStatus,
-    handleAdviceReceived,
     handleAddShot,
     confirmNewShot,
     confirmEdit,
