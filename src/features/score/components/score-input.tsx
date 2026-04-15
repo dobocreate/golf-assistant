@@ -119,20 +119,33 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   const [companionInputs, setCompanionInputs] = useState<CompanionHoleInput[]>(() =>
     allCompanionInputsRef.current!.get(initialHoleResolved) ?? [],
   );
-  const companionInputsRef = useRef(companionInputs);
-  useEffect(() => { companionInputsRef.current = companionInputs; }, [companionInputs]);
+
+  // companions プロップ変更時に allCompanionInputsRef を再同期
+  // （追加: 空値で追加 / 削除: エントリから除外 / 既存値は保持）
+  useEffect(() => {
+    const all = allCompanionInputsRef.current;
+    if (!all) return;
+    for (let h = 1; h <= 18; h++) {
+      const existing = all.get(h) ?? [];
+      const existingMap = new Map(existing.map(i => [i.companionId, i]));
+      const merged: CompanionHoleInput[] = companions.map(c =>
+        existingMap.get(c.id) ?? { companionId: c.id, strokes: null, putts: null },
+      );
+      all.set(h, merged);
+    }
+  }, [companions]);
 
   const handleCompanionInputChange = useCallback((companionId: string, field: 'strokes' | 'putts', value: number | null) => {
-    setCompanionInputs(prev => {
-      const next = prev.map(i =>
-        i.companionId === companionId ? { ...i, [field]: value } : i,
-      );
-      // allCompanionInputsRef を同期更新（現在ホールのエントリを上書き）
-      // currentHole を直接参照して currentHoleRef の更新遅延を回避
-      const all = allCompanionInputsRef.current;
-      if (all) all.set(currentHole, next);
-      return next;
-    });
+    const all = allCompanionInputsRef.current;
+    if (!all) return;
+    const current = all.get(currentHole) ?? [];
+    const next = current.map(i =>
+      i.companionId === companionId ? { ...i, [field]: value } : i,
+    );
+    // 同期的にリファレンスを更新してから React ステートを更新
+    // （updater 関数内の副作用を避け、直後の orchestrator 実行で最新値を参照可能にする）
+    all.set(currentHole, next);
+    setCompanionInputs(next);
   }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
