@@ -105,16 +105,33 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
     companionScoresMapRef.current = map;
   }
+  // 全18ホール分の同伴者入力を保持する権威ある参照。
+  // orchestrator コールバックは currentHole の状態に依存せず、常にここから読む。
+  // （setState の遅延で「保存ボタン/ホール切替」と競合するのを防ぐ）
+  const allCompanionInputsRef = useRef<Map<number, CompanionHoleInput[]> | null>(null);
+  if (allCompanionInputsRef.current === null) {
+    const map = new Map<number, CompanionHoleInput[]>();
+    for (let h = 1; h <= 18; h++) {
+      map.set(h, getCompanionInputsForHole(companions, companionScoresMapRef.current!, h));
+    }
+    allCompanionInputsRef.current = map;
+  }
   const [companionInputs, setCompanionInputs] = useState<CompanionHoleInput[]>(() =>
-    getCompanionInputsForHole(companions, companionScoresMapRef.current!, initialHoleResolved),
+    allCompanionInputsRef.current!.get(initialHoleResolved) ?? [],
   );
   const companionInputsRef = useRef(companionInputs);
   useEffect(() => { companionInputsRef.current = companionInputs; }, [companionInputs]);
 
   const handleCompanionInputChange = useCallback((companionId: string, field: 'strokes' | 'putts', value: number | null) => {
-    setCompanionInputs(prev => prev.map(i =>
-      i.companionId === companionId ? { ...i, [field]: value } : i,
-    ));
+    setCompanionInputs(prev => {
+      const next = prev.map(i =>
+        i.companionId === companionId ? { ...i, [field]: value } : i,
+      );
+      // allCompanionInputsRef を同期更新（現在ホールのエントリを上書き）
+      const all = allCompanionInputsRef.current;
+      if (all) all.set(currentHoleRef.current, next);
+      return next;
+    });
   }, []);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
@@ -374,9 +391,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   useEffect(() => {
     orchestrator.registerCompanionCallbacks({
       collectData: (hole: number) => {
-        const inputs = hole === currentHole
-          ? companionInputsRef.current
-          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        // allCompanionInputsRef を権威ソースとして使う（currentHole に依存しない）
+        const inputs = allCompanionInputsRef.current?.get(hole);
         if (!inputs || inputs.length === 0) return null;
         const map: Map<string, { strokes: string; putts: string }> = new Map();
         inputs.forEach(i => {
@@ -389,9 +405,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       },
       buildSyncPayload: (hole: number) => {
         if (!hasCompanions) return null;
-        const inputs = hole === currentHole
-          ? companionInputsRef.current
-          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        const inputs = allCompanionInputsRef.current?.get(hole);
         if (!inputs || inputs.length === 0) return null;
         return {
           roundId,
@@ -486,8 +500,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
     // 同伴者スコア: 新ホールの入力値に切替（DB保存はしない）
+    // allCompanionInputsRef を権威ソースとして読む（未保存の編集中値も保持）
     if (hasCompanions) {
-      setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
+      setCompanionInputs(allCompanionInputsRef.current?.get(holeNum) ?? []);
     }
   }, [roundId, hasCompanions, companions, orchestrator]);
 
