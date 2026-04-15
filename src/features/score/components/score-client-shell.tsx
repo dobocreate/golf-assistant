@@ -177,7 +177,6 @@ export function ScoreClientShell({ serverData, roundId }: ScoreClientShellProps)
       editMode={data.editMode}
       startingCourse={data.startingCourse}
       initialHole={data.initialHole}
-      weather={data.weather}
       gamePlans={data.gamePlans}
       targetScore={data.targetScore}
       scoreLevel={data.scoreLevel}

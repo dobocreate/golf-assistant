@@ -34,7 +34,6 @@ interface ScoreInputProps {
   editMode?: boolean;
   startingCourse?: 'out' | 'in';
   initialHole?: number;
-  weather?: string | null;
   gamePlans?: GamePlan[];
   targetScore?: number | null;
   scoreLevel?: string | null;
@@ -60,7 +59,7 @@ function getHoleOrder(startingCourse: 'out' | 'in'): number[] {
   return Array.from({ length: 18 }, (_, i) => i + 1);
 }
 
-export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, weather = null, gamePlans = [], targetScore = null, scoreLevel = null, handicap = null, companions = [], initialCompanionScores = [] }: ScoreInputProps) {
+export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName, clubs = [], editMode = false, startingCourse = 'out', initialHole, gamePlans = [], targetScore = null, scoreLevel = null, handicap = null, companions = [], initialCompanionScores = [] }: ScoreInputProps) {
   const { showToast } = useToast();
   const router = useRouter();
   const holes = rawHoles.length > 0 ? rawHoles : getDefaultHoles();
