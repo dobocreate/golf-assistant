@@ -105,17 +105,48 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
     companionScoresMapRef.current = map;
   }
+  // 全18ホール分の同伴者入力を保持する権威ある参照。
+  // orchestrator コールバックは currentHole の状態に依存せず、常にここから読む。
+  // （setState の遅延で「保存ボタン/ホール切替」と競合するのを防ぐ）
+  const allCompanionInputsRef = useRef<Map<number, CompanionHoleInput[]> | null>(null);
+  if (allCompanionInputsRef.current === null) {
+    const map = new Map<number, CompanionHoleInput[]>();
+    for (let h = 1; h <= 18; h++) {
+      map.set(h, getCompanionInputsForHole(companions, companionScoresMapRef.current!, h));
+    }
+    allCompanionInputsRef.current = map;
+  }
   const [companionInputs, setCompanionInputs] = useState<CompanionHoleInput[]>(() =>
-    getCompanionInputsForHole(companions, companionScoresMapRef.current!, initialHoleResolved),
+    allCompanionInputsRef.current!.get(initialHoleResolved) ?? [],
   );
-  const companionInputsRef = useRef(companionInputs);
-  useEffect(() => { companionInputsRef.current = companionInputs; }, [companionInputs]);
+
+  // companions プロップ変更時に allCompanionInputsRef を再同期
+  // （追加: 空値で追加 / 削除: エントリから除外 / 既存値は保持）
+  useEffect(() => {
+    const all = allCompanionInputsRef.current;
+    if (!all) return;
+    for (let h = 1; h <= 18; h++) {
+      const existing = all.get(h) ?? [];
+      const existingMap = new Map(existing.map(i => [i.companionId, i]));
+      const merged: CompanionHoleInput[] = companions.map(c =>
+        existingMap.get(c.id) ?? { companionId: c.id, strokes: null, putts: null },
+      );
+      all.set(h, merged);
+    }
+  }, [companions]);
 
   const handleCompanionInputChange = useCallback((companionId: string, field: 'strokes' | 'putts', value: number | null) => {
-    setCompanionInputs(prev => prev.map(i =>
+    const all = allCompanionInputsRef.current;
+    if (!all) return;
+    const current = all.get(currentHole) ?? [];
+    const next = current.map(i =>
       i.companionId === companionId ? { ...i, [field]: value } : i,
-    ));
-  }, []);
+    );
+    // 同期的にリファレンスを更新してから React ステートを更新
+    // （updater 関数内の副作用を避け、直後の orchestrator 実行で最新値を参照可能にする）
+    all.set(currentHole, next);
+    setCompanionInputs(next);
+  }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
@@ -374,9 +405,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   useEffect(() => {
     orchestrator.registerCompanionCallbacks({
       collectData: (hole: number) => {
-        const inputs = hole === currentHole
-          ? companionInputsRef.current
-          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        // allCompanionInputsRef を権威ソースとして使う（currentHole に依存しない）
+        const inputs = allCompanionInputsRef.current?.get(hole);
         if (!inputs || inputs.length === 0) return null;
         const map: Map<string, { strokes: string; putts: string }> = new Map();
         inputs.forEach(i => {
@@ -389,9 +419,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       },
       buildSyncPayload: (hole: number) => {
         if (!hasCompanions) return null;
-        const inputs = hole === currentHole
-          ? companionInputsRef.current
-          : getCompanionInputsForHole(companions, companionScoresMapRef.current!, hole);
+        const inputs = allCompanionInputsRef.current?.get(hole);
         if (!inputs || inputs.length === 0) return null;
         return {
           roundId,
@@ -486,8 +514,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setBunkerCount(s?.bunker_count ?? 0);
     setUserTouched(s !== undefined);
     // 同伴者スコア: 新ホールの入力値に切替（DB保存はしない）
+    // allCompanionInputsRef を権威ソースとして読む（未保存の編集中値も保持）
     if (hasCompanions) {
-      setCompanionInputs(getCompanionInputsForHole(companions, companionScoresMapRef.current!, holeNum));
+      setCompanionInputs(allCompanionInputsRef.current?.get(holeNum) ?? []);
     }
   }, [roundId, hasCompanions, companions, orchestrator]);
 
