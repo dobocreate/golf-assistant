@@ -286,6 +286,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     // scoresMapを同期更新（isDirty useMemoが即座にfalseを返すように）
     const existing = scoresRef.current.get(currentHole);
     const landing = shotActionsRef.current.getLandingCounts();
+    // editMode ではステッパー入力値、非editMode ではショット記録由来の landing を保存
+    const effectiveOb = editMode ? obCount : landing.ob;
+    const effectiveBunker = editMode ? bunkerCount : landing.bunker;
     scoresRef.current = new Map(scoresRef.current).set(currentHole, {
       ...(existing ?? {} as Score),
       id: existing?.id ?? '',
@@ -296,11 +299,11 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       green_in_reg: greenInReg,
       wind_direction: windDirection,
       wind_strength: windStrength,
-      ob_count: landing.ob,
-      bunker_count: landing.bunker,
+      ob_count: effectiveOb,
+      bunker_count: effectiveBunker,
     });
     setScores(scoresRef.current);
-  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, roundId, orchestrator]);
+  }, [currentHole, strokes, putts, greenInReg, windDirection, windStrength, obCount, bunkerCount, roundId, orchestrator, editMode]);
 
   // スコアMapへの参照（switchHoleでの同期用）
   const scoresRef = useRef(scores);
@@ -309,20 +312,22 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [scores]);
 
   // 現在の入力値を ref で保持（switchHole の依存配列を最小化するため）
-  const currentInputRef = useRef({ strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched });
+  const currentInputRef = useRef({ strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched, obCount, bunkerCount, editMode });
   useEffect(() => {
-    currentInputRef.current = { strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched };
-  }, [strokes, putts, greenInReg, windDirection, windStrength, currentHole, score?.id, userTouched]);
+    currentInputRef.current = { strokes, putts, greenInReg, windDirection, windStrength, currentHole, scoreId: score?.id, userTouched, obCount, bunkerCount, editMode };
+  }, [strokes, putts, greenInReg, windDirection, windStrength, currentHole, score?.id, userTouched, obCount, bunkerCount, editMode]);
 
   // --- Register orchestrator score callbacks ---
   useEffect(() => {
     orchestrator.registerScoreCallbacks({
       collectData: (hole: number): Partial<LocalScore> | null => {
-        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched } = currentInputRef.current;
+        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched, obCount: ob, bunkerCount: bk, editMode: em } = currentInputRef.current;
         // Only collect data for the current hole being edited
         if (hole === ch && touched && st !== null) {
           const existing = scoresRef.current.get(hole);
           const landing = shotActionsRef.current.getLandingCounts();
+          const effectiveOb = em ? ob : landing.ob;
+          const effectiveBunker = em ? bk : landing.bunker;
           return {
             id: existing?.id ?? '',
             round_id: roundIdRef.current,
@@ -332,8 +337,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
             green_in_reg: gir,
             wind_direction: wd,
             wind_strength: ws,
-            ob_count: landing.ob,
-            bunker_count: landing.bunker,
+            ob_count: effectiveOb,
+            bunker_count: effectiveBunker,
           } as Partial<LocalScore>;
         }
         // For non-current holes, check the scores Map
@@ -344,7 +349,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         return null;
       },
       buildSyncPayload: (hole: number) => {
-        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched } = currentInputRef.current;
+        const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, userTouched: touched, obCount: ob, bunkerCount: bk, editMode: em } = currentInputRef.current;
         let s: number | null = null;
         let p: number | null = null;
         let g: boolean | null = null;
@@ -372,6 +377,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
         const existing = scoresRef.current.get(hole);
         const landing = shotActionsRef.current.getLandingCounts();
+        const effectiveOb = em ? ob : landing.ob;
+        const effectiveBunker = em ? bk : landing.bunker;
         return {
           roundId: roundIdRef.current,
           holeNumber: hole,
@@ -381,8 +388,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           greenInReg: g,
           teeShotLr: null,
           teeShotFb: null,
-          obCount: landing.ob,
-          bunkerCount: landing.bunker,
+          obCount: effectiveOb,
+          bunkerCount: effectiveBunker,
           penaltyCount: 0,
           firstPuttDistance: existing?.first_putt_distance ?? null,
           firstPuttDistanceM: existing?.first_putt_distance_m ?? null,
