@@ -579,6 +579,26 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (putts === null) setPutts(2);
   }, [currentHole]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 同伴者スコアも同様に Par / 2 でデフォルト値を設定（非editMode のみ）
+  // null のエントリだけを埋め、既存の入力値は上書きしない
+  useEffect(() => {
+    if (editMode || !hasCompanions) return;
+    const all = allCompanionInputsRef.current;
+    if (!all) return;
+    const current = all.get(currentHole) ?? [];
+    let changed = false;
+    const next = current.map(i => {
+      let out = i;
+      if (i.strokes === null) { out = { ...out, strokes: hole.par }; changed = true; }
+      if (i.putts === null) { out = { ...out, putts: 2 }; changed = true; }
+      return out;
+    });
+    if (changed) {
+      all.set(currentHole, next);
+      setCompanionInputs(next);
+    }
+  }, [currentHole, hole.par, editMode, hasCompanions]);
+
   return (
     <div className="max-w-md mx-auto space-y-4">
       {/* 編集モード: 戻るリンク */}
