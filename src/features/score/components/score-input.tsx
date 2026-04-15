@@ -134,17 +134,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     }
   }, [companions]);
 
-  const handleCompanionInputChange = useCallback((companionId: string, field: 'strokes' | 'putts', value: number | null) => {
+  /** モーダルの OK ボタン押下時に draft を権威ソース / state に確定 */
+  const handleCompanionCommit = useCallback((draft: CompanionHoleInput[]) => {
     const all = allCompanionInputsRef.current;
     if (!all) return;
-    const current = all.get(currentHole) ?? [];
-    const next = current.map(i =>
-      i.companionId === companionId ? { ...i, [field]: value } : i,
-    );
     // 同期的にリファレンスを更新してから React ステートを更新
-    // （updater 関数内の副作用を避け、直後の orchestrator 実行で最新値を参照可能にする）
-    all.set(currentHole, next);
-    setCompanionInputs(next);
+    // （直後の保存ボタン/ホール切替で orchestrator が最新値を参照可能にする）
+    all.set(currentHole, draft);
+    setCompanionInputs(draft);
   }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
@@ -829,7 +826,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           companions={companions}
           holeNumber={currentHole}
           inputs={companionInputs}
-          onInputChange={handleCompanionInputChange}
+          onCommit={handleCompanionCommit}
         />
       )}
 

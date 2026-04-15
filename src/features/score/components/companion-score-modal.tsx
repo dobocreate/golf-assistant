@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { Users, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Users, X, Check } from 'lucide-react';
 import { Stepper } from '@/components/ui/stepper';
 import type { Companion, CompanionScore } from '@/features/score/types';
 
@@ -16,9 +16,10 @@ interface CompanionScoreModalProps {
   onClose: () => void;
   companions: Companion[];
   holeNumber: number;
-  /** 現在のホールの同伴者スコア入力値 */
+  /** モーダル表示時点の同伴者スコア入力値（draft の初期値） */
   inputs: CompanionHoleInput[];
-  onInputChange: (companionId: string, field: 'strokes' | 'putts', value: number | null) => void;
+  /** OK 押下時に draft を親へ確定するコールバック */
+  onCommit: (draft: CompanionHoleInput[]) => void;
 }
 
 export function CompanionScoreModal({
@@ -27,15 +28,35 @@ export function CompanionScoreModal({
   companions,
   holeNumber,
   inputs,
-  onInputChange,
+  onCommit,
 }: CompanionScoreModalProps) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const okButtonRef = useRef<HTMLButtonElement>(null);
+
+  // モーダル内 draft state: open が false→true に遷移した時のみ inputs でシード
+  // （open 中に親の inputs 参照が変わっても draft を上書きしないためガード）
+  const [draft, setDraft] = useState<CompanionHoleInput[]>(inputs);
+  const prevOpenRef = useRef(open);
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setDraft(inputs);
+    }
+    prevOpenRef.current = open;
+  }, [open, inputs]);
 
   useEffect(() => {
-    if (open) closeButtonRef.current?.focus();
+    if (open) okButtonRef.current?.focus();
   }, [open]);
 
   if (!open) return null;
+
+  const updateDraft = (companionId: string, field: 'strokes' | 'putts', value: number | null) => {
+    setDraft(prev => prev.map(i => i.companionId === companionId ? { ...i, [field]: value } : i));
+  };
+
+  const handleCommit = () => {
+    onCommit(draft);
+    onClose();
+  };
 
   return (
     <div
@@ -55,21 +76,31 @@ export function CompanionScoreModal({
               同伴者スコア — Hole {holeNumber}
             </h2>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-            aria-label="閉じる"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              ref={okButtonRef}
+              type="button"
+              onClick={handleCommit}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-green-400 hover:text-green-300 hover:bg-gray-700 transition-colors"
+              aria-label="OK"
+            >
+              <Check className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              aria-label="キャンセル"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* 同伴者ごとの入力 */}
         <div className="space-y-3">
           {companions.map((companion) => {
-            const input = inputs.find(i => i.companionId === companion.id);
+            const input = draft.find(i => i.companionId === companion.id);
             const strokes = input?.strokes ?? null;
             const putts = input?.putts ?? null;
 
@@ -87,9 +118,9 @@ export function CompanionScoreModal({
                       label="打数"
                       compact
                       onChange={(v) => {
-                        onInputChange(companion.id, 'strokes', v);
+                        updateDraft(companion.id, 'strokes', v);
                         if (putts !== null && v !== null && putts > v) {
-                          onInputChange(companion.id, 'putts', v);
+                          updateDraft(companion.id, 'putts', v);
                         }
                       }}
                     />
@@ -104,7 +135,7 @@ export function CompanionScoreModal({
                       fallbackDisplay="-"
                       label="パット"
                       compact
-                      onChange={(v) => onInputChange(companion.id, 'putts', v)}
+                      onChange={(v) => updateDraft(companion.id, 'putts', v)}
                     />
                   </div>
                 </div>
