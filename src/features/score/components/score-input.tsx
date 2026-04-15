@@ -128,11 +128,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         i.companionId === companionId ? { ...i, [field]: value } : i,
       );
       // allCompanionInputsRef を同期更新（現在ホールのエントリを上書き）
+      // currentHole を直接参照して currentHoleRef の更新遅延を回避
       const all = allCompanionInputsRef.current;
-      if (all) all.set(currentHoleRef.current, next);
+      if (all) all.set(currentHole, next);
       return next;
     });
-  }, []);
+  }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
   const [gamePlanContextForAdvice] = useState<ManagementBandContext | null>(null);
