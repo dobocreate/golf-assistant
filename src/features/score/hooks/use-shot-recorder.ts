@@ -2,7 +2,7 @@ import { useReducer, useState, useEffect, useCallback, useRef, useMemo } from 'r
 import { getShotsForRound, saveShotsForHole, type replaceShotsForHole } from '@/actions/shot';
 import { updateFirstPuttDistance } from '@/actions/score';
 import { emptyShotForm, shotToForm, hasFormChanged, shouldSaveForm } from '@/features/score/shot-constants';
-import type { Shot, ShotFormState } from '@/features/score/types';
+import type { Shot, ShotFormState, FirstPuttDistance } from '@/features/score/types';
 import { distanceToCategory } from '@/features/score/types';
 import { LIE_DB_TO_LABEL, SHOT_TYPE_DB_TO_LABEL } from '@/lib/golf-constants';
 import type { LocalShot } from '@/lib/offline-store';
@@ -178,8 +178,25 @@ export interface ShotSlot {
 
 // --- Hook ---
 
-export function useShotRecorder(roundId: string, holeNumber: number, holeDistance?: number | null, options?: { useOrchestratorSave?: boolean }) {
+export interface PuttDistancePersistedPayload {
+  holeNumber: number;
+  firstPuttDistance: FirstPuttDistance | null;
+  firstPuttDistanceM: number | null;
+}
+
+export function useShotRecorder(
+  roundId: string,
+  holeNumber: number,
+  holeDistance?: number | null,
+  options?: {
+    useOrchestratorSave?: boolean;
+    /** パット距離を scores に同期した直後に通知（親が scoresRef を最新化できるようにする） */
+    onPuttDistancePersisted?: (payload: PuttDistancePersistedPayload) => void;
+  },
+) {
   const useOrchestratorSave = options?.useOrchestratorSave ?? false;
+  const onPuttDistancePersistedRef = useRef(options?.onPuttDistancePersisted);
+  useEffect(() => { onPuttDistancePersistedRef.current = options?.onPuttDistancePersisted; }, [options?.onPuttDistancePersisted]);
   const [state, dispatch] = useReducer(formsReducer, INITIAL_STATE);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +214,39 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
 
   // 現在のホールのショット（キャッシュから派生）
   const shots = useMemo(() => state.cache.get(holeNumber) ?? [], [state.cache, holeNumber]);
+
+  /** form がパットで、かつ当該ショットが最初の putt である場合のみ、
+   *  scores.first_putt_distance(_m) に同期する。距離 null のケースも
+   *  「ユーザーが明示的にクリアした」意図を尊重してそのまま送る。 */
+  const syncPuttDistanceIfNeeded = useCallback((form: ShotFormState, index: number, context: string) => {
+    if (form.shotType !== 'putt') return;
+    // 最初の putt でなければ first_putt_distance を上書きしない
+    const cache = stateRef.current.cache.get(holeNumberRef.current) ?? [];
+    const forms = stateRef.current.formsByHole.get(holeNumberRef.current);
+    const limit = Math.min(index, cache.length);
+    for (let i = 0; i < limit; i++) {
+      const priorForm = forms?.get(i);
+      const priorType = priorForm?.shotType ?? cache[i].shot_type;
+      if (priorType === 'putt') return; // 既に前方に putt がある → first ではない
+    }
+    const meters = form.puttDistanceMeters;
+    const category = meters != null ? distanceToCategory(meters) : form.puttDistanceCategory;
+    const hole = holeNumberRef.current;
+    // 楽観的に親へ通知（scoresRef の stale 上書きを防ぐため、DB 応答を待たずに反映）
+    onPuttDistancePersistedRef.current?.({
+      holeNumber: hole,
+      firstPuttDistance: category,
+      firstPuttDistanceM: meters,
+    });
+    updateFirstPuttDistance({
+      roundId: roundIdRef.current,
+      holeNumber: hole,
+      firstPuttDistance: category,
+      firstPuttDistanceM: meters,
+    }).catch(err => {
+      console.error(`[${context}] updateFirstPuttDistance failed:`, err);
+    });
+  }, []);
 
   // --- 一括読み込み（mount時に1回だけ） ---
   useEffect(() => {
@@ -243,25 +293,23 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
         dispatch({ type: 'UPDATE_CACHE', holeNumber: forHoleNumber, shots: result.shots, version });
       }
 
-      // パット距離同期
+      // パット距離同期（非 orchestrator パスのみ到達。orchestrator 本番経路は
+      // confirmNewShot/Edit 時点で syncPuttDistanceIfNeeded を発火済み）
       const holeForms = snapshot.formsByHole.get(forHoleNumber);
       if (holeForms) {
-        for (const [, form] of holeForms) {
-          if (form.shotType === 'putt' && (form.puttDistanceMeters != null || form.puttDistanceCategory)) {
-            const meters = form.puttDistanceMeters;
-            const category = meters != null ? distanceToCategory(meters) : form.puttDistanceCategory;
-            updateFirstPuttDistance({
-              roundId: payload.roundId,
-              holeNumber: forHoleNumber,
-              firstPuttDistance: category,
-              firstPuttDistanceM: meters,
-            }).catch(() => {});
+        // index昇順で走査して最初に見つかった putt フォームに対して発火
+        // （isFirstPutt 判定は syncPuttDistanceIfNeeded 側で実施）
+        const indices = Array.from(holeForms.keys()).sort((a, b) => a - b);
+        for (const i of indices) {
+          const form = holeForms.get(i)!;
+          if (form.shotType === 'putt') {
+            syncPuttDistanceIfNeeded(form, i, 'batchSave');
             break;
           }
         }
       }
     }
-  }, []);
+  }, [syncPuttDistanceIfNeeded]);
 
   // --- ホール切替: 前ホールのショットをDB保存（ショットはuseReducer管理のため画面遷移で消える） ---
   // When orchestrator manages saves, skip this auto-save (orchestrator handles it)
@@ -391,9 +439,13 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
       elevation: form.elevation,
     };
 
+    // パット距離は scores.first_putt_distance(_m) に別経路で保存する
+    // （orchestrator の shot 同期パスは scores テーブルを触らないため、確定時に個別発火）
+    syncPuttDistanceIfNeeded(form, index, 'confirmNewShot');
+
     dispatch({ type: 'CONFIRM_NEW_SHOT', holeNumber: holeNumberRef.current, index, shot: tempShot });
     setNewSlotCount(prev => Math.max(0, prev - 1));
-  }, [shots]);
+  }, [shots, syncPuttDistanceIfNeeded]);
 
   /** 既存ショットの編集をキャッシュに確定（「編集中」表示を解消） */
   const confirmEdit = useCallback((index: number) => {
@@ -421,8 +473,12 @@ export function useShotRecorder(roundId: string, holeNumber: number, holeDistanc
       advice_text: stateRef.current.adviceByHole.get(holeNumberRef.current)?.get(index) ?? existingShot.advice_text,
     };
 
+    // パット距離は scores.first_putt_distance(_m) に別経路で保存する
+    // （CONFIRM_EDIT reducer がフォームエントリを削除するため、ここで同期しないと値が失われる）
+    syncPuttDistanceIfNeeded(form, index, 'confirmEdit');
+
     dispatch({ type: 'CONFIRM_EDIT', holeNumber: holeNumberRef.current, index, updatedShot });
-  }, []);
+  }, [syncPuttDistanceIfNeeded]);
 
   /** 新規ショットをキャンセル（フォームデータを破棄） */
   const cancelNewShot = useCallback((index: number) => {

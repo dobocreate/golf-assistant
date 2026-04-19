@@ -792,6 +792,38 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         holeDistance={hole.distance}
         useOrchestratorSave
         onShotsChanged={() => setShotsDirty(true)}
+        onPuttDistancePersisted={(payload) => {
+          // scoresRef / scores state を同期させて、後続の保存/ホール切替で
+          // orchestrator が stale な null でパット距離を上書きしないようにする。
+          // syncPuttDistanceIfNeeded は常に holeNumberRef.current（= currentHole）に対して
+          // 発火するため、UI state を fallback として使って完全な Score を構築する。
+          if (payload.holeNumber !== currentHole) return;
+          const existing = scoresRef.current.get(payload.holeNumber);
+          const landing = shotActionsRef.current.getLandingCounts();
+          const effectiveOb = editMode ? obCount : landing.ob;
+          const effectiveBunker = editMode ? bunkerCount : landing.bunker;
+          // strokes は validateIntRange(1-20) を通過させるため、par を最終 fallback
+          const merged: Score = {
+            id: existing?.id ?? '',
+            round_id: roundId,
+            hole_number: payload.holeNumber,
+            strokes: existing?.strokes ?? strokes ?? hole.par,
+            putts: existing?.putts ?? putts,
+            first_putt_distance: payload.firstPuttDistance,
+            first_putt_distance_m: payload.firstPuttDistanceM,
+            fairway_hit: existing?.fairway_hit ?? null,
+            green_in_reg: existing?.green_in_reg ?? greenInReg,
+            tee_shot_lr: existing?.tee_shot_lr ?? null,
+            tee_shot_fb: existing?.tee_shot_fb ?? null,
+            ob_count: existing?.ob_count ?? effectiveOb,
+            bunker_count: existing?.bunker_count ?? effectiveBunker,
+            penalty_count: existing?.penalty_count ?? 0,
+            wind_direction: existing?.wind_direction ?? windDirection,
+            wind_strength: existing?.wind_strength ?? windStrength,
+          };
+          scoresRef.current = new Map(scoresRef.current).set(payload.holeNumber, merged);
+          setScores(scoresRef.current);
+        }}
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>

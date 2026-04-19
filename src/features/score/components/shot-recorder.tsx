@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Check } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
-import { useShotRecorder } from '@/features/score/hooks/use-shot-recorder';
+import { useShotRecorder, type PuttDistancePersistedPayload } from '@/features/score/hooks/use-shot-recorder';
 import { ShotForm } from '@/features/score/components/shot-form';
 import { hasFormChanged, shouldSaveForm, shotToForm, type ClubOption } from '@/features/score/shot-constants';
 
@@ -19,11 +19,13 @@ interface ShotRecorderProps {
   useOrchestratorSave?: boolean;
   /** ショット変更時（追加・編集・削除）に呼ばれるコールバック */
   onShotsChanged?: () => void;
+  /** パット距離が scores に同期された時に呼ばれる（親の scoresRef を同期させるため） */
+  onPuttDistancePersisted?: (payload: PuttDistancePersistedPayload) => void;
   /** 親に saveCurrentHole / hasPendingShots / getLandingCounts / addShot を公開するコールバック */
   onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void; getShotsForHoleLocal?: (hole: number) => LocalShot[] | null; buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null }) => void;
 }
 
-export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrchestratorSave, onShotsChanged, onShotActionsReady }: ShotRecorderProps) {
+export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrchestratorSave, onShotsChanged, onPuttDistancePersisted, onShotActionsReady }: ShotRecorderProps) {
   const {
     displaySlots,
     expandedIndex,
@@ -42,7 +44,7 @@ export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrch
     hasPendingShots,
     getShotsForHoleLocal,
     buildShotSyncPayload,
-  } = useShotRecorder(roundId, holeNumber, holeDistance, { useOrchestratorSave });
+  } = useShotRecorder(roundId, holeNumber, holeDistance, { useOrchestratorSave, onPuttDistancePersisted });
 
   // モーダル表示中のスロットindex（null=閉じている）
   const [modalSlotIndex, setModalSlotIndex] = useState<number | null>(null);
