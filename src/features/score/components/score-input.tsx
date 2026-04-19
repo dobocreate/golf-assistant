@@ -792,6 +792,23 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         holeDistance={hole.distance}
         useOrchestratorSave
         onShotsChanged={() => setShotsDirty(true)}
+        onPuttDistancePersisted={(payload) => {
+          // scoresRef / scores state を同期させて、後続の保存/ホール切替で
+          // orchestrator が stale な null でパット距離を上書きしないようにする
+          const existing = scoresRef.current.get(payload.holeNumber);
+          const merged: Score = {
+            ...(existing ?? {} as Score),
+            id: existing?.id ?? '',
+            round_id: roundId,
+            hole_number: payload.holeNumber,
+            strokes: existing?.strokes ?? 0,
+            putts: existing?.putts ?? null,
+            first_putt_distance: payload.firstPuttDistance,
+            first_putt_distance_m: payload.firstPuttDistanceM,
+          };
+          scoresRef.current = new Map(scoresRef.current).set(payload.holeNumber, merged);
+          setScores(scoresRef.current);
+        }}
         onShotActionsReady={(actions) => { shotActionsRef.current = actions; }}
       />
       </div>

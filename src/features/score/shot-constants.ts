@@ -90,6 +90,8 @@ export function shotToForm(shot: Shot): ShotFormState {
 }
 
 export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
+  // puttDistance* は scores.first_putt_distance(_m) に別経路で保存されるため、
+  // shot レコードとの差分判定には含めない（確定直後に「編集中」が残留する問題の回避）
   return (
     form.club !== shot.club ||
     form.result !== shot.result ||
@@ -105,9 +107,7 @@ export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.note !== shot.note ||
     form.windDirection !== shot.wind_direction ||
     form.windStrength !== shot.wind_strength ||
-    form.elevation !== shot.elevation ||
-    form.puttDistanceCategory !== null || // puttDistanceCategoryが設定されていれば変更あり
-    form.puttDistanceMeters !== null
+    form.elevation !== shot.elevation
   );
 }
 
