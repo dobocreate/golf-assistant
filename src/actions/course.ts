@@ -301,3 +301,28 @@ export async function importHoles(
   revalidatePath(`/courses/${courseId}`);
   return {};
 }
+
+export async function updateHoleCoordinates(
+  holeId: string,
+  tee: { lat: number; lng: number } | null,
+  green: { lat: number; lng: number } | null,
+): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(holeId)) return { error: 'ホールIDが不正です。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('holes')
+    .update({
+      tee_lat: tee?.lat ?? null,
+      tee_lng: tee?.lng ?? null,
+      green_lat: green?.lat ?? null,
+      green_lng: green?.lng ?? null,
+    })
+    .eq('id', holeId);
+
+  if (error) return { error: '座標の保存に失敗しました。' };
+
+  return {};
+}

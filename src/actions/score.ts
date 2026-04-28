@@ -208,7 +208,7 @@ export async function getScoresWithHoles(roundId: string) {
   const [holesResult, scoresResult] = await Promise.all([
     supabase
       .from('holes')
-      .select('hole_number, par, distance')
+      .select('hole_number, par, distance, green_lat, green_lng')
       .eq('course_id', round.course_id)
       .order('hole_number'),
     supabase

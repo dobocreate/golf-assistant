@@ -4,6 +4,8 @@ export interface HoleInfo {
   hole_number: number;
   par: number;
   distance: number | null;
+  green_lat: number | null;
+  green_lng: number | null;
 }
 
 export type TeeShotLR = 'left' | 'center' | 'right';

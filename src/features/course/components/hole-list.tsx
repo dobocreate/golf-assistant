@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, MapPin } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 import type { Hole, HoleNote } from '@/features/course/types';
 import { HoleNoteEditor } from './hole-note-editor';
+import { HoleCoordinatesModal } from './hole-coordinates-modal';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const [coordinatesHole, setCoordinatesHole] = useState<Hole | null>(null);
 
   function getNoteForHole(holeId: string): HoleNote | undefined {
     return holeNotes.find((n) => n.hole_id === holeId);
@@ -76,6 +78,14 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                           HDCP {hole.hdcp}
                         </span>
                       )}
+                      <button
+                        onClick={() => setCoordinatesHole(hole)}
+                        className={`ml-auto p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${hole.green_lat != null ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}
+                        title="GPS座標を登録"
+                        aria-label={`${hole.hole_number}番ホール GPS座標を登録`}
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </button>
                     </div>
 
                     {/* Tag row: dogleg, elevation, hazard, OB */}
@@ -249,6 +259,15 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
           </Button>
         )}
       </div>
+
+      {/* GPS座標登録モーダル */}
+      {coordinatesHole && (
+        <HoleCoordinatesModal
+          hole={coordinatesHole}
+          onClose={() => setCoordinatesHole(null)}
+          onSaved={() => { setCoordinatesHole(null); router.refresh(); }}
+        />
+      )}
 
       {/* Lightbox */}
       {lightbox && (

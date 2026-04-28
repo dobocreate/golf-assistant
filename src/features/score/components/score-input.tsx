@@ -19,6 +19,8 @@ import type { GamePlan } from '@/features/game-plan/types';
 import { useSaveOrchestrator } from '@/features/score/hooks/use-save-orchestrator';
 import { checkIndexedDBAvailability, type LocalScore, type LocalShot } from '@/lib/offline-store';
 import type { replaceShotsForHole } from '@/actions/shot';
+import { useGeolocation } from '@/features/score/hooks/use-geolocation';
+import { haversineYards } from '@/lib/geo';
 
 
 interface ClubOption {
@@ -48,6 +50,8 @@ function getDefaultHoles(): HoleInfo[] {
     hole_number: i + 1,
     par: 4,
     distance: null,
+    green_lat: null,
+    green_lng: null,
   }));
 }
 
@@ -209,8 +213,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     existingId?: string;
   } | null>(null);
 
-  const hole = holes.find(h => h.hole_number === currentHole) ?? { hole_number: currentHole, par: 4, distance: null };
+  const hole = holes.find(h => h.hole_number === currentHole) ?? { hole_number: currentHole, par: 4, distance: null, green_lat: null, green_lng: null };
   const score = scores.get(currentHole);
+
+  const hasGreenCoords = hole.green_lat != null && hole.green_lng != null;
+  const gpsPosition = useGeolocation(hasGreenCoords);
+  const distanceToGreen = hasGreenCoords && gpsPosition
+    ? haversineYards(gpsPosition.lat, gpsPosition.lng, hole.green_lat!, hole.green_lng!)
+    : null;
 
   const [strokes, setStrokes] = useState<number | null>(score?.strokes ?? null);
   const [putts, setPutts] = useState<number | null>(score?.putts ?? null);
@@ -642,6 +652,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
                 Par {hole.par}
                 {hole.distance && ` ・ ${hole.distance}y`}
               </p>
+              {distanceToGreen !== null && (
+                <p className="text-sm text-green-400 font-medium">📍 グリーンまで {distanceToGreen}y</p>
+              )}
             </div>
             {strokes !== null && (
               <span className={`px-2 py-0.5 rounded-full text-xs font-bold self-start mt-1 ${getScoreBgColor(strokes, hole.par)}`}>
