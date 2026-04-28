@@ -52,16 +52,23 @@ function CoordInput({
   );
 }
 
+function formatDecimal(lat: number | null, lng: number | null): string {
+  if (lat == null || lng == null) return '';
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
 export function HoleCoordinatesModal({ hole, onClose, onSaved }: HoleCoordinatesModalProps) {
-  const [teeInput, setTeeInput] = useState('');
-  const [greenInput, setGreenInput] = useState('');
+  const [teeInput, setTeeInput] = useState(() => formatDecimal(hole.tee_lat, hole.tee_lng));
+  const [greenInput, setGreenInput] = useState(() => formatDecimal(hole.green_lat, hole.green_lng));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const teeCoord = teeInput ? parseCoordinates(teeInput) : null;
   const greenCoord = greenInput ? parseCoordinates(greenInput) : null;
 
-  const hasChanges = teeInput.length > 0 || greenInput.length > 0;
+  const teeChanged = teeInput !== formatDecimal(hole.tee_lat, hole.tee_lng);
+  const greenChanged = greenInput !== formatDecimal(hole.green_lat, hole.green_lng);
+  const hasChanges = teeChanged || greenChanged;
   const isValid =
     (teeInput === '' || teeCoord !== null) &&
     (greenInput === '' || greenCoord !== null) &&
@@ -113,7 +120,7 @@ export function HoleCoordinatesModal({ hole, onClose, onSaved }: HoleCoordinates
 
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Google Mapsで場所を右クリック →「座標をコピー」して貼り付けてください。
-          GoogleマップのURL貼り付けも可能です。
+          通常のMapsのURLも対応しています（短縮URL maps.app.goo.gl は非対応）。
         </p>
 
         <div className="space-y-3">

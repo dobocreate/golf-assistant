@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Save, CheckCircle, Users, Plus, MessageCircle, X } from 'lucide-react';
+import { Save, CheckCircle, Users, Plus, MessageCircle, X, MapPin } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { SyncStatusIndicator } from '@/features/score/components/sync-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
@@ -653,7 +653,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
                 {hole.distance && ` ・ ${hole.distance}y`}
               </p>
               {distanceToGreen !== null && (
-                <p className="text-sm text-green-400 font-medium">📍 グリーンまで {distanceToGreen}y</p>
+                <p className="text-sm text-green-400 font-medium flex items-center justify-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />グリーンまで {distanceToGreen}y
+                </p>
               )}
             </div>
             {strokes !== null && (

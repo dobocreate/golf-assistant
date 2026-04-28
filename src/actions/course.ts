@@ -302,6 +302,13 @@ export async function importHoles(
   return {};
 }
 
+function validateLatLng(lat: number, lng: number): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '座標値が不正です。';
+  if (lat < -90 || lat > 90) return '緯度が不正です（-90〜90）。';
+  if (lng < -180 || lng > 180) return '経度が不正です（-180〜180）。';
+  return null;
+}
+
 export async function updateHoleCoordinates(
   holeId: string,
   tee: { lat: number; lng: number } | null,
@@ -311,8 +318,26 @@ export async function updateHoleCoordinates(
   if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(holeId)) return { error: 'ホールIDが不正です。' };
 
+  if (tee) {
+    const err = validateLatLng(tee.lat, tee.lng);
+    if (err) return { error: err };
+  }
+  if (green) {
+    const err = validateLatLng(green.lat, green.lng);
+    if (err) return { error: err };
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase
+
+  const { data: hole, error: holeError } = await supabase
+    .from('holes')
+    .select('course_id')
+    .eq('id', holeId)
+    .single();
+
+  if (holeError || !hole) return { error: 'ホールが見つかりません。' };
+
+  const { data: updated, error } = await supabase
     .from('holes')
     .update({
       tee_lat: tee?.lat ?? null,
@@ -320,9 +345,12 @@ export async function updateHoleCoordinates(
       green_lat: green?.lat ?? null,
       green_lng: green?.lng ?? null,
     })
-    .eq('id', holeId);
+    .eq('id', holeId)
+    .select('id');
 
-  if (error) return { error: '座標の保存に失敗しました。' };
+  if (error || !updated?.length) return { error: '座標の保存に失敗しました。' };
+
+  revalidatePath(`/courses/${hole.course_id}`);
 
   return {};
 }
