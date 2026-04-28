@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
@@ -152,16 +151,13 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                 </div>
 
                 {/* Right: hole layout image */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {hole.image_url && (
-                  <div className="relative w-32 sm:w-40 h-40 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    <Image
-                      src={hole.image_url}
-                      alt={`${hole.hole_number}番ホール レイアウト`}
-                      fill
-                      className="object-contain"
-                      sizes="160px"
-                    />
-                  </div>
+                  <img
+                    src={hole.image_url}
+                    alt={`${hole.hole_number}番ホール レイアウト`}
+                    className="h-40 w-auto flex-shrink-0 rounded-md object-contain bg-gray-100 dark:bg-gray-800"
+                  />
                 )}
               </div>
             );
