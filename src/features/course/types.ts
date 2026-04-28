@@ -25,6 +25,7 @@ export interface Hole {
   hazard: string | null;
   ob: string | null;
   description: string | null;
+  image_url: string | null;
 }
 
 export interface HoleNote {

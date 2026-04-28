@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
@@ -68,6 +69,19 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                     </span>
                   )}
                 </div>
+
+                {/* Hole layout image */}
+                {hole.image_url && (
+                  <div className="relative mt-2 mb-2 h-48 overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <Image
+                      src={hole.image_url}
+                      alt={`${hole.hole_number}番ホール レイアウト`}
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 600px"
+                    />
+                  </div>
+                )}
 
                 {/* Tag row: dogleg, elevation, hazard, OB */}
                 {(hole.dogleg || hole.elevation || hole.hazard || hole.ob || hole.description) && (
