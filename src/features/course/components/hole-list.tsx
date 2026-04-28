@@ -51,10 +51,12 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
             return (
               <div
                 key={hole.id}
-                className="rounded-lg border border-gray-200 dark:border-gray-800 p-4"
+                className="rounded-lg border border-gray-200 dark:border-gray-800 p-4 flex gap-3"
               >
+                {/* Left: all hole info */}
+                <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-4 mb-1">
-                  <span className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                  <span className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-sm flex-shrink-0">
                     {hole.hole_number}
                   </span>
                   <span className="font-medium">Par {hole.par}</span>
@@ -69,19 +71,6 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                     </span>
                   )}
                 </div>
-
-                {/* Hole layout image */}
-                {hole.image_url && (
-                  <div className="relative mt-2 mb-2 h-48 overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
-                    <Image
-                      src={hole.image_url}
-                      alt={`${hole.hole_number}番ホール レイアウト`}
-                      fill
-                      className="object-contain"
-                      sizes="(max-width: 768px) 100vw, 600px"
-                    />
-                  </div>
-                )}
 
                 {/* Tag row: dogleg, elevation, hazard, OB */}
                 {(hole.dogleg || hole.elevation || hole.hazard || hole.ob || hole.description) && (
@@ -158,6 +147,20 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                         + メモを追加
                       </Button>
                     )}
+                  </div>
+                )}
+                </div>
+
+                {/* Right: hole layout image */}
+                {hole.image_url && (
+                  <div className="relative w-32 sm:w-40 flex-shrink-0 self-stretch min-h-[160px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    <Image
+                      src={hole.image_url}
+                      alt={`${hole.hole_number}番ホール レイアウト`}
+                      fill
+                      className="object-contain"
+                      sizes="160px"
+                    />
                   </div>
                 )}
               </div>
