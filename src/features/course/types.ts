@@ -30,6 +30,8 @@ export interface Hole {
   tee_lng: number | null;
   green_lat: number | null;
   green_lng: number | null;
+  ref_lat: number | null;
+  ref_lng: number | null;
 }
 
 export interface HoleNote {

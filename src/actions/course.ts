@@ -313,18 +313,17 @@ export async function updateHoleCoordinates(
   holeId: string,
   tee: { lat: number; lng: number } | null,
   green: { lat: number; lng: number } | null,
+  ref: { lat: number; lng: number } | null,
 ): Promise<{ error?: string }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(holeId)) return { error: 'ホールIDが不正です。' };
 
-  if (tee) {
-    const err = validateLatLng(tee.lat, tee.lng);
-    if (err) return { error: err };
-  }
-  if (green) {
-    const err = validateLatLng(green.lat, green.lng);
-    if (err) return { error: err };
+  for (const coord of [tee, green, ref]) {
+    if (coord) {
+      const err = validateLatLng(coord.lat, coord.lng);
+      if (err) return { error: err };
+    }
   }
 
   const supabase = await createClient();
@@ -344,6 +343,8 @@ export async function updateHoleCoordinates(
       tee_lng: tee?.lng ?? null,
       green_lat: green?.lat ?? null,
       green_lng: green?.lng ?? null,
+      ref_lat: ref?.lat ?? null,
+      ref_lng: ref?.lng ?? null,
     })
     .eq('id', holeId)
     .select('id');

@@ -60,18 +60,22 @@ function formatDecimal(lat: number | null, lng: number | null): string {
 export function HoleCoordinatesModal({ hole, onClose, onSaved }: HoleCoordinatesModalProps) {
   const [teeInput, setTeeInput] = useState(() => formatDecimal(hole.tee_lat, hole.tee_lng));
   const [greenInput, setGreenInput] = useState(() => formatDecimal(hole.green_lat, hole.green_lng));
+  const [refInput, setRefInput] = useState(() => formatDecimal(hole.ref_lat, hole.ref_lng));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const teeCoord = teeInput ? parseCoordinates(teeInput) : null;
   const greenCoord = greenInput ? parseCoordinates(greenInput) : null;
+  const refCoord = refInput ? parseCoordinates(refInput) : null;
 
   const teeChanged = teeInput !== formatDecimal(hole.tee_lat, hole.tee_lng);
   const greenChanged = greenInput !== formatDecimal(hole.green_lat, hole.green_lng);
-  const hasChanges = teeChanged || greenChanged;
+  const refChanged = refInput !== formatDecimal(hole.ref_lat, hole.ref_lng);
+  const hasChanges = teeChanged || greenChanged || refChanged;
   const isValid =
     (teeInput === '' || teeCoord !== null) &&
     (greenInput === '' || greenCoord !== null) &&
+    (refInput === '' || refCoord !== null) &&
     hasChanges;
 
   async function handleSave() {
@@ -83,6 +87,7 @@ export function HoleCoordinatesModal({ hole, onClose, onSaved }: HoleCoordinates
       hole.id,
       teeInput && teeCoord ? teeCoord : null,
       greenInput && greenCoord ? greenCoord : null,
+      refInput && refCoord ? refCoord : null,
     );
 
     if (result.error) {
@@ -135,6 +140,12 @@ export function HoleCoordinatesModal({ hole, onClose, onSaved }: HoleCoordinates
             value={greenInput}
             onChange={setGreenInput}
             parsed={greenCoord}
+          />
+          <CoordInput
+            label="左右の基準点（バンカー・池など、イラスト表示用）"
+            value={refInput}
+            onChange={setRefInput}
+            parsed={refCoord}
           />
         </div>
 
