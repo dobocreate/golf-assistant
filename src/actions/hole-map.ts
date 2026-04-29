@@ -20,7 +20,7 @@ export async function getMapPointsForCourse(courseId: string): Promise<HoleMapPo
     .from('hole_map_points')
     .select('*, holes!inner(course_id, hole_number)')
     .eq('holes.course_id', courseId)
-    .order('holes(hole_number)')
+    .order('hole_number', { referencedTable: 'holes' })
     .order('sort_order');
 
   if (error) {

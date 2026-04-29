@@ -23,8 +23,8 @@ export function generateContourLayers(
     return [];
   }
 
-  const minElev = Math.min(...elevations);
-  const maxElev = Math.max(...elevations);
+  const minElev = elevations.reduce((min, v) => Math.min(min, v), elevations[0]);
+  const maxElev = elevations.reduce((max, v) => Math.max(max, v), elevations[0]);
 
   if (!isFinite(minElev) || !isFinite(maxElev)) {
     return [];
