@@ -161,7 +161,7 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                   {hole.image_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <div
-                      className="w-36 flex-shrink-0 self-center h-[150px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in"
+                      className="w-36 flex-shrink-0 self-center h-[200px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in"
                       onClick={() => setLightbox({ src: hole.image_url!, alt: `${hole.hole_number}番ホール レイアウト` })}
                     >
                       <img
