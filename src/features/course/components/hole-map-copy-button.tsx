@@ -24,7 +24,7 @@ export function HoleMapCopyButton({ text }: HoleMapCopyButtonProps) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors min-h-[32px] px-1"
+      className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors min-h-[48px] px-1"
       aria-label="GPS距離テキストをコピー"
     >
       {copied ? (

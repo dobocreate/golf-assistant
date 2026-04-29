@@ -253,9 +253,7 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProp
               </Button>
             </div>
           </form>
-        ) : (
-          null
-        )}
+        ) : null}
       </div>
 
       {/* Lightbox */}

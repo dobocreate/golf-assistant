@@ -1,5 +1,10 @@
 'use server';
 
+// hole_map_points and hole_elevation_grids use RLS policy "SELECT USING (true)"
+// — readable by all, including unauthenticated requests via the anon key.
+// Writes are only possible via service role key (golf-course-mapper admin tool).
+// No auth check is needed here.
+
 import { createClient } from '@/lib/supabase/server';
 import type { HoleMapPoint, HoleElevationGrid } from '@/lib/geo';
 

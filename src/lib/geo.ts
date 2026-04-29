@@ -68,11 +68,11 @@ export function haversineDistance(
 
 /**
  * Effective felt distance accounting for elevation change.
- * Every 10m elevation change adds approximately 10m of felt distance.
+ * 1m of elevation change ≈ 1m of effective distance (linear approximation).
  * elevDiff = destination elevation - source elevation (positive = uphill).
  */
 export function effectiveDistance(horizontal: number, elevDiff: number): number {
-  // Each 10m of elevation adds 10m to the felt distance (linear approximation)
+  // Linear approximation: 1m elevation change adds 1m to felt distance
   return horizontal + elevDiff;
 }
 

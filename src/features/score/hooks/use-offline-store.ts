@@ -137,6 +137,9 @@ export function useOfflineStore(roundId: string) {
 
   // --- Map data cache (keyed by courseId, not roundId) ---
 
+  // Map cache is keyed by courseId (not roundId) — persists across rounds.
+  // Call clearMapCache(courseId) to force a refresh when GPS data is updated.
+
   const cacheMapPoints = useCallback(
     async (courseId: string, points: HoleMapPoint[]): Promise<void> => {
       await setToDataStore(`mapPoints:${courseId}`, points);
@@ -163,6 +166,14 @@ export function useOfflineStore(roundId: string) {
     async (courseId: string): Promise<HoleElevationGrid[] | null> => {
       const data = await getFromDataStore<HoleElevationGrid[]>(`elevGrids:${courseId}`);
       return data ?? null;
+    },
+    [],
+  );
+
+  const clearMapCache = useCallback(
+    async (courseId: string) => {
+      await delFromDataStore(`mapPoints:${courseId}`);
+      await delFromDataStore(`elevGrids:${courseId}`);
     },
     [],
   );
@@ -220,6 +231,7 @@ export function useOfflineStore(roundId: string) {
     getCachedMapPoints,
     cacheElevationGrids,
     getCachedElevationGrids,
+    clearMapCache,
     hasUnsyncedData,
     clearRoundData,
   };
