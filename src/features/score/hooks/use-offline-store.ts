@@ -11,6 +11,7 @@ import {
 import type { HoleInfo } from '@/features/score/types';
 import type { GamePlan } from '@/features/game-plan/types';
 import type { StartingCourse, Weather, WindStrength } from '@/features/round/types';
+import type { HoleMapPoint, HoleElevationGrid } from '@/lib/geo';
 
 // --- Companion HoleInputs (matches companion-score-editor.tsx) ---
 
@@ -134,6 +135,49 @@ export function useOfflineStore(roundId: string) {
     [holesKey, gamePlansKey, clubsKey, roundMetaKey],
   );
 
+  // --- Map data cache (keyed by courseId, not roundId) ---
+
+  // Map cache is keyed by courseId (not roundId) — persists across rounds.
+  // Call clearMapCache(courseId) to force a refresh when GPS data is updated.
+
+  const cacheMapPoints = useCallback(
+    async (courseId: string, points: HoleMapPoint[]): Promise<void> => {
+      await setToDataStore(`mapPoints:${courseId}`, points);
+    },
+    [],
+  );
+
+  const getCachedMapPoints = useCallback(
+    async (courseId: string): Promise<HoleMapPoint[] | null> => {
+      const data = await getFromDataStore<HoleMapPoint[]>(`mapPoints:${courseId}`);
+      return data ?? null;
+    },
+    [],
+  );
+
+  const cacheElevationGrids = useCallback(
+    async (courseId: string, grids: HoleElevationGrid[]): Promise<void> => {
+      await setToDataStore(`elevGrids:${courseId}`, grids);
+    },
+    [],
+  );
+
+  const getCachedElevationGrids = useCallback(
+    async (courseId: string): Promise<HoleElevationGrid[] | null> => {
+      const data = await getFromDataStore<HoleElevationGrid[]>(`elevGrids:${courseId}`);
+      return data ?? null;
+    },
+    [],
+  );
+
+  const clearMapCache = useCallback(
+    async (courseId: string) => {
+      await delFromDataStore(`mapPoints:${courseId}`);
+      await delFromDataStore(`elevGrids:${courseId}`);
+    },
+    [],
+  );
+
   // --- Unsynced check ---
 
   const hasUnsyncedData = useCallback(async (): Promise<boolean> => {
@@ -183,6 +227,11 @@ export function useOfflineStore(roundId: string) {
     loadCompanionsLocal,
     cacheReadData,
     loadReadData,
+    cacheMapPoints,
+    getCachedMapPoints,
+    cacheElevationGrids,
+    getCachedElevationGrids,
+    clearMapCache,
     hasUnsyncedData,
     clearRoundData,
   };

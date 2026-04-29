@@ -32,9 +32,13 @@ export type ReadDataKey =
   | `clubs:${string}`
   | `roundMeta:${string}`;
 
+export type MapDataKey =
+  | `mapPoints:${string}`
+  | `elevGrids:${string}`;
+
 export type MetaKey = `meta:${string}`;
 
-export type DataStoreKey = WriteDataKey | ReadDataKey | MetaKey;
+export type DataStoreKey = WriteDataKey | ReadDataKey | MapDataKey | MetaKey;
 
 // --- IndexedDB availability check ---
 
