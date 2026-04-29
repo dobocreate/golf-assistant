@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 import type { Hole, HoleNote } from '@/features/course/types';
@@ -177,7 +177,7 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
           </div>
         ) : (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            ホール情報が登録されていません。下のボタンから追加してください。
+            ホール情報が登録されていません。
           </p>
         )}
 
@@ -239,14 +239,7 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
             </div>
           </form>
         ) : (
-          <Button
-            variant="ghost"
-            onClick={() => setShowAddForm(true)}
-            className="border border-dashed border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-primary hover:text-primary"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            ホールを追加
-          </Button>
+          null
         )}
       </div>
 
