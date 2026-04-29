@@ -6,6 +6,8 @@ import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 import type { Hole, HoleNote } from '@/features/course/types';
 import { HoleNoteEditor } from './hole-note-editor';
+import { HoleMapInfo } from './hole-map-info';
+import type { HoleMapPoint } from '@/lib/geo';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,7 @@ interface HoleListProps {
   courseId: string;
   holes: Hole[];
   holeNotes: HoleNote[];
+  mapPoints?: HoleMapPoint[];
 }
 
 interface LightboxImage {
@@ -21,7 +24,7 @@ interface LightboxImage {
   alt: string;
 }
 
-export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
+export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProps) {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -155,6 +158,18 @@ export function HoleList({ courseId, holes, holeNotes }: HoleListProps) {
                         )}
                       </div>
                     )}
+                    {/* GPS distance info */}
+                    {(() => {
+                      const holePoints = mapPoints?.filter((p) => p.hole_id === hole.id) ?? [];
+                      if (holePoints.length === 0) return null;
+                      return (
+                        <HoleMapInfo
+                          holeId={hole.id}
+                          holeNumber={hole.hole_number}
+                          mapPoints={holePoints}
+                        />
+                      );
+                    })()}
                   </div>
 
                   {/* Right: hole layout image */}
