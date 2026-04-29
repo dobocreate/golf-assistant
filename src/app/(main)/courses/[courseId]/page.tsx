@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { getCourseWithHoles } from '@/actions/course';
 import { HoleList } from '@/features/course/components/hole-list';
-import { HoleImport } from '@/features/course/components/hole-import';
+// import { HoleImport } from '@/features/course/components/hole-import';
 import { notFound } from 'next/navigation';
 
 export default async function CourseDetailPage({
@@ -53,7 +53,7 @@ export default async function CourseDetailPage({
         <h2 className="text-xl font-bold mb-4">
           ホール情報 {holes.length > 0 && <span className="text-sm font-normal text-gray-500">（{holes.length}ホール）</span>}
         </h2>
-        <HoleImport courseId={courseId} />
+        {/* <HoleImport courseId={courseId} /> */}
         <HoleList courseId={courseId} holes={holes} holeNotes={holeNotes} />
       </div>
     </div>
