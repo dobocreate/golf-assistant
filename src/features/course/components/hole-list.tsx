@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,16 @@ interface LightboxImage {
 export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProps) {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
+
+  const mapPointsByHoleId = useMemo(() => {
+    const map = new Map<string, HoleMapPoint[]>();
+    for (const p of mapPoints ?? []) {
+      const arr = map.get(p.hole_id) ?? [];
+      arr.push(p);
+      map.set(p.hole_id, arr);
+    }
+    return map;
+  }, [mapPoints]);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -160,15 +170,9 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProp
                     )}
                     {/* GPS distance info */}
                     {(() => {
-                      const holePoints = mapPoints?.filter((p) => p.hole_id === hole.id) ?? [];
+                      const holePoints = mapPointsByHoleId.get(hole.id) ?? [];
                       if (holePoints.length === 0) return null;
-                      return (
-                        <HoleMapInfo
-                          holeId={hole.id}
-                          holeNumber={hole.hole_number}
-                          mapPoints={holePoints}
-                        />
-                      );
+                      return <HoleMapInfo mapPoints={holePoints} />;
                     })()}
                   </div>
 

@@ -3,8 +3,6 @@ import { haversineDistance, effectiveDistance, POINT_KIND_LABELS } from '@/lib/g
 import { HoleMapCopyButton } from './hole-map-copy-button';
 
 interface HoleMapInfoProps {
-  holeId: string;
-  holeNumber: number;
   mapPoints: HoleMapPoint[];
 }
 
@@ -101,7 +99,7 @@ function buildSummaryText(distances: PointDistance[]): string {
   return parts.join('。') + (parts.length > 0 ? '。' : '');
 }
 
-export function HoleMapInfo({ holeId: _holeId, holeNumber: _holeNumber, mapPoints }: HoleMapInfoProps) {
+export function HoleMapInfo({ mapPoints }: HoleMapInfoProps) {
   const refTee = mapPoints.find((p) => p.is_tee_reference);
 
   if (!refTee || mapPoints.length === 0) return null;
