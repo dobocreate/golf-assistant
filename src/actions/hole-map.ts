@@ -74,11 +74,11 @@ export async function getMapPointsForHole(holeId: string): Promise<HoleMapPoint[
 
 /**
  * Get hole_view_configs for all holes in a course.
- * Returns a map keyed by hole_id for O(1) lookup in the caller.
+ * Returns a plain object keyed by hole_id (serializable for Server → Client Component passing).
  */
 export async function getHoleViewConfigsForCourse(
   courseId: string,
-): Promise<Map<string, HoleViewConfig>> {
+): Promise<Record<string, HoleViewConfig>> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -88,13 +88,13 @@ export async function getHoleViewConfigsForCourse(
 
   if (error) {
     console.error('Failed to fetch hole view configs for course:', error.message);
-    return new Map();
+    return {};
   }
 
-  const map = new Map<string, HoleViewConfig>();
+  const result: Record<string, HoleViewConfig> = {};
   for (const row of data ?? []) {
     const { holes: _holes, ...config } = row;
-    map.set(config.hole_id, config as HoleViewConfig);
+    result[config.hole_id] = config as HoleViewConfig;
   }
-  return map;
+  return result;
 }

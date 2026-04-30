@@ -17,7 +17,7 @@ interface HoleListProps {
   holes: Hole[];
   holeNotes: HoleNote[];
   mapPoints?: HoleMapPoint[];
-  viewConfigs?: Map<string, HoleViewConfig>;
+  viewConfigs?: Record<string, HoleViewConfig>;
 }
 
 interface LightboxImage {
@@ -179,7 +179,7 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }:
 
                   {/* Right: aerial image (preferred) or layout image (fallback) */}
                   {(() => {
-                    const aerialUrl = viewConfigs?.get(hole.id)?.cached_image_url;
+                    const aerialUrl = viewConfigs?.[hole.id]?.cached_image_url;
                     const displayUrl = aerialUrl ?? hole.image_url;
                     if (!displayUrl) return null;
                     const isAerial = !!aerialUrl;
