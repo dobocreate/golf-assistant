@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
@@ -57,12 +57,19 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!lightbox) return;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    closeButtonRef.current?.focus();
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
     document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+      previousFocusRef.current?.focus();
+    };
   }, [lightbox]);
 
   function getNoteForHole(holeId: string): HoleNote | undefined {
@@ -210,15 +217,15 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
                       ? parseAerialImageMetadata(viewConfigs?.[hole.id]?.metadata_json)
                       : null;
                     const altText = `${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}`;
-                    const openLightbox = () => setLightbox({ src: displayUrl, alt: altText, areas: areas.length > 0 ? areas : undefined, metadata: metadata ?? undefined });
+                    const lightboxPayload = { src: displayUrl, alt: altText, areas: areas.length > 0 ? areas : undefined, metadata: metadata ?? undefined };
                     return (
                       // eslint-disable-next-line @next/next/no-img-element
                       <div
                         role="button"
                         tabIndex={0}
                         className="w-36 flex-shrink-0 self-center h-[200px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in relative"
-                        onClick={openLightbox}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(); } }}
+                        onClick={() => setLightbox(lightboxPayload)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox(lightboxPayload); } }}
                         aria-label={altText}
                       >
                         <img
@@ -314,6 +321,7 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
           onClick={() => setLightbox(null)}
         >
           <button
+            ref={closeButtonRef}
             className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-1.5 hover:bg-black/80"
             onClick={() => setLightbox(null)}
             aria-label="閉じる"

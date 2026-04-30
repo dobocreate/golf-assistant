@@ -125,9 +125,8 @@ export function latLngToPixel(
   const dy_o = py_o - pre_rotate_height / 2;
 
   // Rotate by -bearing to get rotated image coordinates
-  const bearing = bearing_rad;
-  const dx_r = dx_o * Math.cos(-bearing) - dy_o * Math.sin(-bearing);
-  const dy_r = dx_o * Math.sin(-bearing) + dy_o * Math.cos(-bearing);
+  const dx_r = dx_o * Math.cos(-bearing_rad) - dy_o * Math.sin(-bearing_rad);
+  const dy_r = dx_o * Math.sin(-bearing_rad) + dy_o * Math.cos(-bearing_rad);
 
   // Shift to rotated bbox origin
   const px_rot = dx_r + rotated_width / 2;
