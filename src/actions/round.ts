@@ -324,6 +324,8 @@ export async function updateActiveGreen(
   if (error) return { error: 'グリーン設定の保存に失敗しました。' };
 
   revalidatePath(`/play/${roundId}`);
+  revalidatePath(`/play/${roundId}/score`);
+  revalidatePath(`/play/${roundId}/scorecard`);
   return {};
 }
 
