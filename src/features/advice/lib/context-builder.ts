@@ -205,6 +205,8 @@ export function buildAreaContext(
 ): string {
   if (areas.length === 0) return '';
   const lines: string[] = [];
+  const M_TO_Y = 1.09361;
+  const toYards = (m: number) => Math.round(m * M_TO_Y);
 
   // 使用グリーン
   const greenType = activeGreen === 'B' ? 'green_b' : 'green_a';
@@ -214,7 +216,7 @@ export function buildAreaContext(
     if (teePoint) {
       const dist = calcDistanceToPolygon(teePoint, greenArea.coordinates);
       if (isFinite(dist)) {
-        lines.push(`使用グリーン: ${label}（ティーから約${dist}m）`);
+        lines.push(`使用グリーン: ${label}（ティーから約${toYards(dist)}y）`);
       } else {
         lines.push(`使用グリーン: ${label}`);
       }
@@ -230,7 +232,7 @@ export function buildAreaContext(
     if (teePoint) {
       const dist = calcDistanceToPolygon(teePoint, ob.coordinates);
       if (isFinite(dist)) {
-        lines.push(`${label}: 約${dist}m`);
+        lines.push(`${label}: 約${toYards(dist)}y`);
       } else {
         lines.push(label);
       }
@@ -247,7 +249,7 @@ export function buildAreaContext(
       .filter(isFinite)
       .sort((a, b) => a - b);
     if (dists.length > 0) {
-      lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${dists[0]}m）`);
+      lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${toYards(dists[0])}y）`);
     } else {
       lines.push(`バンカー: ${bunkers.length}箇所`);
     }
@@ -263,7 +265,7 @@ export function buildAreaContext(
       .filter(isFinite)
       .sort((a, b) => a - b);
     if (dists.length > 0) {
-      lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${dists[0]}m）`);
+      lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${toYards(dists[0])}y）`);
     } else {
       lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
     }
