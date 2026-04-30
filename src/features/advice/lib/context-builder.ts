@@ -213,7 +213,11 @@ export function buildAreaContext(
     const label = activeGreen ? `${activeGreen}グリーン` : 'グリーン';
     if (teePoint) {
       const dist = calcDistanceToPolygon(teePoint, greenArea.coordinates);
-      lines.push(`使用グリーン: ${label}（ティーから約${dist}m）`);
+      if (isFinite(dist)) {
+        lines.push(`使用グリーン: ${label}（ティーから約${dist}m）`);
+      } else {
+        lines.push(`使用グリーン: ${label}`);
+      }
     } else {
       lines.push(`使用グリーン: ${label}`);
     }
@@ -225,7 +229,11 @@ export function buildAreaContext(
     const label = ob.name ?? 'OBライン';
     if (teePoint) {
       const dist = calcDistanceToPolygon(teePoint, ob.coordinates);
-      lines.push(`${label}: 約${dist}m`);
+      if (isFinite(dist)) {
+        lines.push(`${label}: 約${dist}m`);
+      } else {
+        lines.push(label);
+      }
     } else {
       lines.push(label);
     }
@@ -236,8 +244,13 @@ export function buildAreaContext(
   if (bunkers.length > 0 && teePoint) {
     const dists = bunkers
       .map((b) => calcDistanceToPolygon(teePoint, b.coordinates))
+      .filter(isFinite)
       .sort((a, b) => a - b);
-    lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${dists[0]}m）`);
+    if (dists.length > 0) {
+      lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${dists[0]}m）`);
+    } else {
+      lines.push(`バンカー: ${bunkers.length}箇所`);
+    }
   } else if (bunkers.length > 0) {
     lines.push(`バンカー: ${bunkers.length}箇所`);
   }
@@ -247,8 +260,13 @@ export function buildAreaContext(
   if (hazards.length > 0 && teePoint) {
     const dists = hazards
       .map((h) => calcDistanceToPolygon(teePoint, h.coordinates))
+      .filter(isFinite)
       .sort((a, b) => a - b);
-    lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${dists[0]}m）`);
+    if (dists.length > 0) {
+      lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${dists[0]}m）`);
+    } else {
+      lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
+    }
   } else if (hazards.length > 0) {
     lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
   }
@@ -262,6 +280,12 @@ export function buildAreaContext(
  */
 export function formatContextForPrompt(context: AdviceContext): string {
   const sections: string[] = [];
+
+  // プレー順（ホール情報・エリア情報で共用）
+  const holes = context.holes as Record<string, unknown>[];
+  const holeOrder = context.starting_course === 'in'
+    ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
+    : holes;
 
   // プロファイル
   const p = context.profile as Record<string, unknown>;
@@ -314,10 +338,6 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ホール情報（プレー順に並び替え）
   if (context.holes.length > 0) {
-    const holes = context.holes as Record<string, unknown>[];
-    const holeOrder = context.starting_course === 'in'
-      ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
-      : holes;
     const lines = [`## ホール情報（${context.starting_course === 'in' ? 'INスタート: 10→18→1→9の順' : 'OUTスタート: 1→9→10→18の順'}）`];
     for (const [i, h] of holeOrder.entries()) {
       let line = `- [${i + 1}番目] Hole ${h.hole_number}: Par${h.par}`;
@@ -335,9 +355,6 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ホールエリア情報（GPSマップデータ）
   if (context.hole_areas.length > 0 && context.holes.length > 0) {
-    const holes = context.holes as Record<string, unknown>[];
-    // hole_id -> hole_number マッピング
-    const holeIdToNumber = new Map(holes.map(h => [h.id as string, h.hole_number as number]));
     // hole_id -> tee_reference_point マッピング
     const teeByHoleId = new Map<string, { lat: number; lng: number }>();
     for (const mp of context.map_points) {
@@ -354,10 +371,6 @@ export function formatContextForPrompt(context: AdviceContext): string {
     }
 
     const areaLines: string[] = ['## ホールエリア情報（GPSマップデータ）'];
-    // プレー順に並び替え
-    const holeOrder = context.starting_course === 'in'
-      ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
-      : holes;
     for (const h of holeOrder) {
       const holeId = h.id as string;
       const holeNumber = h.hole_number as number;
