@@ -3,10 +3,10 @@
 
 CREATE TABLE hole_view_configs (
   hole_id          uuid PRIMARY KEY REFERENCES holes(id) ON DELETE CASCADE,
-  ref_start_lat    double precision NOT NULL,
-  ref_start_lng    double precision NOT NULL,
-  ref_end_lat      double precision NOT NULL,
-  ref_end_lng      double precision NOT NULL,
+  ref_start_lat    double precision NOT NULL CHECK (ref_start_lat BETWEEN -90 AND 90),
+  ref_start_lng    double precision NOT NULL CHECK (ref_start_lng BETWEEN -180 AND 180),
+  ref_end_lat      double precision NOT NULL CHECK (ref_end_lat BETWEEN -90 AND 90),
+  ref_end_lng      double precision NOT NULL CHECK (ref_end_lng BETWEEN -180 AND 180),
   cached_image_url text,
   metadata_json    jsonb,
   created_at       timestamptz NOT NULL DEFAULT now(),
