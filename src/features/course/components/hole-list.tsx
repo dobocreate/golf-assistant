@@ -329,11 +329,11 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
             <X className="h-5 w-5" />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <div className="relative rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <img
               src={lightbox.src}
               alt={lightbox.alt}
-              className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)] rounded-lg block"
+              className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)] block"
             />
             {lightbox.areas && lightbox.metadata && lightbox.areas.length > 0 && (
               <AerialAreaOverlay areas={lightbox.areas} metadata={lightbox.metadata} />
