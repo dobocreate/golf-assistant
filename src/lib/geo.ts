@@ -55,6 +55,30 @@ export interface HoleViewConfig {
   updated_at: string;
 }
 
+export type HoleAreaType = 'ob_line' | 'bunker' | 'hazard' | 'green_a' | 'green_b';
+
+export type HoleArea =
+  | {
+      id: string;
+      hole_id: string;
+      area_type: 'ob_line';
+      coordinates: { lat: number; lng: number }[];
+      name: string;
+      sort_order: number;
+      created_at: string;
+      updated_at: string;
+    }
+  | {
+      id: string;
+      hole_id: string;
+      area_type: 'bunker' | 'hazard' | 'green_a' | 'green_b';
+      coordinates: { lat: number; lng: number }[];
+      name: string | null;
+      sort_order: number;
+      created_at: string;
+      updated_at: string;
+    };
+
 /**
  * Haversine distance in meters between two GPS points.
  */
