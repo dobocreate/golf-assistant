@@ -4,3 +4,5 @@
 -- 'B' = Bグリーン使用
 ALTER TABLE rounds
   ADD COLUMN active_green text CHECK (active_green IN ('A', 'B'));
+
+COMMENT ON COLUMN rounds.active_green IS '使用グリーン (A=Aグリーン, B=Bグリーン, null=1グリーンまたは未設定)';
