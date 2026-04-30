@@ -43,6 +43,18 @@ export interface HoleElevationGrid {
   fetched_at: string;
 }
 
+export interface HoleViewConfig {
+  hole_id: string;
+  ref_start_lat: number;
+  ref_start_lng: number;
+  ref_end_lat: number;
+  ref_end_lng: number;
+  cached_image_url: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Haversine distance in meters between two GPS points.
  */

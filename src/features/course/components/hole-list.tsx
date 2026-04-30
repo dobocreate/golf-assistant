@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { Hole, HoleNote } from '@/features/course/types';
 import { HoleNoteEditor } from './hole-note-editor';
 import { HoleMapInfo } from './hole-map-info';
-import type { HoleMapPoint } from '@/lib/geo';
+import type { HoleMapPoint, HoleViewConfig } from '@/lib/geo';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ interface HoleListProps {
   holes: Hole[];
   holeNotes: HoleNote[];
   mapPoints?: HoleMapPoint[];
+  viewConfigs?: Record<string, HoleViewConfig>;
 }
 
 interface LightboxImage {
@@ -24,7 +25,7 @@ interface LightboxImage {
   alt: string;
 }
 
-export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProps) {
+export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }: HoleListProps) {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -176,20 +177,31 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints }: HoleListProp
                     })()}
                   </div>
 
-                  {/* Right: hole layout image */}
-                  {hole.image_url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <div
-                      className="w-36 flex-shrink-0 self-center h-[200px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in"
-                      onClick={() => setLightbox({ src: hole.image_url!, alt: `${hole.hole_number}番ホール レイアウト` })}
-                    >
-                      <img
-                        src={hole.image_url}
-                        alt={`${hole.hole_number}番ホール レイアウト`}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
+                  {/* Right: aerial image (preferred) or layout image (fallback) */}
+                  {(() => {
+                    const aerialUrl = viewConfigs?.[hole.id]?.cached_image_url;
+                    const displayUrl = aerialUrl ?? hole.image_url;
+                    if (!displayUrl) return null;
+                    const isAerial = !!aerialUrl;
+                    return (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <div
+                        className="w-36 flex-shrink-0 self-center h-[200px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in relative"
+                        onClick={() => setLightbox({ src: displayUrl, alt: `${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}` })}
+                      >
+                        <img
+                          src={displayUrl}
+                          alt={`${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}`}
+                          className="w-full h-full object-contain"
+                        />
+                        {isAerial && (
+                          <span className="absolute bottom-1 left-1 text-[10px] bg-black/50 text-white rounded px-1 py-0.5 leading-none">
+                            航空
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
