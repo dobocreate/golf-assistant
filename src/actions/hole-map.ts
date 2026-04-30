@@ -6,7 +6,7 @@
 // No auth check is needed here.
 
 import { createClient } from '@/lib/supabase/server';
-import type { HoleMapPoint, HoleElevationGrid } from '@/lib/geo';
+import type { HoleMapPoint, HoleElevationGrid, HoleViewConfig } from '@/lib/geo';
 
 /**
  * Get all map points for a course (joins holes to filter by course_id).
@@ -70,4 +70,31 @@ export async function getMapPointsForHole(holeId: string): Promise<HoleMapPoint[
   }
 
   return (data ?? []) as HoleMapPoint[];
+}
+
+/**
+ * Get hole_view_configs for all holes in a course.
+ * Returns a map keyed by hole_id for O(1) lookup in the caller.
+ */
+export async function getHoleViewConfigsForCourse(
+  courseId: string,
+): Promise<Map<string, HoleViewConfig>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('hole_view_configs')
+    .select('*, holes!inner(course_id)')
+    .eq('holes.course_id', courseId);
+
+  if (error) {
+    console.error('Failed to fetch hole view configs for course:', error.message);
+    return new Map();
+  }
+
+  const map = new Map<string, HoleViewConfig>();
+  for (const row of data ?? []) {
+    const { holes: _holes, ...config } = row;
+    map.set(config.hole_id, config as HoleViewConfig);
+  }
+  return map;
 }
