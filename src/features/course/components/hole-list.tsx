@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { upsertHole } from '@/actions/course';
 import { useRouter } from 'next/navigation';
 import type { Hole, HoleNote } from '@/features/course/types';
 import { HoleNoteEditor } from './hole-note-editor';
 import { HoleMapInfo } from './hole-map-info';
-import type { HoleMapPoint, HoleViewConfig } from '@/lib/geo';
+import type { HoleMapPoint, HoleViewConfig, HoleArea, AerialImageMetadata } from '@/lib/geo';
+import { parseAerialImageMetadata } from '@/lib/geo';
+import { AerialAreaOverlay } from './aerial-area-overlay';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -18,14 +20,17 @@ interface HoleListProps {
   holeNotes: HoleNote[];
   mapPoints?: HoleMapPoint[];
   viewConfigs?: Record<string, HoleViewConfig>;
+  holeAreas?: HoleArea[];
 }
 
 interface LightboxImage {
   src: string;
   alt: string;
+  areas?: HoleArea[];
+  metadata?: AerialImageMetadata;
 }
 
-export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }: HoleListProps) {
+export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, holeAreas }: HoleListProps) {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -38,10 +43,34 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }:
     }
     return map;
   }, [mapPoints]);
+
+  const areasByHoleId = useMemo(() => {
+    const map = new Map<string, HoleArea[]>();
+    for (const a of holeAreas ?? []) {
+      const arr = map.get(a.hole_id) ?? [];
+      arr.push(a);
+      map.set(a.hole_id, arr);
+    }
+    return map;
+  }, [holeAreas]);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    closeButtonRef.current?.focus();
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
+    document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+      previousFocusRef.current?.focus();
+    };
+  }, [lightbox]);
 
   function getNoteForHole(holeId: string): HoleNote | undefined {
     return holeNotes.find((n) => n.hole_id === holeId);
@@ -179,21 +208,34 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }:
 
                   {/* Right: aerial image (preferred) or layout image (fallback) */}
                   {(() => {
-                    const aerialUrl = viewConfigs?.[hole.id]?.cached_image_url || null;
+                    const aerialUrl = viewConfigs?.[hole.id]?.cached_image_url ?? null;
                     const displayUrl = aerialUrl ?? hole.image_url;
                     if (!displayUrl) return null;
                     const isAerial = !!aerialUrl;
+                    const areas = isAerial ? (areasByHoleId.get(hole.id) ?? []) : [];
+                    const metadata = isAerial
+                      ? parseAerialImageMetadata(viewConfigs?.[hole.id]?.metadata_json)
+                      : null;
+                    const altText = `${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}`;
+                    const lightboxPayload = { src: displayUrl, alt: altText, areas: areas.length > 0 ? areas : undefined, metadata: metadata ?? undefined };
                     return (
                       // eslint-disable-next-line @next/next/no-img-element
                       <div
+                        role="button"
+                        tabIndex={0}
                         className="w-36 flex-shrink-0 self-center h-[200px] rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-zoom-in relative"
-                        onClick={() => setLightbox({ src: displayUrl, alt: `${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}` })}
+                        onClick={() => setLightbox(lightboxPayload)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox(lightboxPayload); } }}
+                        aria-label={altText}
                       >
                         <img
                           src={displayUrl}
-                          alt={`${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}`}
+                          alt={altText}
                           className="w-full h-full object-contain"
                         />
+                        {isAerial && metadata && areas.length > 0 && (
+                          <AerialAreaOverlay areas={areas} metadata={metadata} />
+                        )}
                         {isAerial && (
                           <span className="absolute bottom-1 left-1 text-[10px] bg-black/50 text-white rounded px-1 py-0.5 leading-none">
                             航空
@@ -279,6 +321,7 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }:
           onClick={() => setLightbox(null)}
         >
           <button
+            ref={closeButtonRef}
             className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-1.5 hover:bg-black/80"
             onClick={() => setLightbox(null)}
             aria-label="閉じる"
@@ -286,12 +329,16 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs }:
             <X className="h-5 w-5" />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightbox.src}
-            alt={lightbox.alt}
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="relative rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightbox.src}
+              alt={lightbox.alt}
+              className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)] block"
+            />
+            {lightbox.areas && lightbox.metadata && lightbox.areas.length > 0 && (
+              <AerialAreaOverlay areas={lightbox.areas} metadata={lightbox.metadata} />
+            )}
+          </div>
         </div>
       )}
     </>

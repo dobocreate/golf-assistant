@@ -55,6 +55,90 @@ export interface HoleViewConfig {
   updated_at: string;
 }
 
+export interface AerialImageMetadata {
+  bbox: {
+    lat_min: number;
+    lat_max: number;
+    lng_min: number;
+    lng_max: number;
+  };
+  pre_rotate_width: number;
+  pre_rotate_height: number;
+  rotated_width: number;
+  rotated_height: number;
+  final_width?: number;
+  final_height?: number;
+  bearing_rad: number;
+  zoom: number;
+}
+
+export function parseAerialImageMetadata(json: unknown): AerialImageMetadata | null {
+  if (!json || typeof json !== 'object') return null;
+  const j = json as Record<string, unknown>;
+  const bbox = j['bbox'];
+  if (!bbox || typeof bbox !== 'object') return null;
+  const b = bbox as Record<string, unknown>;
+  if (
+    typeof b['lat_min'] !== 'number' || typeof b['lat_max'] !== 'number' ||
+    typeof b['lng_min'] !== 'number' || typeof b['lng_max'] !== 'number' ||
+    typeof j['pre_rotate_width'] !== 'number' || typeof j['pre_rotate_height'] !== 'number' ||
+    typeof j['rotated_width'] !== 'number' || typeof j['rotated_height'] !== 'number' ||
+    typeof j['bearing_rad'] !== 'number' || typeof j['zoom'] !== 'number'
+  ) return null;
+  return {
+    bbox: {
+      lat_min: b['lat_min'] as number,
+      lat_max: b['lat_max'] as number,
+      lng_min: b['lng_min'] as number,
+      lng_max: b['lng_max'] as number,
+    },
+    pre_rotate_width: j['pre_rotate_width'] as number,
+    pre_rotate_height: j['pre_rotate_height'] as number,
+    rotated_width: j['rotated_width'] as number,
+    rotated_height: j['rotated_height'] as number,
+    final_width: typeof j['final_width'] === 'number' ? (j['final_width'] as number) : undefined,
+    final_height: typeof j['final_height'] === 'number' ? (j['final_height'] as number) : undefined,
+    bearing_rad: j['bearing_rad'] as number,
+    zoom: j['zoom'] as number,
+  };
+}
+
+export function latLngToPixel(
+  lat: number,
+  lng: number,
+  metadata: AerialImageMetadata,
+): { px: number; py: number } | null {
+  const { bbox, pre_rotate_width, pre_rotate_height, rotated_width, rotated_height, bearing_rad } = metadata;
+  const final_width = metadata.final_width ?? rotated_width;
+  const final_height = metadata.final_height ?? rotated_height;
+
+  if (pre_rotate_width === 0 || pre_rotate_height === 0) return null;
+  if (rotated_width === 0 || rotated_height === 0) return null;
+  if (bbox.lat_max === bbox.lat_min || bbox.lng_max === bbox.lng_min) return null;
+
+  // lat/lng → pre-rotation pixel coordinates (y=0 at lat_max)
+  const px_o = ((lng - bbox.lng_min) / (bbox.lng_max - bbox.lng_min)) * pre_rotate_width;
+  const py_o = ((bbox.lat_max - lat) / (bbox.lat_max - bbox.lat_min)) * pre_rotate_height;
+
+  // Shift origin to center of pre-rotation image
+  const dx_o = px_o - pre_rotate_width / 2;
+  const dy_o = py_o - pre_rotate_height / 2;
+
+  // Rotate by -bearing to get rotated image coordinates
+  const dx_r = dx_o * Math.cos(-bearing_rad) - dy_o * Math.sin(-bearing_rad);
+  const dy_r = dx_o * Math.sin(-bearing_rad) + dy_o * Math.cos(-bearing_rad);
+
+  // Shift to rotated bbox origin
+  const px_rot = dx_r + rotated_width / 2;
+  const py_rot = dy_r + rotated_height / 2;
+
+  // Apply post-rotation crop offset to get final image coordinates
+  return {
+    px: px_rot - (rotated_width - final_width) / 2,
+    py: py_rot - (rotated_height - final_height) / 2,
+  };
+}
+
 export type HoleAreaType = 'ob_line' | 'bunker' | 'hazard' | 'green_a' | 'green_b';
 
 export type HoleArea =
@@ -92,7 +176,6 @@ export function isTwoGreenCourse(areas: HoleArea[], holeIds: string[]): boolean 
   ).length;
   return pairedCount >= Math.ceil(holeIds.length / 2);
 }
-
 
 /**
  * Haversine distance in meters between two GPS points.
@@ -160,13 +243,14 @@ export function interpolateElevation(
 ): number | null {
   const { origin_lat, origin_lng, rows, cols, cell_size_m, elevations } = grid;
 
-  if (rows <= 0 || cols <= 0 || elevations.length !== rows * cols) {
+  if (rows <= 0 || cols <= 0 || cell_size_m <= 0 || elevations.length !== rows * cols) {
     return null;
   }
 
   // Approximate degrees per meter at the given latitude
   const metersPerDegLat = 111320;
   const metersPerDegLng = 111320 * Math.cos((origin_lat * Math.PI) / 180);
+  if (metersPerDegLng === 0) return null;
 
   // Grid cell size in degrees
   const cellDegLat = cell_size_m / metersPerDegLat;

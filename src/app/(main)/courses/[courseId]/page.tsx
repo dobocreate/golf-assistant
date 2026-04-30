@@ -2,9 +2,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { getCourseWithHoles } from '@/actions/course';
-import { getMapPointsForCourse, getHoleViewConfigsForCourse } from '@/actions/hole-map';
+import { getMapPointsForCourse, getHoleViewConfigsForCourse, getHoleAreasForCourse } from '@/actions/hole-map';
 import { HoleList } from '@/features/course/components/hole-list';
-// import { HoleImport } from '@/features/course/components/hole-import';
 import { notFound } from 'next/navigation';
 
 export default async function CourseDetailPage({
@@ -13,10 +12,14 @@ export default async function CourseDetailPage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
-  const [{ course, holes, holeNotes }, mapPoints, viewConfigs] = await Promise.all([
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(courseId)) notFound();
+
+  const [{ course, holes, holeNotes }, mapPoints, viewConfigs, holeAreas] = await Promise.all([
     getCourseWithHoles(courseId),
     getMapPointsForCourse(courseId),
     getHoleViewConfigsForCourse(courseId),
+    getHoleAreasForCourse(courseId),
   ]);
 
   if (!course) {
@@ -58,8 +61,7 @@ export default async function CourseDetailPage({
         <h2 className="text-xl font-bold mb-4">
           ホール情報 {holes.length > 0 && <span className="text-sm font-normal text-gray-500">（{holes.length}ホール）</span>}
         </h2>
-        {/* <HoleImport courseId={courseId} /> */}
-        <HoleList courseId={courseId} holes={holes} holeNotes={holeNotes} mapPoints={mapPoints} viewConfigs={viewConfigs} />
+        <HoleList courseId={courseId} holes={holes} holeNotes={holeNotes} mapPoints={mapPoints} viewConfigs={viewConfigs} holeAreas={holeAreas} />
       </div>
     </div>
   );
