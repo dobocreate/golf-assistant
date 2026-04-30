@@ -44,6 +44,7 @@ export interface Round {
   wind: WindStrength | null;
   target_score: number | null;
   review_note: string | null;
+  active_green: 'A' | 'B' | null;
 }
 
 export interface RoundCourse {
