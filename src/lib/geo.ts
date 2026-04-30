@@ -80,6 +80,21 @@ export type HoleArea =
     };
 
 /**
+ * コースがツーグリーン制かどうかを判定する。
+ * A/B ペアが登録済みのホールが全ホールの過半数であればツーグリーン制とみなす。
+ */
+export function isTwoGreenCourse(areas: HoleArea[], holeIds: string[]): boolean {
+  if (holeIds.length === 0) return false;
+  const pairedCount = holeIds.filter(
+    (id) =>
+      areas.some((a) => a.hole_id === id && a.area_type === 'green_a') &&
+      areas.some((a) => a.hole_id === id && a.area_type === 'green_b'),
+  ).length;
+  return pairedCount >= Math.ceil(holeIds.length / 2);
+}
+
+
+/**
  * Haversine distance in meters between two GPS points.
  */
 export function haversineDistance(

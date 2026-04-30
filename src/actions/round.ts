@@ -83,7 +83,7 @@ export async function getRound(roundId: string): Promise<Round | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, active_green')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -99,7 +99,7 @@ export async function getRoundWithCourse(roundId: string): Promise<RoundWithCour
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, active_green, courses(id, name, prefecture)')
     .eq('id', roundId)
     .eq('user_id', user.id)
     .single();
@@ -114,7 +114,7 @@ export async function getActiveRound(): Promise<RoundWithCourse | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('rounds')
-    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, courses(id, name, prefecture)')
+    .select('id, user_id, course_id, played_at, total_score, status, created_at, starting_course, weather, wind, target_score, review_note, active_green, courses(id, name, prefecture)')
     .eq('user_id', user.id)
     .eq('status', 'in_progress')
     .order('created_at', { ascending: false })
@@ -298,6 +298,34 @@ export async function savePracticeSuggestion(roundId: string, content: string): 
   if (error) return { error: '練習提案の保存に失敗しました。' };
 
   revalidatePath(`/rounds/${roundId}`);
+  return {};
+}
+
+/** 使用グリーン（A/B）を変更 */
+export async function updateActiveGreen(
+  roundId: string,
+  activeGreen: 'A' | 'B' | null,
+): Promise<{ error?: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { error: 'ログインが必要です。' };
+  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('rounds')
+    .update({
+      active_green: activeGreen,
+      context_snapshot: null, // AIキャッシュを失効させる
+    })
+    .eq('id', roundId)
+    .eq('user_id', user.id)
+    .eq('status', 'in_progress');
+
+  if (error) return { error: 'グリーン設定の保存に失敗しました。' };
+
+  revalidatePath(`/play/${roundId}`);
+  revalidatePath(`/play/${roundId}/score`);
+  revalidatePath(`/play/${roundId}/scorecard`);
   return {};
 }
 
