@@ -318,9 +318,12 @@ export async function updateActiveGreen(
       context_snapshot: null, // AIキャッシュを失効させる
     })
     .eq('id', roundId)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .eq('status', 'in_progress');
 
   if (error) return { error: 'グリーン設定の保存に失敗しました。' };
+
+  revalidatePath(`/play/${roundId}`);
   return {};
 }
 
