@@ -26,7 +26,7 @@ CREATE TRIGGER hole_areas_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_hole_areas_updated_at();
 
 -- インデックス
-CREATE INDEX ON hole_areas (hole_id);
+-- hole_id 単体インデックスは (hole_id, area_type) 複合インデックスでカバーされるため不要
 CREATE INDEX ON hole_areas (hole_id, area_type);
 
 -- green_a / green_b は1ホールに1件のみ（Partial Unique Index）
