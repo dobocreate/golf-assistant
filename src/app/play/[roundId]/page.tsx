@@ -2,11 +2,14 @@ import { getRoundWithCourse } from '@/actions/round';
 import { getCompanions } from '@/actions/companion';
 import { getGamePlanSetsByCourse } from '@/actions/game-plan-set';
 import { getGamePlans } from '@/actions/game-plan';
+import { getHoleAreasForCourse } from '@/actions/hole-map';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { isTwoGreenCourse } from '@/lib/geo';
 import { redirect, notFound } from 'next/navigation';
 import { PlayActionButtons } from './play-action-buttons';
 import { CompanionManager } from '@/features/companion/components/companion-manager';
 import { StartingCourseToggle } from '@/features/round/components/starting-course-toggle';
+import { ActiveGreenSelector } from '@/features/round/components/active-green-selector';
 import { WeatherWindSetting } from '@/features/round/components/weather-wind-setting';
 import { GamePlanSelector } from '@/features/round/components/game-plan-selector';
 
@@ -26,10 +29,15 @@ export default async function PlayMainPage({
 
   if (!round) notFound();
 
-  const [gamePlanSets, appliedPlans] = await Promise.all([
+  const [gamePlanSets, appliedPlans, holeAreas] = await Promise.all([
     round.course_id ? getGamePlanSetsByCourse(round.course_id) : Promise.resolve([]),
     getGamePlans(roundId),
+    round.course_id ? getHoleAreasForCourse(round.course_id) : Promise.resolve([]),
   ]);
+
+  // ホールIDの一覧をエリアから抽出してツーグリーン判定
+  const uniqueHoleIds = [...new Set(holeAreas.map((a) => a.hole_id))];
+  const showGreenSelector = isTwoGreenCourse(holeAreas, uniqueHoleIds);
 
   // 適用済みプランを特定（game_plansにデータがあれば適用済み）
   const appliedPlanName = appliedPlans.length > 0
@@ -59,6 +67,9 @@ export default async function PlayMainPage({
 
       {/* ラウンド設定 */}
       <StartingCourseToggle roundId={roundId} initialValue={round.starting_course} />
+      {showGreenSelector && (
+        <ActiveGreenSelector roundId={roundId} initialValue={round.active_green} />
+      )}
       <WeatherWindSetting roundId={roundId} initialWeather={round.weather} initialWind={round.wind} />
 
       {/* 同伴者管理 */}
