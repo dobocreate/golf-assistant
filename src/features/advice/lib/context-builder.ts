@@ -3,6 +3,8 @@ import { getAuthenticatedUser } from '@/lib/auth-utils';
 import type { AdviceContext } from '../types';
 import type { StartingCourse } from '@/features/round/types';
 import { SHOT_SHAPES, SCORE_LEVELS } from '@/features/profile/types';
+import type { HoleArea, HoleMapPoint } from '@/lib/geo';
+import { calcDistanceToPolygon } from '@/lib/geo';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,10 +23,10 @@ export async function getOrBuildContextSnapshot(
 
   const supabase = await createClient();
 
-  // snapshot + course_id + starting_course を1クエリで取得
+  // snapshot + course_id + starting_course + active_green を1クエリで取得
   const { data: round } = await supabase
     .from('rounds')
-    .select('course_id, context_snapshot, starting_course')
+    .select('course_id, context_snapshot, starting_course, active_green')
     .eq('id', roundId)
     .eq('user_id', userId)
     .single();
@@ -36,8 +38,8 @@ export async function getOrBuildContextSnapshot(
     return { contextText: round.context_snapshot, courseId: round.course_id, startingCourse: round.starting_course };
   }
 
-  // キャッシュミス: コンテキストを構築（course_id, starting_courseは取得済みなので渡す）
-  const context = await buildAdviceContextInternal(roundId, userId, supabase, round.course_id, round.starting_course);
+  // キャッシュミス: コンテキストを構築（course_id, starting_course, active_greenは取得済みなので渡す）
+  const context = await buildAdviceContextInternal(roundId, userId, supabase, round.course_id, round.starting_course, round.active_green as 'A' | 'B' | null);
   if (!context) return null;
 
   const contextText = formatContextForPrompt(context);
@@ -78,15 +80,17 @@ async function buildAdviceContextInternal(
   supabase: Awaited<ReturnType<typeof createClient>>,
   knownCourseId?: string,
   knownStartingCourse?: string,
+  knownActiveGreen?: 'A' | 'B' | null,
 ): Promise<AdviceContext | null> {
 
   // course_idが未知の場合のみラウンド情報を取得
   let courseId = knownCourseId;
   let startingCourse: StartingCourse | null = (knownStartingCourse as StartingCourse) ?? null;
+  let activeGreen: 'A' | 'B' | null = knownActiveGreen ?? null;
   if (!courseId) {
     const { data: round } = await supabase
       .from('rounds')
-      .select('id, course_id, starting_course')
+      .select('id, course_id, starting_course, active_green')
       .eq('id', roundId)
       .eq('user_id', userId)
       .single();
@@ -94,6 +98,7 @@ async function buildAdviceContextInternal(
     if (!round) return null;
     courseId = round.course_id;
     startingCourse = round.starting_course as StartingCourse;
+    activeGreen = (round.active_green as 'A' | 'B' | null) ?? null;
   }
 
   // まずプロファイルを取得（クラブ取得にprofile.idが必要）
@@ -104,7 +109,7 @@ async function buildAdviceContextInternal(
     .single();
 
   // 残りを並列でデータ取得
-  const [clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult, knowledgeResult] = await Promise.all([
+  const [clubsResult, courseResult, holesResult, holeNotesResult, recentRoundsResult, knowledgeResult, holeAreasResult, mapPointsResult] = await Promise.all([
     // クラブ一覧
     profile?.id
       ? supabase
@@ -124,7 +129,7 @@ async function buildAdviceContextInternal(
     // ホール情報
     supabase
       .from('holes')
-      .select('hole_number, par, distance, hdcp, dogleg, elevation, hazard, ob, description')
+      .select('id, hole_number, par, distance, hdcp, dogleg, elevation, hazard, ob, description')
       .eq('course_id', courseId)
       .order('hole_number'),
 
@@ -151,7 +156,27 @@ async function buildAdviceContextInternal(
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(100),
+
+    // ホールエリア情報（OB・バンカー・ハザード・グリーン）
+    supabase
+      .from('hole_areas')
+      .select('*, holes!inner(course_id)')
+      .eq('holes.course_id', courseId)
+      .order('sort_order'),
+
+    // ホールマップポイント（ティー基準点の特定に使用）
+    supabase
+      .from('hole_map_points')
+      .select('*, holes!inner(course_id, hole_number)')
+      .eq('holes.course_id', courseId)
+      .order('hole_number', { referencedTable: 'holes' })
+      .order('sort_order'),
   ]);
+
+  // hole_areas の joined holes カラムを除去
+  const holeAreas = (holeAreasResult.data ?? []).map(({ holes: _holes, ...area }) => area as HoleArea);
+  // map_points の joined holes カラムを除去
+  const mapPoints = (mapPointsResult.data ?? []).map(({ holes: _holes, ...point }) => point as HoleMapPoint);
 
   return {
     profile: profile ?? {},
@@ -162,7 +187,93 @@ async function buildAdviceContextInternal(
     recent_rounds: recentRoundsResult.data ?? [],
     knowledge: knowledgeResult.data ?? [],
     starting_course: startingCourse,
+    hole_areas: holeAreas,
+    map_points: mapPoints,
+    active_green: activeGreen,
   };
+}
+
+/**
+ * ホールエリア情報をAIアドバイス用テキストに変換する。
+ * ティーポイントが提供されている場合は各エリアまでの距離も付与する。
+ * エリアデータが空の場合は空文字列を返す（graceful degradation）。
+ */
+export function buildAreaContext(
+  areas: HoleArea[],
+  teePoint: { lat: number; lng: number } | null,
+  activeGreen: 'A' | 'B' | null,
+): string {
+  if (areas.length === 0) return '';
+  const lines: string[] = [];
+  const M_TO_Y = 1.09361;
+  const toYards = (m: number) => Math.round(m * M_TO_Y);
+
+  // 使用グリーン
+  const greenType = activeGreen === 'B' ? 'green_b' : 'green_a';
+  const greenArea = areas.find((a) => a.area_type === greenType);
+  if (greenArea) {
+    const label = activeGreen ? `${activeGreen}グリーン` : 'グリーン';
+    if (teePoint) {
+      const dist = calcDistanceToPolygon(teePoint, greenArea.coordinates);
+      if (isFinite(dist)) {
+        lines.push(`使用グリーン: ${label}（ティーから約${toYards(dist)}y）`);
+      } else {
+        lines.push(`使用グリーン: ${label}`);
+      }
+    } else {
+      lines.push(`使用グリーン: ${label}`);
+    }
+  }
+
+  // OBライン
+  const obLines = areas.filter((a) => a.area_type === 'ob_line');
+  for (const ob of obLines) {
+    const label = ob.name ?? 'OBライン';
+    if (teePoint) {
+      const dist = calcDistanceToPolygon(teePoint, ob.coordinates);
+      if (isFinite(dist)) {
+        lines.push(`${label}: 約${toYards(dist)}y`);
+      } else {
+        lines.push(label);
+      }
+    } else {
+      lines.push(label);
+    }
+  }
+
+  // バンカー
+  const bunkers = areas.filter((a) => a.area_type === 'bunker');
+  if (bunkers.length > 0 && teePoint) {
+    const dists = bunkers
+      .map((b) => calcDistanceToPolygon(teePoint, b.coordinates))
+      .filter(isFinite)
+      .sort((a, b) => a - b);
+    if (dists.length > 0) {
+      lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${toYards(dists[0])}y）`);
+    } else {
+      lines.push(`バンカー: ${bunkers.length}箇所`);
+    }
+  } else if (bunkers.length > 0) {
+    lines.push(`バンカー: ${bunkers.length}箇所`);
+  }
+
+  // ハザード
+  const hazards = areas.filter((a) => a.area_type === 'hazard');
+  if (hazards.length > 0 && teePoint) {
+    const dists = hazards
+      .map((h) => calcDistanceToPolygon(teePoint, h.coordinates))
+      .filter(isFinite)
+      .sort((a, b) => a - b);
+    if (dists.length > 0) {
+      lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${toYards(dists[0])}y）`);
+    } else {
+      lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
+    }
+  } else if (hazards.length > 0) {
+    lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -171,6 +282,12 @@ async function buildAdviceContextInternal(
  */
 export function formatContextForPrompt(context: AdviceContext): string {
   const sections: string[] = [];
+
+  // プレー順（ホール情報・エリア情報で共用）
+  const holes = context.holes as Record<string, unknown>[];
+  const holeOrder = context.starting_course === 'in'
+    ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
+    : holes;
 
   // プロファイル
   const p = context.profile as Record<string, unknown>;
@@ -223,10 +340,6 @@ export function formatContextForPrompt(context: AdviceContext): string {
 
   // ホール情報（プレー順に並び替え）
   if (context.holes.length > 0) {
-    const holes = context.holes as Record<string, unknown>[];
-    const holeOrder = context.starting_course === 'in'
-      ? [...holes.filter(h => (h.hole_number as number) >= 10), ...holes.filter(h => (h.hole_number as number) < 10)]
-      : holes;
     const lines = [`## ホール情報（${context.starting_course === 'in' ? 'INスタート: 10→18→1→9の順' : 'OUTスタート: 1→9→10→18の順'}）`];
     for (const [i, h] of holeOrder.entries()) {
       let line = `- [${i + 1}番目] Hole ${h.hole_number}: Par${h.par}`;
@@ -240,6 +353,42 @@ export function formatContextForPrompt(context: AdviceContext): string {
       lines.push(line);
     }
     sections.push(lines.join('\n'));
+  }
+
+  // ホールエリア情報（GPSマップデータ）
+  if (context.hole_areas.length > 0 && context.holes.length > 0) {
+    // hole_id -> tee_reference_point マッピング
+    const teeByHoleId = new Map<string, { lat: number; lng: number }>();
+    for (const mp of context.map_points) {
+      if (mp.is_tee_reference && !teeByHoleId.has(mp.hole_id)) {
+        teeByHoleId.set(mp.hole_id, { lat: mp.lat, lng: mp.lng });
+      }
+    }
+    // hole_id -> areas マッピング
+    const areasByHoleId = new Map<string, typeof context.hole_areas>();
+    for (const area of context.hole_areas) {
+      const list = areasByHoleId.get(area.hole_id) ?? [];
+      list.push(area);
+      areasByHoleId.set(area.hole_id, list);
+    }
+
+    const areaLines: string[] = ['## ホールエリア情報（GPSマップデータ）'];
+    for (const h of holeOrder) {
+      const holeId = h.id as string;
+      const holeNumber = h.hole_number as number;
+      const holeAreas = areasByHoleId.get(holeId);
+      if (!holeAreas || holeAreas.length === 0) continue;
+      const teePoint = teeByHoleId.get(holeId) ?? null;
+      const areaText = buildAreaContext(holeAreas, teePoint, context.active_green);
+      if (!areaText) continue;
+      areaLines.push(`- Hole ${holeNumber}:`);
+      for (const line of areaText.split('\n')) {
+        areaLines.push(`  ${line}`);
+      }
+    }
+    if (areaLines.length > 1) {
+      sections.push(areaLines.join('\n'));
+    }
   }
 
   // ホール別メモ

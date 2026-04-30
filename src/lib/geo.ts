@@ -118,6 +118,24 @@ export function haversineDistance(
 }
 
 /**
+ * ある点からポリゴン/ポリラインの最近接点までの距離（メートル）を返す。
+ * coords が空の場合は Infinity を返す。
+ * 注: 各頂点との最短距離を計算。辺の中点が最近接点の場合は実際の距離より大きくなる可能性があるが、AIアドバイス用概算として許容
+ */
+export function calcDistanceToPolygon(
+  point: { lat: number; lng: number },
+  coords: { lat: number; lng: number }[],
+): number {
+  if (coords.length === 0) return Infinity;
+  let minDist = Infinity;
+  for (const c of coords) {
+    const d = haversineDistance(point, c);
+    if (d < minDist) minDist = d;
+  }
+  return Math.round(minDist);
+}
+
+/**
  * Effective felt distance accounting for elevation change.
  * 1m of elevation change ≈ 1m of effective distance (linear approximation).
  * elevDiff = destination elevation - source elevation (positive = uphill).

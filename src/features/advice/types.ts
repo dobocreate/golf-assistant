@@ -1,5 +1,6 @@
 import type { ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
 import type { StartingCourse } from '@/features/round/types';
+import type { HoleArea, HoleMapPoint } from '@/lib/geo';
 
 export type SlopeFB = ShotSlopeFB;
 export type SlopeLR = ShotSlopeLR;
@@ -30,4 +31,10 @@ export interface AdviceContext {
   recent_rounds: Record<string, unknown>[];
   knowledge: KnowledgeContext[];
   starting_course: StartingCourse | null;
+  /** ホールエリア情報（hole_areas テーブル、未登録の場合は空配列） */
+  hole_areas: HoleArea[];
+  /** ホールマップポイント（ティー基準点の特定に使用） */
+  map_points: HoleMapPoint[];
+  /** 使用グリーン（ツーグリーン制コースのみ） */
+  active_green: 'A' | 'B' | null;
 }
