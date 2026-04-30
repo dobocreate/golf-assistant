@@ -108,8 +108,9 @@ export async function getHoleAreasForCourse(courseId: string): Promise<HoleArea[
 
   const { data, error } = await supabase
     .from('hole_areas')
-    .select('*, holes!inner(course_id)')
+    .select('*, holes!inner(course_id, hole_number)')
     .eq('holes.course_id', courseId)
+    .order('hole_number', { referencedTable: 'holes' })
     .order('sort_order');
 
   if (error) {
