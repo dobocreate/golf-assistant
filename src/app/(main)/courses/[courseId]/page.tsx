@@ -48,10 +48,10 @@ export default async function CourseDetailPage({
         )}
         <div>
           <h1 className="text-2xl font-bold">{course.name}</h1>
-          {course.prefecture && (
+          {course.address && (
             <p className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mt-1">
               <MapPin className="h-3.5 w-3.5" />
-              {course.prefecture} {course.address}
+              {course.address}
             </p>
           )}
         </div>
