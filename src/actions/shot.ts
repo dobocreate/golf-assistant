@@ -99,6 +99,16 @@ export async function recordShot(data: {
   remainingDistance: number | null;
   note?: string | null;
   elevation?: string | null;
+  // GPS ショット位置記録（Sprint 5 PR2）
+  latitude?: number | null;
+  longitude?: number | null;
+  gpsAccuracyM?: number | null;
+  capturedAt?: string | null;
+  autoLie?: string | null;
+  remainingToGreenM?: number | null;
+  gpsSource?: string | null;
+  autoLieConfidence?: string | null;
+  autoLieCalculatedAt?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -149,6 +159,16 @@ export async function recordShot(data: {
       remaining_distance: data.remainingDistance,
       note,
       elevation: data.elevation ?? null,
+      // GPS ショット位置記録（Sprint 5 PR2）
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+      gps_accuracy_m: data.gpsAccuracyM ?? null,
+      captured_at: data.capturedAt ?? null,
+      auto_lie: data.autoLie ?? null,
+      remaining_to_green_m: data.remainingToGreenM ?? null,
+      gps_source: data.gpsSource ?? 'gps',
+      auto_lie_confidence: data.autoLieConfidence ?? null,
+      auto_lie_calculated_at: data.autoLieCalculatedAt ?? null,
     })
     .select('*')
     .single();
@@ -175,6 +195,19 @@ export async function updateShot(data: {
   remainingDistance: number | null;
   note?: string | null;
   elevation?: string | null;
+  // GPS ショット位置記録（Sprint 5 PR2）— undefined は「変更なし」、null は「明示的にクリア」
+  latitude?: number | null;
+  longitude?: number | null;
+  gpsAccuracyM?: number | null;
+  capturedAt?: string | null;
+  autoLie?: string | null;
+  remainingToGreenM?: number | null;
+  gpsSource?: string | null;
+  originalLatitude?: number | null;
+  originalLongitude?: number | null;
+  editedAt?: string | null;
+  autoLieConfidence?: string | null;
+  autoLieCalculatedAt?: string | null;
 }): Promise<{ error?: string; shot?: Shot }> {
   const user = await getAuthenticatedUser();
   if (!user) return { error: 'ログインが必要です。' };
@@ -201,23 +234,39 @@ export async function updateShot(data: {
   const note = data.note?.trim() || null;
   if (note !== null && note.length > SHOT_NOTE_MAX_LENGTH) return { error: `メモは${SHOT_NOTE_MAX_LENGTH}文字以内で入力してください。` };
 
+  // GPS 関連フィールドは undefined（=送信なし）のキーは update から除外する
+  // これにより GPS を意図的にクリアする場合は明示 null を送れる
+  const updatePayload: Record<string, unknown> = {
+    club: data.club,
+    result: data.result,
+    miss_type: data.missType,
+    direction_lr: data.directionLr,
+    direction_fb: data.directionFb,
+    lie: data.lie,
+    slope_fb: data.slopeFb,
+    slope_lr: data.slopeLr,
+    landing: data.landing,
+    shot_type: data.shotType,
+    remaining_distance: data.remainingDistance,
+    note,
+    elevation: data.elevation ?? null,
+  };
+  if (data.latitude !== undefined) updatePayload.latitude = data.latitude;
+  if (data.longitude !== undefined) updatePayload.longitude = data.longitude;
+  if (data.gpsAccuracyM !== undefined) updatePayload.gps_accuracy_m = data.gpsAccuracyM;
+  if (data.capturedAt !== undefined) updatePayload.captured_at = data.capturedAt;
+  if (data.autoLie !== undefined) updatePayload.auto_lie = data.autoLie;
+  if (data.remainingToGreenM !== undefined) updatePayload.remaining_to_green_m = data.remainingToGreenM;
+  if (data.gpsSource !== undefined) updatePayload.gps_source = data.gpsSource;
+  if (data.originalLatitude !== undefined) updatePayload.original_latitude = data.originalLatitude;
+  if (data.originalLongitude !== undefined) updatePayload.original_longitude = data.originalLongitude;
+  if (data.editedAt !== undefined) updatePayload.edited_at = data.editedAt;
+  if (data.autoLieConfidence !== undefined) updatePayload.auto_lie_confidence = data.autoLieConfidence;
+  if (data.autoLieCalculatedAt !== undefined) updatePayload.auto_lie_calculated_at = data.autoLieCalculatedAt;
+
   const { data: shot, error } = await supabase
     .from('shots')
-    .update({
-      club: data.club,
-      result: data.result,
-      miss_type: data.missType,
-      direction_lr: data.directionLr,
-      direction_fb: data.directionFb,
-      lie: data.lie,
-      slope_fb: data.slopeFb,
-      slope_lr: data.slopeLr,
-      landing: data.landing,
-      shot_type: data.shotType,
-      remaining_distance: data.remainingDistance,
-      note,
-      elevation: data.elevation ?? null,
-    })
+    .update(updatePayload)
     .eq('id', data.shotId)
     .eq('round_id', data.roundId)
     .select('*')
@@ -390,6 +439,20 @@ export async function saveShotsForHole(data: {
     windDirection: string | null;
     windStrength: string | null;
     elevation: string | null;
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude?: number | null;
+    longitude?: number | null;
+    gpsAccuracyM?: number | null;
+    capturedAt?: string | null;
+    autoLie?: string | null;
+    remainingToGreenM?: number | null;
+    gpsSource?: string | null;
+    originalLatitude?: number | null;
+    originalLongitude?: number | null;
+    editedAt?: string | null;
+    autoLieConfidence?: string | null;
+    positionRevision?: number | null;
+    autoLieCalculatedAt?: string | null;
   }>;
   skipRevalidate?: boolean;
 }): Promise<{ error?: string; shots?: Shot[] }> {
@@ -448,6 +511,20 @@ export async function saveShotsForHole(data: {
     wind_direction: s.windDirection ?? null,
     wind_strength: s.windStrength ?? null,
     elevation: s.elevation ?? null,
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude: s.latitude ?? null,
+    longitude: s.longitude ?? null,
+    gps_accuracy_m: s.gpsAccuracyM ?? null,
+    captured_at: s.capturedAt ?? null,
+    auto_lie: s.autoLie ?? null,
+    remaining_to_green_m: s.remainingToGreenM ?? null,
+    gps_source: s.gpsSource ?? 'gps',
+    original_latitude: s.originalLatitude ?? null,
+    original_longitude: s.originalLongitude ?? null,
+    edited_at: s.editedAt ?? null,
+    auto_lie_confidence: s.autoLieConfidence ?? null,
+    position_revision: s.positionRevision ?? 0,
+    auto_lie_calculated_at: s.autoLieCalculatedAt ?? null,
   }));
 
   const { error: upsertErr } = await supabase
@@ -490,6 +567,20 @@ export async function replaceShotsForHole(data: {
     windDirection: string | null;
     windStrength: string | null;
     elevation: string | null;
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude?: number | null;
+    longitude?: number | null;
+    gpsAccuracyM?: number | null;
+    capturedAt?: string | null;
+    autoLie?: string | null;
+    remainingToGreenM?: number | null;
+    gpsSource?: string | null;
+    originalLatitude?: number | null;
+    originalLongitude?: number | null;
+    editedAt?: string | null;
+    autoLieConfidence?: string | null;
+    positionRevision?: number | null;
+    autoLieCalculatedAt?: string | null;
   }>;
   skipRevalidate?: boolean;
 }): Promise<{ error?: string; shots?: Shot[] }> {
@@ -548,6 +639,20 @@ export async function replaceShotsForHole(data: {
     wind_direction: s.windDirection ?? null,
     wind_strength: s.windStrength ?? null,
     elevation: s.elevation ?? null,
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude: s.latitude ?? null,
+    longitude: s.longitude ?? null,
+    gps_accuracy_m: s.gpsAccuracyM ?? null,
+    captured_at: s.capturedAt ?? null,
+    auto_lie: s.autoLie ?? null,
+    remaining_to_green_m: s.remainingToGreenM ?? null,
+    gps_source: s.gpsSource ?? 'gps',
+    original_latitude: s.originalLatitude ?? null,
+    original_longitude: s.originalLongitude ?? null,
+    edited_at: s.editedAt ?? null,
+    auto_lie_confidence: s.autoLieConfidence ?? null,
+    position_revision: s.positionRevision ?? 0,
+    auto_lie_calculated_at: s.autoLieCalculatedAt ?? null,
   }));
 
   const { data: insertedShots, error: rpcErr } = await supabase

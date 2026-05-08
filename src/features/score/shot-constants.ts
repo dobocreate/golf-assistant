@@ -64,6 +64,20 @@ export function emptyShotForm(): ShotFormState {
     windDirection: null,
     windStrength: null,
     elevation: null,
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude: null,
+    longitude: null,
+    gpsAccuracyM: null,
+    capturedAt: null,
+    autoLie: null,
+    remainingToGreenM: null,
+    gpsSource: null,
+    originalLatitude: null,
+    originalLongitude: null,
+    editedAt: null,
+    autoLieConfidence: null,
+    positionRevision: 0,
+    autoLieCalculatedAt: null,
   };
 }
 
@@ -86,6 +100,20 @@ export function shotToForm(shot: Shot): ShotFormState {
     windDirection: shot.wind_direction,
     windStrength: shot.wind_strength,
     elevation: shot.elevation,
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude: shot.latitude,
+    longitude: shot.longitude,
+    gpsAccuracyM: shot.gps_accuracy_m,
+    capturedAt: shot.captured_at,
+    autoLie: shot.auto_lie,
+    remainingToGreenM: shot.remaining_to_green_m,
+    gpsSource: shot.gps_source,
+    originalLatitude: shot.original_latitude,
+    originalLongitude: shot.original_longitude,
+    editedAt: shot.edited_at,
+    autoLieConfidence: shot.auto_lie_confidence,
+    positionRevision: shot.position_revision,
+    autoLieCalculatedAt: shot.auto_lie_calculated_at,
   };
 }
 
@@ -107,11 +135,32 @@ export function hasFormChanged(form: ShotFormState, shot: Shot): boolean {
     form.note !== shot.note ||
     form.windDirection !== shot.wind_direction ||
     form.windStrength !== shot.wind_strength ||
-    form.elevation !== shot.elevation
+    form.elevation !== shot.elevation ||
+    // GPS ショット位置記録（Sprint 5 PR2）
+    form.latitude !== shot.latitude ||
+    form.longitude !== shot.longitude ||
+    form.gpsAccuracyM !== shot.gps_accuracy_m ||
+    form.capturedAt !== shot.captured_at ||
+    form.autoLie !== shot.auto_lie ||
+    form.remainingToGreenM !== shot.remaining_to_green_m ||
+    form.gpsSource !== shot.gps_source ||
+    form.originalLatitude !== shot.original_latitude ||
+    form.originalLongitude !== shot.original_longitude ||
+    form.editedAt !== shot.edited_at ||
+    form.autoLieConfidence !== shot.auto_lie_confidence ||
+    form.positionRevision !== shot.position_revision ||
+    form.autoLieCalculatedAt !== shot.auto_lie_calculated_at
   );
 }
 
-/** 全フィールドnullのフォームは保存しない */
+/** 全フィールドnullのフォームは保存しない（位置情報のみあるケースも保存対象） */
 export function shouldSaveForm(form: ShotFormState): boolean {
-  return !!(form.club || form.result || form.shotType || form.lie || form.remainingDistance != null || form.directionLr || form.note || form.puttDistanceCategory || form.puttDistanceMeters != null || form.windDirection || form.windStrength || form.elevation);
+  return !!(
+    form.club || form.result || form.shotType || form.lie ||
+    form.remainingDistance != null || form.directionLr || form.note ||
+    form.puttDistanceCategory || form.puttDistanceMeters != null ||
+    form.windDirection || form.windStrength || form.elevation ||
+    // GPS 位置だけでも保存対象（「ここから打った」だけ押した状態）
+    form.latitude != null || form.longitude != null
+  );
 }

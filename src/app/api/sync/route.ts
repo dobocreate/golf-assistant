@@ -40,6 +40,20 @@ interface SyncRequestBody {
     windDirection: string | null;
     windStrength: string | null;
     elevation: string | null;
+    // GPS ショット位置記録（Sprint 5 PR2）
+    latitude?: number | null;
+    longitude?: number | null;
+    gpsAccuracyM?: number | null;
+    capturedAt?: string | null;
+    autoLie?: string | null;
+    remainingToGreenM?: number | null;
+    gpsSource?: string | null;
+    originalLatitude?: number | null;
+    originalLongitude?: number | null;
+    editedAt?: string | null;
+    autoLieConfidence?: string | null;
+    positionRevision?: number | null;
+    autoLieCalculatedAt?: string | null;
   }>;
   companions?: Array<{
     companionId: string;
@@ -169,6 +183,20 @@ export async function POST(request: Request) {
             wind_direction: s.windDirection,
             wind_strength: s.windStrength,
             elevation: s.elevation,
+            // GPS ショット位置記録（Sprint 5 PR2）
+            latitude: s.latitude ?? null,
+            longitude: s.longitude ?? null,
+            gps_accuracy_m: s.gpsAccuracyM ?? null,
+            captured_at: s.capturedAt ?? null,
+            auto_lie: s.autoLie ?? null,
+            remaining_to_green_m: s.remainingToGreenM ?? null,
+            gps_source: s.gpsSource ?? 'gps',
+            original_latitude: s.originalLatitude ?? null,
+            original_longitude: s.originalLongitude ?? null,
+            edited_at: s.editedAt ?? null,
+            auto_lie_confidence: s.autoLieConfidence ?? null,
+            position_revision: s.positionRevision ?? 0,
+            auto_lie_calculated_at: s.autoLieCalculatedAt ?? null,
           })),
         });
 
