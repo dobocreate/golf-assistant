@@ -172,10 +172,21 @@ export async function POST(request: Request) {
           })),
         });
 
-        result.shots = rpcError
-          ? { success: false, error: 'ショットの保存に失敗しました。' }
-          : { success: true };
-      } catch {
+        if (rpcError) {
+          console.error('replace_shots_for_hole RPC failed:', rpcError);
+          const isForbidden =
+            rpcError.code === 'P0001' && rpcError.message?.startsWith('forbidden');
+          result.shots = {
+            success: false,
+            error: isForbidden
+              ? '権限がないか、対象ラウンドを編集できません。'
+              : 'ショットの保存に失敗しました。',
+          };
+        } else {
+          result.shots = { success: true };
+        }
+      } catch (err) {
+        console.error('replace_shots_for_hole RPC threw:', err);
         result.shots = { success: false, error: 'ショットの保存に失敗しました。' };
       }
     }
@@ -193,10 +204,21 @@ export async function POST(request: Request) {
           })),
         });
 
-        result.companions = rpcError
-          ? { success: false, error: '同伴者スコアの保存に失敗しました。' }
-          : { success: true };
-      } catch {
+        if (rpcError) {
+          console.error('replace_companion_scores_for_hole RPC failed:', rpcError);
+          const isForbidden =
+            rpcError.code === 'P0001' && rpcError.message?.startsWith('forbidden');
+          result.companions = {
+            success: false,
+            error: isForbidden
+              ? '権限がないか、対象ラウンドを編集できません。'
+              : '同伴者スコアの保存に失敗しました。',
+          };
+        } else {
+          result.companions = { success: true };
+        }
+      } catch (err) {
+        console.error('replace_companion_scores_for_hole RPC threw:', err);
         result.companions = { success: false, error: '同伴者スコアの保存に失敗しました。' };
       }
     }
