@@ -13,10 +13,17 @@ export interface LocalScore extends Score {
   syncedVersion: number;
 }
 
+// LocalShot のスキーマ版（Sprint 5 PR2 で 2 へ bump）
+// - v1: Sprint 5 以前（GPS 列なし）
+// - v2: GPS ショット位置記録カラム追加
+// 旧 LocalShot を読み込んだ時に runtime migration で書き戻す（migrate-local-shots.ts 参照）
+export const LOCAL_SHOT_SCHEMA_VERSION = 2;
+
 export interface LocalShot extends Shot {
   clientId: string;
   version: number;
   syncedVersion: number;
+  schemaVersion?: number;
 }
 
 // --- Key types ---

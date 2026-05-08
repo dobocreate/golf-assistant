@@ -3,6 +3,7 @@
 import {
   getFromDataStore,
   setToDataStore,
+  LOCAL_SHOT_SCHEMA_VERSION,
   type LocalScore,
   type LocalShot,
 } from '@/lib/offline-store';
@@ -120,9 +121,24 @@ export async function migrateFromSessionStorage(
     for (const [holeNumber, shots] of sessionShots) {
       const localHoleShots: LocalShot[] = shots.map((shot) => ({
         ...shot,
+        // Sprint 5 PR2: 旧 sessionStorage は GPS 列を持たないため null 補完
+        latitude: shot.latitude ?? null,
+        longitude: shot.longitude ?? null,
+        gps_accuracy_m: shot.gps_accuracy_m ?? null,
+        captured_at: shot.captured_at ?? null,
+        auto_lie: shot.auto_lie ?? null,
+        remaining_to_green_m: shot.remaining_to_green_m ?? null,
+        gps_source: shot.gps_source ?? null,
+        original_latitude: shot.original_latitude ?? null,
+        original_longitude: shot.original_longitude ?? null,
+        edited_at: shot.edited_at ?? null,
+        auto_lie_confidence: shot.auto_lie_confidence ?? null,
+        position_revision: shot.position_revision ?? 0,
+        auto_lie_calculated_at: shot.auto_lie_calculated_at ?? null,
         clientId: shot.id || crypto.randomUUID(),
         version: 1,
         syncedVersion: shot.id ? 1 : 0, // If it has an ID, it was saved to DB
+        schemaVersion: LOCAL_SHOT_SCHEMA_VERSION,
       }));
       localShots.set(holeNumber, localHoleShots);
     }
