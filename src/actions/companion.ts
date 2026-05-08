@@ -244,7 +244,13 @@ export async function replaceCompanionScoresForHole(data: {
       p_scores: scoresJson,
     });
 
-  if (rpcErr) return { error: '同伴者スコアの保存に失敗しました。' };
+  if (rpcErr) {
+    console.error('replace_companion_scores_for_hole RPC failed:', rpcErr);
+    if (rpcErr.code === 'P0001' && rpcErr.message?.startsWith('forbidden')) {
+      return { error: '権限がないか、対象ラウンドを編集できません。' };
+    }
+    return { error: '同伴者スコアの保存に失敗しました。' };
+  }
 
   if (!data.skipRevalidate) {
     revalidatePath(`/play/${data.roundId}/scorecard`);

@@ -139,29 +139,26 @@ export function latLngToPixel(
   };
 }
 
-export type HoleAreaType = 'ob_line' | 'bunker' | 'hazard' | 'green_a' | 'green_b';
+export type HoleAreaType =
+  | 'ob_line'
+  | 'bunker'
+  | 'hazard'
+  | 'green_a'
+  | 'green_b'
+  | 'water_pond'
+  | 'water_river'
+  | 'fairway';
 
-export type HoleArea =
-  | {
-      id: string;
-      hole_id: string;
-      area_type: 'ob_line';
-      coordinates: { lat: number; lng: number }[];
-      name: string;
-      sort_order: number;
-      created_at: string;
-      updated_at: string;
-    }
-  | {
-      id: string;
-      hole_id: string;
-      area_type: 'bunker' | 'hazard' | 'green_a' | 'green_b';
-      coordinates: { lat: number; lng: number }[];
-      name: string | null;
-      sort_order: number;
-      created_at: string;
-      updated_at: string;
-    };
+export interface HoleArea {
+  id: string;
+  hole_id: string;
+  area_type: HoleAreaType;
+  coordinates: { lat: number; lng: number }[];
+  name: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * コースがツーグリーン制かどうかを判定する。

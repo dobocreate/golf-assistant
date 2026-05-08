@@ -557,7 +557,13 @@ export async function replaceShotsForHole(data: {
       p_shots: shotsJson,
     });
 
-  if (rpcErr) return { error: 'ショットの保存に失敗しました。' };
+  if (rpcErr) {
+    console.error('replace_shots_for_hole RPC failed:', rpcErr);
+    if (rpcErr.code === 'P0001' && rpcErr.message?.startsWith('forbidden')) {
+      return { error: '権限がないか、対象ラウンドを編集できません。' };
+    }
+    return { error: 'ショットの保存に失敗しました。' };
+  }
 
   if (!data.skipRevalidate) {
     revalidatePath(`/play/${data.roundId}/score`);
