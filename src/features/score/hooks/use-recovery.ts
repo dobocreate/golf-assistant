@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOfflineStore } from './use-offline-store';
 import { migrateFromSessionStorage } from './migrate-session-storage';
+import { migrateLocalShotsToCurrentSchema } from './migrate-local-shots';
 import { syncQueue } from '@/lib/sync-queue';
 import type { LocalScore } from '@/lib/offline-store';
 import type { Score } from '@/features/score/types';
@@ -35,6 +36,10 @@ export function useRecovery(roundId: string, serverScores: Score[]) {
       try {
         // Step 1: sessionStorage migration (safe no-op if already done)
         await migrateFromSessionStorage(roundId, serverScores);
+
+        // Step 1b: LocalShot schema migration (Sprint 5 PR2)
+        // 旧 LocalShot に GPS 列を null 補完し、旧 sync queue payload を破棄
+        await migrateLocalShotsToCurrentSchema();
 
         // Step 2: check for unsynced data
         const hasUnsynced = await offlineStore.hasUnsyncedData();
@@ -114,6 +119,20 @@ export function useRecovery(roundId: string, serverScores: Score[]) {
                       windDirection: s.wind_direction,
                       windStrength: s.wind_strength,
                       elevation: s.elevation,
+                      // GPS ショット位置記録（Sprint 5 PR2）
+                      latitude: s.latitude,
+                      longitude: s.longitude,
+                      gpsAccuracyM: s.gps_accuracy_m,
+                      capturedAt: s.captured_at,
+                      autoLie: s.auto_lie,
+                      remainingToGreenM: s.remaining_to_green_m,
+                      gpsSource: s.gps_source,
+                      originalLatitude: s.original_latitude,
+                      originalLongitude: s.original_longitude,
+                      editedAt: s.edited_at,
+                      autoLieConfidence: s.auto_lie_confidence,
+                      positionRevision: s.position_revision,
+                      autoLieCalculatedAt: s.auto_lie_calculated_at,
                     })),
                   },
                   roundId,

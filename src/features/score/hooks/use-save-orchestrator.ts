@@ -7,6 +7,7 @@ import { syncQueue } from '@/lib/sync-queue';
 import {
   getFromDataStore,
   setToDataStore,
+  LOCAL_SHOT_SCHEMA_VERSION,
   type LocalScore,
   type LocalShot,
 } from '@/lib/offline-store';
@@ -143,8 +144,10 @@ async function flushShotsToIDB(
     ? Math.max(0, ...existing.map((s) => s.version))
     : 0;
   // Only increment version when shots actually changed (compare all fields)
+  // schemaVersion も除外: schemaVersion は migration のメタデータで shot 内容ではないため、
+  // 異なる schemaVersion の比較で hasChanged が誤判定されないようにする
   const stripVersionFields = (s: LocalShot) => {
-    const { version: _v, syncedVersion: _sv, ...rest } = s;
+    const { version: _v, syncedVersion: _sv, schemaVersion: _sch, ...rest } = s;
     return rest;
   };
   const hasChanged = !existing
@@ -155,6 +158,7 @@ async function flushShotsToIDB(
     ...s,
     version: nextVersion,
     syncedVersion: s.syncedVersion ?? 0,
+    schemaVersion: LOCAL_SHOT_SCHEMA_VERSION,
   }));
   all.set(holeNumber, versioned);
   await setToDataStore(key, all);

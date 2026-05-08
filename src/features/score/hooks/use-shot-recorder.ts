@@ -437,6 +437,20 @@ export function useShotRecorder(
       wind_direction: form.windDirection,
       wind_strength: form.windStrength,
       elevation: form.elevation,
+      // GPS ショット位置記録（Sprint 5 PR2）
+      latitude: form.latitude,
+      longitude: form.longitude,
+      gps_accuracy_m: form.gpsAccuracyM,
+      captured_at: form.capturedAt,
+      auto_lie: form.autoLie,
+      remaining_to_green_m: form.remainingToGreenM,
+      gps_source: form.gpsSource,
+      original_latitude: form.originalLatitude,
+      original_longitude: form.originalLongitude,
+      edited_at: form.editedAt,
+      auto_lie_confidence: form.autoLieConfidence,
+      position_revision: form.positionRevision,
+      auto_lie_calculated_at: form.autoLieCalculatedAt,
     };
 
     // パット距離は scores.first_putt_distance(_m) に別経路で保存する
@@ -471,6 +485,20 @@ export function useShotRecorder(
       wind_strength: form.windStrength,
       elevation: form.elevation,
       advice_text: stateRef.current.adviceByHole.get(holeNumberRef.current)?.get(index) ?? existingShot.advice_text,
+      // GPS ショット位置記録（Sprint 5 PR2）
+      latitude: form.latitude,
+      longitude: form.longitude,
+      gps_accuracy_m: form.gpsAccuracyM,
+      captured_at: form.capturedAt,
+      auto_lie: form.autoLie,
+      remaining_to_green_m: form.remainingToGreenM,
+      gps_source: form.gpsSource,
+      original_latitude: form.originalLatitude,
+      original_longitude: form.originalLongitude,
+      edited_at: form.editedAt,
+      auto_lie_confidence: form.autoLieConfidence,
+      position_revision: form.positionRevision,
+      auto_lie_calculated_at: form.autoLieCalculatedAt,
     };
 
     // パット距離は scores.first_putt_distance(_m) に別経路で保存する
@@ -545,6 +573,20 @@ export function useShotRecorder(
         wind_strength: form.windStrength,
         elevation: form.elevation,
         advice_text: advice ?? shot.advice_text,
+        // GPS ショット位置記録（Sprint 5 PR2）
+        latitude: form.latitude,
+        longitude: form.longitude,
+        gps_accuracy_m: form.gpsAccuracyM,
+        captured_at: form.capturedAt,
+        auto_lie: form.autoLie,
+        remaining_to_green_m: form.remainingToGreenM,
+        gps_source: form.gpsSource,
+        original_latitude: form.originalLatitude,
+        original_longitude: form.originalLongitude,
+        edited_at: form.editedAt,
+        auto_lie_confidence: form.autoLieConfidence,
+        position_revision: form.positionRevision,
+        auto_lie_calculated_at: form.autoLieCalculatedAt,
       } : shot;
       result.push({
         ...base,
@@ -584,6 +626,20 @@ export function useShotRecorder(
           wind_direction: form.windDirection,
           wind_strength: form.windStrength,
           elevation: form.elevation,
+          // GPS ショット位置記録（Sprint 5 PR2）
+          latitude: form.latitude,
+          longitude: form.longitude,
+          gps_accuracy_m: form.gpsAccuracyM,
+          captured_at: form.capturedAt,
+          auto_lie: form.autoLie,
+          remaining_to_green_m: form.remainingToGreenM,
+          gps_source: form.gpsSource,
+          original_latitude: form.originalLatitude,
+          original_longitude: form.originalLongitude,
+          edited_at: form.editedAt,
+          auto_lie_confidence: form.autoLieConfidence,
+          position_revision: form.positionRevision,
+          auto_lie_calculated_at: form.autoLieCalculatedAt,
           clientId: crypto.randomUUID(),
           version: 0,
           syncedVersion: 0,
@@ -621,6 +677,20 @@ export function useShotRecorder(
         windDirection: s.wind_direction,
         windStrength: s.wind_strength,
         elevation: s.elevation,
+        // GPS ショット位置記録（Sprint 5 PR2）
+        latitude: s.latitude,
+        longitude: s.longitude,
+        gpsAccuracyM: s.gps_accuracy_m,
+        capturedAt: s.captured_at,
+        autoLie: s.auto_lie,
+        remainingToGreenM: s.remaining_to_green_m,
+        gpsSource: s.gps_source,
+        originalLatitude: s.original_latitude,
+        originalLongitude: s.original_longitude,
+        editedAt: s.edited_at,
+        autoLieConfidence: s.auto_lie_confidence,
+        positionRevision: s.position_revision,
+        autoLieCalculatedAt: s.auto_lie_calculated_at,
       })),
     };
   }, [getShotsForHoleLocal]);
@@ -731,5 +801,21 @@ function formToPayload(form: ShotFormState) {
     windDirection: form.windDirection,
     windStrength: form.windStrength,
     elevation: form.elevation,
+    // GPS ショット位置記録（Sprint 5 PR2）
+    // useOrchestratorSave=false の legacy 経路から saveShotsForHole に渡されるため、
+    // 主経路と同じ列を確実に通す
+    latitude: form.latitude,
+    longitude: form.longitude,
+    gpsAccuracyM: form.gpsAccuracyM,
+    capturedAt: form.capturedAt,
+    autoLie: form.autoLie,
+    remainingToGreenM: form.remainingToGreenM,
+    gpsSource: form.gpsSource,
+    originalLatitude: form.originalLatitude,
+    originalLongitude: form.originalLongitude,
+    editedAt: form.editedAt,
+    autoLieConfidence: form.autoLieConfidence,
+    positionRevision: form.positionRevision,
+    autoLieCalculatedAt: form.autoLieCalculatedAt,
   };
 }
