@@ -64,6 +64,10 @@ export type ShotLanding = 'ob' | 'water' | 'bunker';
 export type ShotType = 'tee_shot' | 'second' | 'approach' | 'putt';
 export type ShotElevation = 'uphill' | 'flat' | 'downhill';
 
+export type AutoLie = 'fairway' | 'rough' | 'bunker' | 'green' | 'ob' | 'water' | 'tee' | 'unknown';
+export type GpsSource = 'gps' | 'manual_edit' | 'manual_pin';
+export type AutoLieConfidence = 'high' | 'medium' | 'low';
+
 export interface Shot {
   id: string;
   round_id: string;
@@ -85,6 +89,20 @@ export interface Shot {
   wind_direction: WindDirection | null;
   wind_strength: WindStrength | null;
   elevation: ShotElevation | null;
+  // GPS ショット位置記録（Sprint 5 PR2）
+  latitude: number | null;
+  longitude: number | null;
+  gps_accuracy_m: number | null;
+  captured_at: string | null;
+  auto_lie: AutoLie | null;
+  remaining_to_green_m: number | null;
+  gps_source: GpsSource | null;
+  original_latitude: number | null;
+  original_longitude: number | null;
+  edited_at: string | null;
+  auto_lie_confidence: AutoLieConfidence | null;
+  position_revision: number;
+  auto_lie_calculated_at: string | null;
 }
 
 export interface ShotFormState {
@@ -105,6 +123,20 @@ export interface ShotFormState {
   windDirection: WindDirection | null;
   windStrength: WindStrength | null;
   elevation: ShotElevation | null;
+  // GPS ショット位置記録（Sprint 5 PR2）
+  latitude: number | null;
+  longitude: number | null;
+  gpsAccuracyM: number | null;
+  capturedAt: string | null;
+  autoLie: AutoLie | null;
+  remainingToGreenM: number | null;
+  gpsSource: GpsSource | null;
+  originalLatitude: number | null;
+  originalLongitude: number | null;
+  editedAt: string | null;
+  autoLieConfidence: AutoLieConfidence | null;
+  positionRevision: number;
+  autoLieCalculatedAt: string | null;
 }
 
 export interface Companion {
