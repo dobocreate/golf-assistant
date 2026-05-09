@@ -322,6 +322,48 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
 }
 
 /** ラウンド全体のショットを一括取得（クライアントサイドキャッシュ用） */
+/**
+ * 指定コースの全ホールについて、認証ユーザーの GPS タグ付きショットを
+ * hole_number ごとにグループ化して取得する。
+ *
+ * Sprint 5 PR4 (S-3b) — コース詳細ページで全 18 ホール分のショットマーカーを
+ * 一度に取得するための効率化版。
+ *
+ * `rounds!inner` join で 1 クエリに集約することで、roundIds が大量になった場合の
+ * URL 長制限リスクと N+1 を回避する。
+ */
+export async function getShotsWithGpsByHoleForCourse(
+  courseId: string,
+): Promise<Map<number, Shot[]>> {
+  const empty = new Map<number, Shot[]>();
+  const user = await getAuthenticatedUser();
+  if (!user) return empty;
+  if (!isValidUUID(courseId)) return empty;
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('shots')
+    .select('*, rounds!inner(user_id, course_id)')
+    .eq('rounds.user_id', user.id)
+    .eq('rounds.course_id', courseId)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('round_id')
+    .order('shot_number');
+
+  const grouped = new Map<number, Shot[]>();
+  for (const row of (data ?? []) as Array<Shot & { rounds?: unknown }>) {
+    // join 用に取得した rounds は Shot 型に含まれないため除去
+    const { rounds: _rounds, ...shot } = row;
+    void _rounds;
+    const arr = grouped.get(shot.hole_number) ?? [];
+    arr.push(shot as Shot);
+    grouped.set(shot.hole_number, arr);
+  }
+  return grouped;
+}
+
 export async function getShotsForRound(roundId: string): Promise<Shot[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];

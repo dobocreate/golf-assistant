@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { getCourseWithHoles } from '@/actions/course';
 import { getMapPointsForCourse, getHoleViewConfigsForCourse, getHoleAreasForCourse } from '@/actions/hole-map';
+import { getShotsWithGpsByHoleForCourse } from '@/actions/shot';
 import { HoleList } from '@/features/course/components/hole-list';
 import { notFound } from 'next/navigation';
 
@@ -15,11 +16,12 @@ export default async function CourseDetailPage({
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(courseId)) notFound();
 
-  const [{ course, holes, holeNotes }, mapPoints, viewConfigs, holeAreas] = await Promise.all([
+  const [{ course, holes, holeNotes }, mapPoints, viewConfigs, holeAreas, shotsByHole] = await Promise.all([
     getCourseWithHoles(courseId),
     getMapPointsForCourse(courseId),
     getHoleViewConfigsForCourse(courseId),
     getHoleAreasForCourse(courseId),
+    getShotsWithGpsByHoleForCourse(courseId),
   ]);
 
   if (!course) {
@@ -61,7 +63,15 @@ export default async function CourseDetailPage({
         <h2 className="text-xl font-bold mb-4">
           ホール情報 {holes.length > 0 && <span className="text-sm font-normal text-gray-500">（{holes.length}ホール）</span>}
         </h2>
-        <HoleList courseId={courseId} holes={holes} holeNotes={holeNotes} mapPoints={mapPoints} viewConfigs={viewConfigs} holeAreas={holeAreas} />
+        <HoleList
+          courseId={courseId}
+          holes={holes}
+          holeNotes={holeNotes}
+          mapPoints={mapPoints}
+          viewConfigs={viewConfigs}
+          holeAreas={holeAreas}
+          shotsByHoleNumber={shotsByHole}
+        />
       </div>
     </div>
   );

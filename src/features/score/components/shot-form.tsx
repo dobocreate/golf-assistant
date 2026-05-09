@@ -10,6 +10,7 @@ import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { ClubOption } from '@/features/score/shot-constants';
 import { ToggleButtonGrid } from '@/components/ui/toggle-button-grid';
 import { SectionHeader } from '@/components/ui/section-header';
+import { ShotPositionRecorder } from './shot-position-recorder';
 
 // --- ToggleButtonGrid用のオプション変換（型安全） ---
 const SHOT_TYPE_TOGGLE = SHOT_TYPE_OPTIONS.map(st => ({ value: st.value as ShotType, label: st.label }));
@@ -56,6 +57,9 @@ export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
     return (
       <div className="p-3 space-y-3 bg-gray-900">
         <SectionHeader>状況</SectionHeader>
+
+        {/* GPS 位置記録（Sprint 5 PR4） */}
+        <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} />
 
         {/* ショット種別（パットから他への切替用） */}
         <div className="space-y-1">
@@ -200,6 +204,9 @@ export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
       )}
 
       <SectionHeader>状況</SectionHeader>
+
+      {/* GPS 位置記録（Sprint 5 PR4） */}
+      <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} />
 
       {/* ショット種別 */}
       <div className="space-y-1">

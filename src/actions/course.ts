@@ -39,6 +39,63 @@ export async function getSavedCourses(): Promise<Course[]> {
   return data ?? [];
 }
 
+/**
+ * GPS マップ機能（Sprint 5）が完全動作するコースの ID 集合を返す
+ *
+ * 判定基準（設計書 Section 2.1）:
+ * - 18 ホールすべてに hole_view_configs が存在
+ * - 各ホールに少なくとも green_a または green_b のポリゴンが存在
+ *
+ * 部分整備のコース（一部のホールだけ揃っている）は **対象外**として扱う。
+ * ホールごとに UI が出たり消えたりするのを避けるため、コース単位での判定。
+ *
+ * ※ 9H / 27H コースが将来加わる場合は別判定（現状は 18H 厳密一致のみ対象）
+ *
+ * Sprint 5 PR4 (S-3b) — コース選択画面の「🛰️ GPSマップ対応」バッジ用
+ *
+ * TODO(PR5+): コース数増加に伴うパフォーマンス対応。選択肢:
+ *   - unstable_cache で N 分キャッシュ（hole_view_configs / hole_areas は変動少）
+ *   - courses テーブルに is_gps_ready boolean を追加して mapper 側で更新
+ *   - materialized view gps_ready_courses を導入
+ */
+export async function getGpsReadyCourseIds(): Promise<Set<string>> {
+  const result = new Set<string>();
+  // 防御的に認証チェック（呼び出し元はいずれも (main) 配下の認証必須ルートだが、
+  // ファイル内の他関数と一貫性を取るため）
+  const user = await getAuthenticatedUser();
+  if (!user) return result;
+
+  const supabase = await createClient();
+
+  // !inner join で「hole_view_configs と green_a/green_b の hole_areas を両方持つホール」のみ
+  // 取得し、コース単位で 18 ホール揃っているか判定する。これにより全テーブル走査を回避。
+  // 注: 単一クエリだと「ALL 18 holes ready」を厳密に表現するのは PostgREST では困難なため、
+  // 「ready なホールが 18 件あるコース」を JS 側で count して判定する。
+  const { data: courses } = await supabase
+    .from('courses')
+    .select(`
+      id,
+      holes!inner(
+        id,
+        hole_view_configs!inner(hole_id),
+        hole_areas!inner(hole_id, area_type)
+      )
+    `)
+    .in('holes.hole_areas.area_type', ['green_a', 'green_b']);
+
+  if (!courses) return result;
+
+  for (const c of courses as Array<{ id: string; holes: Array<{ id: string }> }>) {
+    // 同じ hole_id が green_a と green_b で 2 行返る可能性があるため、unique 化して数える
+    const uniqueHoleIds = new Set(c.holes.map((h) => h.id));
+    if (uniqueHoleIds.size === 18) {
+      result.add(c.id);
+    }
+  }
+
+  return result;
+}
+
 interface SaveCourseData {
   goraId: string;
   name: string;

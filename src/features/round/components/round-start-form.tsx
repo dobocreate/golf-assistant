@@ -10,9 +10,11 @@ interface RoundStartFormProps {
   courses: Course[];
   selectedCourseId?: string;
   gamePlanSets?: (GamePlanSet & { course_name: string })[];
+  /** Sprint 5 PR4 (S-3b): GPS マップ機能対応コースの ID 集合（option ラベルにバッジ表示） */
+  gpsReadyCourseIds?: Set<string>;
 }
 
-export function RoundStartForm({ courses, selectedCourseId, gamePlanSets = [] }: RoundStartFormProps) {
+export function RoundStartForm({ courses, selectedCourseId, gamePlanSets = [], gpsReadyCourseIds }: RoundStartFormProps) {
   const [courseId, setCourseId] = useState(selectedCourseId || '');
   const [state, formAction, isPending] = useActionState(
     async (_prev: { error?: string } | null, formData: FormData) => {
@@ -70,11 +72,14 @@ export function RoundStartForm({ courses, selectedCourseId, gamePlanSets = [] }:
           <option value="" disabled>
             コースを選択してください
           </option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.name}（{course.prefecture}）
-            </option>
-          ))}
+          {courses.map((course) => {
+            const gpsBadge = gpsReadyCourseIds?.has(course.id) ? ' 🛰️' : '';
+            return (
+              <option key={course.id} value={course.id}>
+                {course.name}（{course.prefecture}）{gpsBadge}
+              </option>
+            );
+          })}
         </select>
       </div>
 

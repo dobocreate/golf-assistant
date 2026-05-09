@@ -1,4 +1,4 @@
-import { getSavedCourses } from '@/actions/course';
+import { getSavedCourses, getGpsReadyCourseIds } from '@/actions/course';
 import { CourseSearch } from '@/features/course/components/course-search';
 import { CourseCard } from '@/features/course/components/course-card';
 import type { Metadata } from 'next';
@@ -8,7 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default async function CoursesPage() {
-  const courses = await getSavedCourses();
+  const [courses, gpsReady] = await Promise.all([
+    getSavedCourses(),
+    getGpsReadyCourseIds(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -22,7 +25,7 @@ export default async function CoursesPage() {
         {courses.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+              <CourseCard key={course.id} course={course} isGpsReady={gpsReady.has(course.id)} />
             ))}
           </div>
         ) : (
