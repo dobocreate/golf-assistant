@@ -237,6 +237,9 @@ export function polygonCentroid(
       lng: coords.reduce((s, c) => s + c.lng, 0) / n,
     };
   }
+  // 注: 命名規則は pointInPolygon と統一して x=lng, y=lat（Mercator 慣習）
+  // mapper 側 polygonCentroid は (x=lat, y=lng) 命名だが、shoelace 公式は x/y 入れ替えに対し
+  // 不変なので結果は同じ。ファイル内の命名一貫性を優先して assistant 側のみ標準化
   const lat0 = coords[0].lat;
   const lng0 = coords[0].lng;
   let area = 0;
@@ -244,10 +247,10 @@ export function polygonCentroid(
   let cy = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const xi = coords[i].lat - lat0;
-    const yi = coords[i].lng - lng0;
-    const xj = coords[j].lat - lat0;
-    const yj = coords[j].lng - lng0;
+    const xi = coords[i].lng - lng0;
+    const yi = coords[i].lat - lat0;
+    const xj = coords[j].lng - lng0;
+    const yj = coords[j].lat - lat0;
     const cross = xi * yj - xj * yi;
     area += cross;
     cx += (xi + xj) * cross;
@@ -260,7 +263,7 @@ export function polygonCentroid(
       lng: coords.reduce((s, c) => s + c.lng, 0) / n,
     };
   }
-  return { lat: lat0 + cx / (6 * area), lng: lng0 + cy / (6 * area) };
+  return { lat: lat0 + cy / (6 * area), lng: lng0 + cx / (6 * area) };
 }
 
 export type HoleAreaType =
