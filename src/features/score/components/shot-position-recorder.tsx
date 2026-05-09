@@ -359,7 +359,8 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
         gpsAccuracyM: data.accuracyM,
         capturedAt: data.source === 'gps' ? editedAt : f.capturedAt,
         gpsSource: data.source,
-        editedAt: data.source === 'gps' ? f.editedAt : editedAt,
+        // 再 GPS 取得は「手動編集」ではないため editedAt をリセット（null）
+        editedAt: data.source === 'gps' ? null : editedAt,
         positionRevision: (f.positionRevision ?? 0) + 1,
         ...(shouldPreserveOriginal
           ? { originalLatitude: previousLat, originalLongitude: previousLng }

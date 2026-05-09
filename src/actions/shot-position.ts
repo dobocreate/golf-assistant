@@ -242,7 +242,9 @@ export async function updateShotPosition(
       gps_source: input.gpsSource,
       original_latitude: originalLatitude,
       original_longitude: originalLongitude,
-      edited_at: input.gpsSource === 'gps' ? shotRow.edited_at : nowIso,
+      // 再 GPS 取得は「手動編集」ではないため edited_at をリセット（null）
+      // manual_edit / manual_pin の場合のみ now を記録
+      edited_at: input.gpsSource === 'gps' ? null : nowIso,
       position_revision: shotRow.position_revision + 1,
     })
     .eq('id', input.shotId);
