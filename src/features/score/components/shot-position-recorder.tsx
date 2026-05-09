@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { MapPin, Check, AlertCircle, Loader2, Map as MapIcon } from 'lucide-react';
 import { useGeolocation } from '@/lib/geolocation/use-geolocation';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
-import { computeShotPosition } from '@/actions/shot-position';
+import { computeShotPosition, updateShotPosition } from '@/actions/shot-position';
 import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
-import type { ShotFormState, AutoLieConfidence } from '@/features/score/types';
+import type { ShotFormState, AutoLieConfidence, GpsSource } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
 import { HoleMapPreview, HoleMapLightbox } from './hole-map-preview';
 import { ManualPinModal } from './manual-pin-modal';
+import { EditPositionModal } from './edit-position-modal';
 
 interface MapData {
   aerialImageUrl: string;
@@ -25,6 +26,8 @@ interface Props {
   /** Sprint 5 PR5: lie 自動判定 + 残距離計算用 */
   roundId: string;
   holeNumber: number;
+  /** Sprint 5 PR7: 既存 shot の id（保存済みなら有り、新規 shot は null） */
+  shotId?: string | null;
 }
 
 /**
@@ -37,7 +40,7 @@ interface Props {
  *
  * Sprint 5 PR4 (S-3a) で最小 UI、Sprint 5 PR5 (S-5b) で lie 自動判定と残距離を追加。
  */
-export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumber }: Props) {
+export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumber, shotId }: Props) {
   const { loading: gpsLoading, error: gpsError, capture, clear } = useGeolocation();
   const [computing, setComputing] = useState(false);
   // 取得操作ごとに発番するトークン。clear や再取得で increment し、
@@ -49,6 +52,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [mapLightboxOpen, setMapLightboxOpen] = useState(false);
   const [manualPinOpen, setManualPinOpen] = useState(false);
+  const [editPositionOpen, setEditPositionOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +61,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     setMapData(null);
     setMapLightboxOpen(false);
     setManualPinOpen(false);
+    setEditPositionOpen(false);
     (async () => {
       try {
         const data = await getHoleMapDataForRoundHole(roundId, holeNumber);
@@ -244,6 +249,173 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     }
   };
 
+  /**
+   * 位置編集確定 (S-5c)
+   *
+   * - 既存 shot (shotId 有): updateShotPosition で DB を即時 PATCH（楽観的ロック付き）
+   *   返却された shot から GPS 関連フィールドを form state に反映
+   * - 新規 shot (shotId 無): computeShotPosition で lie/距離を再計算し form state のみ更新
+   *   originalLatitude/Longitude も初回編集時のみ form に保存
+   */
+  const handleEditSave = async (data: {
+    latitude: number;
+    longitude: number;
+    source: GpsSource;
+    accuracyM: number | null;
+  }): Promise<{ ok: true } | { ok: false; error: 'conflict' | 'failed' }> => {
+    const token = ++captureTokenRef.current;
+
+    // 初回編集時 (form.originalLatitude が null) は元の lat/lng を退避
+    const previousLat = form.latitude;
+    const previousLng = form.longitude;
+    const shouldPreserveOriginal =
+      data.source !== 'gps' &&
+      form.originalLatitude == null &&
+      previousLat != null &&
+      previousLng != null;
+
+    if (shotId) {
+      // 既存 shot: updateShotPosition で即時 DB PATCH
+      try {
+        const { shot, error: updErr, latestShot } = await updateShotPosition({
+          shotId,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          gpsSource: data.source,
+          accuracyM: data.accuracyM,
+          expectedRevision: form.positionRevision ?? undefined,
+        });
+        if (updErr) {
+          console.warn('updateShotPosition failed:', updErr);
+          // conflict 時: 最新 shot で cache/form を同期して、ユーザーが再編集できるようにする
+          if (updErr === 'conflict' && latestShot && token === captureTokenRef.current) {
+            dispatch({ type: 'UPDATE_CACHED_SHOT', index, updatedShot: latestShot });
+            dispatch({
+              type: 'UPDATE_FIELD',
+              index,
+              updater: (f) => ({
+                ...f,
+                latitude: latestShot.latitude,
+                longitude: latestShot.longitude,
+                gpsAccuracyM: latestShot.gps_accuracy_m,
+                capturedAt: latestShot.captured_at,
+                gpsSource: latestShot.gps_source,
+                autoLie: latestShot.auto_lie,
+                autoLieConfidence: latestShot.auto_lie_confidence,
+                remainingToGreenM: latestShot.remaining_to_green_m,
+                autoLieCalculatedAt: latestShot.auto_lie_calculated_at,
+                originalLatitude: latestShot.original_latitude,
+                originalLongitude: latestShot.original_longitude,
+                editedAt: latestShot.edited_at,
+                positionRevision: latestShot.position_revision,
+              }),
+            });
+            return { ok: false as const, error: 'conflict' as const };
+          }
+          // それ以外（その他 DB エラー、または latestShot 取得失敗）
+          return { ok: false as const, error: updErr === 'conflict' ? 'conflict' as const : 'failed' as const };
+        }
+        if (shot && token === captureTokenRef.current) {
+          // (1) cache の shot を最新値で置き換え（form は触らない → club/result/note 等の未保存編集は保持）
+          dispatch({ type: 'UPDATE_CACHED_SHOT', index, updatedShot: shot });
+          // (2) form の GPS 関連フィールドだけ最新値に同期（hasFormChanged 比較で GPS 差分が消える）
+          dispatch({
+            type: 'UPDATE_FIELD',
+            index,
+            updater: (f) => ({
+              ...f,
+              latitude: shot.latitude,
+              longitude: shot.longitude,
+              gpsAccuracyM: shot.gps_accuracy_m,
+              capturedAt: shot.captured_at,
+              gpsSource: shot.gps_source,
+              autoLie: shot.auto_lie,
+              autoLieConfidence: shot.auto_lie_confidence,
+              remainingToGreenM: shot.remaining_to_green_m,
+              autoLieCalculatedAt: shot.auto_lie_calculated_at,
+              originalLatitude: shot.original_latitude,
+              originalLongitude: shot.original_longitude,
+              editedAt: shot.edited_at,
+              positionRevision: shot.position_revision,
+            }),
+          });
+        }
+        return { ok: true as const };
+      } catch (err) {
+        console.error('updateShotPosition threw:', err);
+        return { ok: false as const, error: 'failed' as const };
+      }
+    }
+
+    // 新規 shot: form state のみ更新 + computeShotPosition で lie 再計算
+    const editedAt = new Date().toISOString();
+    dispatch({
+      type: 'UPDATE_FIELD',
+      index,
+      updater: (f) => ({
+        ...f,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        gpsAccuracyM: data.accuracyM,
+        capturedAt: data.source === 'gps' ? editedAt : f.capturedAt,
+        gpsSource: data.source,
+        // 再 GPS 取得は「手動編集」ではないため editedAt をリセット（null）
+        editedAt: data.source === 'gps' ? null : editedAt,
+        positionRevision: (f.positionRevision ?? 0) + 1,
+        ...(shouldPreserveOriginal
+          ? { originalLatitude: previousLat, originalLongitude: previousLng }
+          : {}),
+      }),
+    });
+
+    setComputing(true);
+    try {
+      const { result: pos, error: posError } = await computeShotPosition({
+        roundId,
+        holeNumber,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        accuracyM: data.accuracyM ?? 0,
+      });
+      if (posError) {
+        console.warn('computeShotPosition (edit) returned error:', posError);
+      }
+      if (pos && token === captureTokenRef.current) {
+        const calculatedAt = new Date().toISOString();
+        dispatch({
+          type: 'UPDATE_FIELD',
+          index,
+          updater: (f) => {
+            if (f.latitude == null || f.longitude == null) return f;
+            // gps_source ごとに confidence を上書き
+            const conf =
+              data.source === 'manual_edit'
+                ? 'medium'
+                : data.source === 'manual_pin'
+                  ? 'low'
+                  : pos.autoLieConfidence;
+            return {
+              ...f,
+              autoLie: pos.autoLie,
+              autoLieConfidence: conf,
+              remainingToGreenM: pos.remainingToGreenM,
+              autoLieCalculatedAt: calculatedAt,
+            };
+          },
+        });
+      }
+    } catch (err) {
+      console.error('computeShotPosition (edit) failed:', err);
+    } finally {
+      if (token === captureTokenRef.current) {
+        setComputing(false);
+      }
+    }
+
+    // 新規 shot 経路は form 更新で完了（DB 永続化は次の hole save に任せる）
+    return { ok: true as const };
+  };
+
   // 注: computing=true の時点で hasPosition=true（capture 完了後）のため、
   // ボタンは表示されず、buttonLabel の computing 分岐は不要
   const buttonLabel = gpsLoading ? '位置を取得中…' : '📍 位置を記録';
@@ -258,13 +430,25 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
               <Check className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
               <span className="truncate">位置記録済み（{accuracyText}）</span>
             </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2 min-h-[32px] px-1"
-            >
-              クリア
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {/* GPS-ready コースのみ「編集」リンクを表示（mapData が必要） */}
+              {mapData && (
+                <button
+                  type="button"
+                  onClick={() => setEditPositionOpen(true)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2 min-h-[32px] px-1"
+                >
+                  編集
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2 min-h-[32px] px-1"
+              >
+                クリア
+              </button>
+            </div>
           </div>
           {(lieLabel || remainingY != null) && (
             <div className="flex items-center gap-2 text-sm text-emerald-200 pl-6">
@@ -368,6 +552,30 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
           open={manualPinOpen}
           onClose={() => setManualPinOpen(false)}
           onPin={handleManualPin}
+          aerialImageUrl={mapData.aerialImageUrl}
+          metadata={mapData.metadata}
+          areas={mapData.areas}
+        />
+      )}
+
+      {/* 位置編集モーダル (Sprint 5 PR7 / S-5c) */}
+      {mapData && form.latitude != null && form.longitude != null && (
+        <EditPositionModal
+          open={editPositionOpen}
+          onClose={() => setEditPositionOpen(false)}
+          onSave={async (data) => {
+            const result = await handleEditSave(data);
+            if (result.ok) {
+              setEditPositionOpen(false);
+            }
+            // 失敗時はモーダル内で saveError を表示し、ユーザー判断でクローズ
+            return result;
+          }}
+          initialPosition={{
+            lat: form.latitude,
+            lng: form.longitude,
+            source: form.gpsSource ?? undefined,
+          }}
           aerialImageUrl={mapData.aerialImageUrl}
           metadata={mapData.metadata}
           areas={mapData.areas}

@@ -62,7 +62,14 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber }: S
         <SectionHeader>状況</SectionHeader>
 
         {/* GPS 位置記録（Sprint 5 PR4） */}
-        <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} roundId={roundId} holeNumber={holeNumber} />
+        <ShotPositionRecorder
+          index={slot.index}
+          form={form}
+          dispatch={dispatch}
+          roundId={roundId}
+          holeNumber={holeNumber}
+          shotId={slot.shot?.id || null}
+        />
 
         {/* ショット種別（パットから他への切替用） */}
         <div className="space-y-1">
@@ -209,7 +216,14 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber }: S
       <SectionHeader>状況</SectionHeader>
 
       {/* GPS 位置記録（Sprint 5 PR4） */}
-      <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} roundId={roundId} holeNumber={holeNumber} />
+      <ShotPositionRecorder
+        index={slot.index}
+        form={form}
+        dispatch={dispatch}
+        roundId={roundId}
+        holeNumber={holeNumber}
+        shotId={slot.shot?.id ?? null}
+      />
 
       {/* ショット種別 */}
       <div className="space-y-1">
