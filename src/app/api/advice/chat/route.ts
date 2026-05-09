@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
+import { buildCurrentPositionContext } from '@/features/advice/lib/current-position-context-builder';
 import { createChatSystemPrompt, createChatUserPrompt, MAX_CHAT_TOKENS } from '@/features/advice/lib/prompt-template';
 import { jsonError, createGeminiStream } from '@/lib/llm';
 
@@ -38,11 +39,20 @@ export async function POST(request: Request) {
     const snapshotResult = await getOrBuildContextSnapshot(body.roundId, user.id);
     if (!snapshotResult) return jsonError('ラウンド情報の取得に失敗しました。', 404);
 
-    const scoreContext = await buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse, snapshotResult.courseId);
+    // 静的 snapshot + 動的 scoreContext + 動的 currentPositionContext を並列取得して合成
+    // currentPositionContext は GPS 未取得時 null（その場合はセクション省略）
+    const [scoreContext, currentPositionContext] = await Promise.all([
+      buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse, snapshotResult.courseId),
+      buildCurrentPositionContext(body.roundId, user.id, body.holeNumber),
+    ]);
 
-    const fullContext = scoreContext
-      ? `${snapshotResult.contextText}\n\n${scoreContext}`
-      : snapshotResult.contextText;
+    const fullContext = [
+      snapshotResult.contextText,
+      scoreContext,
+      currentPositionContext,
+    ]
+      .filter((s): s is string => Boolean(s))
+      .join('\n\n');
 
     const systemPrompt = createChatSystemPrompt(fullContext);
     const userPrompt = createChatUserPrompt(body.holeNumber, body.question);
