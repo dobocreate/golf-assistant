@@ -58,8 +58,13 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     setMapLightboxOpen(false);
     setManualPinOpen(false);
     (async () => {
-      const data = await getHoleMapDataForRoundHole(roundId, holeNumber);
-      if (!cancelled) setMapData(data);
+      try {
+        const data = await getHoleMapDataForRoundHole(roundId, holeNumber);
+        if (!cancelled) setMapData(data);
+      } catch (err) {
+        // ネットワークエラー等で fetch が失敗してもアプリは動作続行（プレビュー非表示のみ）
+        console.error('Failed to fetch hole map data:', err);
+      }
     })();
     return () => {
       cancelled = true;
@@ -182,6 +187,8 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     // GPS 失敗エラーは「手動ピンで解消」したので消去（M1: エラー UI 残留対策）
     clear();
 
+    // updater は純粋関数として保つため、副作用 (new Date) は外で評価
+    const capturedAt = new Date().toISOString();
     dispatch({
       type: 'UPDATE_FIELD',
       index,
@@ -190,7 +197,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
         latitude: lat,
         longitude: lng,
         gpsAccuracyM: null,
-        capturedAt: new Date().toISOString(),
+        capturedAt,
         gpsSource: 'manual_pin',
       }),
     });
