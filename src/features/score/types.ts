@@ -64,9 +64,11 @@ export type ShotLanding = 'ob' | 'water' | 'bunker';
 export type ShotType = 'tee_shot' | 'second' | 'approach' | 'putt';
 export type ShotElevation = 'uphill' | 'flat' | 'downhill';
 
-export type AutoLie = 'fairway' | 'rough' | 'bunker' | 'green' | 'ob' | 'water' | 'tee' | 'unknown';
+// AutoLie / AutoLieConfidence は lie-detection.ts を真実の出所として import + re-export
+// （drift 防止: 値追加時に 1 箇所だけ更新すれば良い）
+import type { AutoLie, AutoLieConfidence } from '@/lib/geolocation/lie-detection';
+export type { AutoLie, AutoLieConfidence };
 export type GpsSource = 'gps' | 'manual_edit' | 'manual_pin';
-export type AutoLieConfidence = 'high' | 'medium' | 'low';
 
 export interface Shot {
   id: string;

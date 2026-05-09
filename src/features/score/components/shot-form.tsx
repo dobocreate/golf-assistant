@@ -34,9 +34,12 @@ interface ShotFormProps {
   form: ShotFormState;
   dispatch: React.Dispatch<ShotFormAction>;
   clubs: ClubOption[];
+  /** Sprint 5 PR5 (S-5b): GPS 取得後の lie 自動判定 / 残距離計算用 */
+  roundId: string;
+  holeNumber: number;
 }
 
-export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
+export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber }: ShotFormProps) {
   const showMissType = form.result === 'fair' || form.result === 'poor';
   const isPutt = form.shotType === 'putt';
 
@@ -59,7 +62,7 @@ export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
         <SectionHeader>状況</SectionHeader>
 
         {/* GPS 位置記録（Sprint 5 PR4） */}
-        <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} />
+        <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} roundId={roundId} holeNumber={holeNumber} />
 
         {/* ショット種別（パットから他への切替用） */}
         <div className="space-y-1">
@@ -206,7 +209,7 @@ export function ShotForm({ slot, form, dispatch, clubs }: ShotFormProps) {
       <SectionHeader>状況</SectionHeader>
 
       {/* GPS 位置記録（Sprint 5 PR4） */}
-      <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} />
+      <ShotPositionRecorder index={slot.index} form={form} dispatch={dispatch} roundId={roundId} holeNumber={holeNumber} />
 
       {/* ショット種別 */}
       <div className="space-y-1">

@@ -218,6 +218,8 @@ export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrch
               form={getForm(modalSlot.index)}
               dispatch={dispatch}
               clubs={clubs}
+              roundId={roundId}
+              holeNumber={holeNumber}
             />
           </div>
         </div>
