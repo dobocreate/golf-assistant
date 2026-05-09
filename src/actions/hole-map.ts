@@ -120,3 +120,76 @@ export async function getHoleAreasForCourse(courseId: string): Promise<HoleArea[
 
   return (data ?? []).map(({ holes: _holes, ...area }) => area as HoleArea);
 }
+
+/**
+ * 指定ラウンド・ホールの GPS マップ表示用データを 1 クエリで返す
+ *
+ * Sprint 5 PR6 (S-5a / S-5d) — ShotPositionRecorder 内の小型プレビュー、
+ * および手動ピン留めモーダル用にホール画像 + メタデータ + areas を取得する。
+ *
+ * GPS-ready でないホール（hole_view_configs / metadata なし）は null を返し、
+ * 呼び出し側でプレビュー UI 自体を非表示にする。
+ *
+ * 認証チェックなし（hole_* テーブルは public 読み取り可。コース・ラウンドの
+ * 所有確認は GPS 操作の前段（ShotForm 表示権限）で既に済んでいる前提）。
+ *
+ * TODO(PR7+, S-5e): ホール切替ごとにこの 4 クエリが走るため、ラウンド開始時に
+ * 全 18 ホール分をプリフェッチしてクライアント側でキャッシュする最適化を検討。
+ */
+export async function getHoleMapDataForRoundHole(
+  roundId: string,
+  holeNumber: number,
+): Promise<{
+  aerialImageUrl: string;
+  metadata: import('@/lib/geo').AerialImageMetadata;
+  areas: HoleArea[];
+} | null> {
+  // UUID 形式チェック（debugability のため、不正な roundId を Supabase に渡す前に弾く）
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(roundId)) return null;
+  if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) return null;
+
+  const supabase = await createClient();
+
+  // round → course_id → hole_id を 1 クエリで取得
+  const { data: round } = await supabase
+    .from('rounds')
+    .select('course_id')
+    .eq('id', roundId)
+    .single();
+  if (!round) return null;
+
+  const { data: hole } = await supabase
+    .from('holes')
+    .select('id')
+    .eq('course_id', round.course_id)
+    .eq('hole_number', holeNumber)
+    .single();
+  if (!hole) return null;
+
+  // view_config + areas を並列取得
+  const [{ data: vc }, { data: areasData }] = await Promise.all([
+    supabase
+      .from('hole_view_configs')
+      .select('cached_image_url, metadata_json')
+      .eq('hole_id', hole.id)
+      .single(),
+    supabase
+      .from('hole_areas')
+      .select('*')
+      .eq('hole_id', hole.id)
+      .order('sort_order'),
+  ]);
+
+  if (!vc || !vc.cached_image_url) return null;
+
+  const { parseAerialImageMetadata } = await import('@/lib/geo');
+  const metadata = parseAerialImageMetadata(vc.metadata_json);
+  if (!metadata) return null;
+
+  return {
+    aerialImageUrl: vc.cached_image_url,
+    metadata,
+    areas: (areasData ?? []) as HoleArea[],
+  };
+}
