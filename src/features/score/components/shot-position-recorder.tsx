@@ -1,12 +1,22 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { MapPin, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MapPin, Check, AlertCircle, Loader2, Map as MapIcon } from 'lucide-react';
 import { useGeolocation } from '@/lib/geolocation/use-geolocation';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
 import { computeShotPosition } from '@/actions/shot-position';
+import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
 import type { ShotFormState, AutoLieConfidence } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
+import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
+import { HoleMapPreview, HoleMapLightbox } from './hole-map-preview';
+import { ManualPinModal } from './manual-pin-modal';
+
+interface MapData {
+  aerialImageUrl: string;
+  metadata: AerialImageMetadata;
+  areas: HoleArea[];
+}
 
 interface Props {
   index: number;
@@ -34,9 +44,40 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
   // 進行中の computeShotPosition 結果が古い場合は dispatch しない（race 防止）
   const captureTokenRef = useRef(0);
 
+  // GPS-ready コースの map data（hole_view_configs.cached_image_url + metadata + hole_areas）
+  // ホール変更時にフェッチし直す。GPS-ready でないコースでは null
+  const [mapData, setMapData] = useState<MapData | null>(null);
+  const [mapLightboxOpen, setMapLightboxOpen] = useState(false);
+  const [manualPinOpen, setManualPinOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // ホール切替時は古い mapData / モーダル状態を即座にクリア
+    // （fetch resolve 前に古い画像・metadata で手動ピンされるのを防ぐ）
+    setMapData(null);
+    setMapLightboxOpen(false);
+    setManualPinOpen(false);
+    (async () => {
+      try {
+        const data = await getHoleMapDataForRoundHole(roundId, holeNumber);
+        if (!cancelled) setMapData(data);
+      } catch (err) {
+        // ネットワークエラー等で fetch が失敗してもアプリは動作続行（プレビュー非表示のみ）
+        console.error('Failed to fetch hole map data:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roundId, holeNumber]);
+
   const hasPosition = form.latitude != null && form.longitude != null;
   const accuracyText =
-    form.gpsAccuracyM != null ? `精度 ${form.gpsAccuracyM.toFixed(1)}m` : '精度不明';
+    form.gpsSource === 'manual_pin'
+      ? '手動で指定'
+      : form.gpsAccuracyM != null
+        ? `精度 ${form.gpsAccuracyM.toFixed(1)}m`
+        : '精度不明';
 
   const lieLabel = form.autoLie ? lieToJapanese(form.autoLie) : null;
   const remainingY =
@@ -136,6 +177,73 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     });
   };
 
+  /**
+   * 手動ピン留め確定: ManualPinModal でユーザーが指定した lat/lng を form に格納し、
+   * 続いて lie/距離を計算して反映する（GPS と同じパス、ただし accuracy=null かつ source='manual_pin'）
+   */
+  const handleManualPin = async (lat: number, lng: number) => {
+    const token = ++captureTokenRef.current;
+
+    // GPS 失敗エラーは「手動ピンで解消」したので消去（M1: エラー UI 残留対策）
+    clear();
+
+    // updater は純粋関数として保つため、副作用 (new Date) は外で評価
+    const capturedAt = new Date().toISOString();
+    dispatch({
+      type: 'UPDATE_FIELD',
+      index,
+      updater: (f) => ({
+        ...f,
+        latitude: lat,
+        longitude: lng,
+        gpsAccuracyM: null,
+        capturedAt,
+        gpsSource: 'manual_pin',
+      }),
+    });
+
+    setComputing(true);
+    try {
+      // accuracyM=0 で confidence は high になり得るが、source='manual_pin' のため
+      // AI コンテキスト側で「手動配置」と区別される
+      const { result: pos, error: posError } = await computeShotPosition({
+        roundId,
+        holeNumber,
+        latitude: lat,
+        longitude: lng,
+        accuracyM: 0,
+      });
+      if (posError) {
+        console.warn('computeShotPosition (manual_pin) returned error:', posError);
+      }
+      if (pos && token === captureTokenRef.current) {
+        const calculatedAt = new Date().toISOString();
+        dispatch({
+          type: 'UPDATE_FIELD',
+          index,
+          updater: (f) => {
+            if (f.latitude == null || f.longitude == null) return f;
+            return {
+              ...f,
+              autoLie: pos.autoLie,
+              // manual_pin は GPS 精度に基づく high/medium/low ではなく、low に固定
+              // （手動配置は GPS と同等の精度保証ができないため）
+              autoLieConfidence: 'low',
+              remainingToGreenM: pos.remainingToGreenM,
+              autoLieCalculatedAt: calculatedAt,
+            };
+          },
+        });
+      }
+    } catch (err) {
+      console.error('computeShotPosition (manual_pin) failed:', err);
+    } finally {
+      if (token === captureTokenRef.current) {
+        setComputing(false);
+      }
+    }
+  };
+
   // 注: computing=true の時点で hasPosition=true（capture 完了後）のため、
   // ボタンは表示されず、buttonLabel の computing 分岐は不要
   const buttonLabel = gpsLoading ? '位置を取得中…' : '📍 位置を記録';
@@ -178,6 +286,25 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
               位置を判定中…
             </div>
           )}
+          {/* インライン地図プレビュー（GPS-ready コースのみ） */}
+          {mapData && form.latitude != null && form.longitude != null && (
+            <div className="pt-2 flex justify-center">
+              <HoleMapPreview
+                aerialImageUrl={mapData.aerialImageUrl}
+                metadata={mapData.metadata}
+                areas={mapData.areas}
+                position={{
+                  lat: form.latitude,
+                  lng: form.longitude,
+                  accuracyM: form.gpsAccuracyM ?? undefined,
+                  source: form.gpsSource ?? undefined,
+                }}
+                size={180}
+                onClick={() => setMapLightboxOpen(true)}
+                ariaLabel="記録した位置を地図で表示（タップで拡大）"
+              />
+            </div>
+          )}
         </div>
       ) : (
         <button
@@ -192,13 +319,59 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
         </button>
       )}
       {gpsError && (
-        <div
-          className="flex items-start gap-2 rounded-lg border border-rose-700 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{gpsError.message}</span>
+        <div className="space-y-2">
+          <div
+            className="flex items-start gap-2 rounded-lg border border-rose-700 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+            role="alert"
+          >
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{gpsError.message}</span>
+          </div>
+          {/* GPS-ready コースなら手動ピン留めを提示 */}
+          {mapData && (
+            <button
+              type="button"
+              onClick={() => setManualPinOpen(true)}
+              className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800 hover:bg-gray-700 text-emerald-300 text-sm font-medium transition-colors"
+            >
+              <MapIcon className="h-4 w-4" aria-hidden="true" />
+              🗺️ 地図で位置を指定
+            </button>
+          )}
         </div>
+      )}
+
+      {/* lightbox: プレビュータップで衛星画像をフルスクリーン表示 */}
+      {mapData && (
+        <HoleMapLightbox
+          open={mapLightboxOpen}
+          onClose={() => setMapLightboxOpen(false)}
+          aerialImageUrl={mapData.aerialImageUrl}
+          metadata={mapData.metadata}
+          areas={mapData.areas}
+          position={
+            form.latitude != null && form.longitude != null
+              ? {
+                  lat: form.latitude,
+                  lng: form.longitude,
+                  accuracyM: form.gpsAccuracyM ?? undefined,
+                  source: form.gpsSource ?? undefined,
+                }
+              : null
+          }
+        />
+      )}
+
+      {/* 手動ピン留めモーダル */}
+      {mapData && (
+        <ManualPinModal
+          open={manualPinOpen}
+          onClose={() => setManualPinOpen(false)}
+          onPin={handleManualPin}
+          aerialImageUrl={mapData.aerialImageUrl}
+          metadata={mapData.metadata}
+          areas={mapData.areas}
+        />
       )}
     </div>
   );
