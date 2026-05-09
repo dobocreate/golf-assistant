@@ -329,9 +329,8 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
  * Sprint 5 PR4 (S-3b) — コース詳細ページで全 18 ホール分のショットマーカーを
  * 一度に取得するための効率化版。
  *
- * TODO(PR5+): ユーザーが同一コースで多数（数十〜数百）ラウンドを蓄積した場合、
- * IN 句が膨らむため `.order('played_at', desc).limit(N)` で直近 N ラウンドに
- * 絞るオプションを検討。
+ * `rounds!inner` join で 1 クエリに集約することで、roundIds が大量になった場合の
+ * URL 長制限リスクと N+1 を回避する。
  */
 export async function getShotsWithGpsByHoleForCourse(
   courseId: string,
@@ -343,29 +342,24 @@ export async function getShotsWithGpsByHoleForCourse(
 
   const supabase = await createClient();
 
-  const { data: rounds } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('course_id', courseId);
-
-  const roundIds = (rounds ?? []).map((r) => r.id as string);
-  if (roundIds.length === 0) return empty;
-
   const { data } = await supabase
     .from('shots')
-    .select('*')
-    .in('round_id', roundIds)
+    .select('*, rounds!inner(user_id, course_id)')
+    .eq('rounds.user_id', user.id)
+    .eq('rounds.course_id', courseId)
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
     .order('round_id')
     .order('shot_number');
 
   const grouped = new Map<number, Shot[]>();
-  for (const s of (data ?? []) as Shot[]) {
-    const arr = grouped.get(s.hole_number) ?? [];
-    arr.push(s);
-    grouped.set(s.hole_number, arr);
+  for (const row of (data ?? []) as Array<Shot & { rounds?: unknown }>) {
+    // join 用に取得した rounds は Shot 型に含まれないため除去
+    const { rounds: _rounds, ...shot } = row;
+    void _rounds;
+    const arr = grouped.get(shot.hole_number) ?? [];
+    arr.push(shot as Shot);
+    grouped.set(shot.hole_number, arr);
   }
   return grouped;
 }

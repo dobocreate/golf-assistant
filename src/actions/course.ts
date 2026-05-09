@@ -67,29 +67,30 @@ export async function getGpsReadyCourseIds(): Promise<Set<string>> {
 
   const supabase = await createClient();
 
-  // 全コース + そのホール ID を取得
+  // !inner join で「hole_view_configs と green_a/green_b の hole_areas を両方持つホール」のみ
+  // 取得し、コース単位で 18 ホール揃っているか判定する。これにより全テーブル走査を回避。
+  // 注: 単一クエリだと「ALL 18 holes ready」を厳密に表現するのは PostgREST では困難なため、
+  // 「ready なホールが 18 件あるコース」を JS 側で count して判定する。
   const { data: courses } = await supabase
     .from('courses')
-    .select('id, holes!inner(id)');
+    .select(`
+      id,
+      holes!inner(
+        id,
+        hole_view_configs!inner(hole_id),
+        hole_areas!inner(hole_id, area_type)
+      )
+    `)
+    .in('holes.hole_areas.area_type', ['green_a', 'green_b']);
+
   if (!courses) return result;
 
-  // hole_view_configs が存在する hole_id 集合
-  const { data: vcRows } = await supabase
-    .from('hole_view_configs')
-    .select('hole_id');
-  const vcHoleIds = new Set((vcRows ?? []).map((r) => r.hole_id as string));
-
-  // green_a または green_b を持つ hole_id 集合
-  const { data: greenRows } = await supabase
-    .from('hole_areas')
-    .select('hole_id')
-    .in('area_type', ['green_a', 'green_b']);
-  const greenHoleIds = new Set((greenRows ?? []).map((r) => r.hole_id as string));
-
   for (const c of courses as Array<{ id: string; holes: Array<{ id: string }> }>) {
-    if (c.holes.length !== 18) continue;
-    const allReady = c.holes.every((h) => vcHoleIds.has(h.id) && greenHoleIds.has(h.id));
-    if (allReady) result.add(c.id);
+    // 同じ hole_id が green_a と green_b で 2 行返る可能性があるため、unique 化して数える
+    const uniqueHoleIds = new Set(c.holes.map((h) => h.id));
+    if (uniqueHoleIds.size === 18) {
+      result.add(c.id);
+    }
   }
 
   return result;
