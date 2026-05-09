@@ -19,13 +19,17 @@ interface FormsState {
 
 /** shot-form.tsx から dispatch される型（holeNumber なし） */
 export type ShotFormAction =
-  | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState };
+  | { type: 'UPDATE_FIELD'; index: number; updater: (prev: ShotFormState) => ShotFormState }
+  // Sprint 5 PR7 (S-5c): updateShotPosition 成功後に cache の単一 shot を最新値で置き換える。
+  // CONFIRM_EDIT と異なり form は触らないため、club/result/note 等の未保存編集が保持される。
+  | { type: 'UPDATE_CACHED_SHOT'; index: number; updatedShot: Shot };
 
 type FormsAction =
   | { type: 'INIT_ROUND'; allShots: Shot[] }
   | { type: 'UPDATE_FIELD'; holeNumber: number; index: number; updater: (prev: ShotFormState) => ShotFormState; defaultDistance?: number | null }
   | { type: 'SET_ADVICE'; holeNumber: number; index: number; text: string }
   | { type: 'UPDATE_CACHE'; holeNumber: number; shots: Shot[]; version: number }
+  | { type: 'UPDATE_CACHED_SHOT'; holeNumber: number; index: number; updatedShot: Shot }
   | { type: 'INCREMENT_SAVE_VERSION'; holeNumber: number }
   | { type: 'CONFIRM_NEW_SHOT'; holeNumber: number; index: number; shot: Shot }
   | { type: 'CONFIRM_EDIT'; holeNumber: number; index: number; updatedShot: Shot }
@@ -101,6 +105,17 @@ function formsReducer(state: FormsState, action: FormsAction): FormsState {
       const newVersions = new Map(state.saveVersionByHole);
       newVersions.set(action.holeNumber, (newVersions.get(action.holeNumber) ?? 0) + 1);
       return { ...state, saveVersionByHole: newVersions };
+    }
+
+    case 'UPDATE_CACHED_SHOT': {
+      // Sprint 5 PR7: cache の単一 shot を最新値で置き換え（form は触らない）
+      const newCache = new Map(state.cache);
+      const holeShots = [...(newCache.get(action.holeNumber) ?? [])];
+      if (action.index < holeShots.length) {
+        holeShots[action.index] = action.updatedShot;
+        newCache.set(action.holeNumber, holeShots);
+      }
+      return { ...state, cache: newCache };
     }
 
     case 'CONFIRM_NEW_SHOT': {
@@ -521,6 +536,8 @@ export function useShotRecorder(
   const dispatchWithHole = useCallback((action: ShotFormAction) => {
     if (action.type === 'UPDATE_FIELD') {
       dispatch({ ...action, holeNumber: holeNumberRef.current, defaultDistance: holeDistanceRef.current });
+    } else if (action.type === 'UPDATE_CACHED_SHOT') {
+      dispatch({ ...action, holeNumber: holeNumberRef.current });
     }
   }, []);
 
