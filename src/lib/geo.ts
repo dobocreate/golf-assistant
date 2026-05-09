@@ -139,6 +139,133 @@ export function latLngToPixel(
   };
 }
 
+/**
+ * Inverse of latLngToPixel — convert pixel coordinates on the cropped/rotated
+ * aerial image back to lat/lng.
+ *
+ * Synced from golf-course-mapper/src/lib/aerial-transform.ts (pixelToLatLng).
+ * Returns null on invalid metadata (zero dimensions or zero-range bbox).
+ */
+export function pixelToLatLng(
+  px: number,
+  py: number,
+  metadata: AerialImageMetadata,
+): { lat: number; lng: number } | null {
+  const { bbox, pre_rotate_width, pre_rotate_height, rotated_width, rotated_height, bearing_rad } = metadata;
+  const final_width = metadata.final_width ?? rotated_width;
+  const final_height = metadata.final_height ?? rotated_height;
+
+  // 注: mapper 側 aerial-transform.ts の pixelToLatLng は pre_rotate_* と bbox しかガードしていないが、
+  // assistant 側では rotated_* も含めて防御的にガードする（latLngToPixel と対称）。
+  // 同期時はこの差を意図的なものとして残す。
+  if (pre_rotate_width === 0 || pre_rotate_height === 0) return null;
+  if (rotated_width === 0 || rotated_height === 0) return null;
+  if (bbox.lat_max === bbox.lat_min || bbox.lng_max === bbox.lng_min) return null;
+
+  // Step 1: undo post-rotation crop offset
+  const px_rot = px + (rotated_width - final_width) / 2;
+  const py_rot = py + (rotated_height - final_height) / 2;
+
+  // Step 2: shift to rotated bbox center
+  const dx_r = px_rot - rotated_width / 2;
+  const dy_r = py_rot - rotated_height / 2;
+
+  // Step 3: rotate by +bearing to undo
+  const dx_o = dx_r * Math.cos(bearing_rad) - dy_r * Math.sin(bearing_rad);
+  const dy_o = dx_r * Math.sin(bearing_rad) + dy_r * Math.cos(bearing_rad);
+
+  // Step 4: shift back to pre-rotation image center
+  const px_o = dx_o + pre_rotate_width / 2;
+  const py_o = dy_o + pre_rotate_height / 2;
+
+  // Step 5: pixel → lat/lng (y=0 corresponds to lat_max)
+  const lng = bbox.lng_min + (px_o / pre_rotate_width) * (bbox.lng_max - bbox.lng_min);
+  const lat = bbox.lat_max - (py_o / pre_rotate_height) * (bbox.lat_max - bbox.lat_min);
+
+  return { lat, lng };
+}
+
+/**
+ * Ray-casting point-in-polygon test using lat/lng coordinates.
+ *
+ * Treats lat as y, lng as x. Boundary points may be classified either way
+ * (numeric edge cases). Callers needing exact boundary semantics should add
+ * an epsilon-based check; for the golf-assistant use case, GPS accuracy
+ * (5–15m) dominates any classification error from rounding.
+ *
+ * Polygon is treated as closed (first and last vertex are connected).
+ * Returns false for polygons with fewer than 3 vertices.
+ */
+export function pointInPolygon(
+  point: { lat: number; lng: number },
+  polygon: { lat: number; lng: number }[],
+): boolean {
+  if (polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng;
+    const yi = polygon[i].lat;
+    const xj = polygon[j].lng;
+    const yj = polygon[j].lat;
+    const intersect =
+      yi > point.lat !== yj > point.lat &&
+      point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Compute the centroid of a polygon using the shoelace formula on lat/lng.
+ *
+ * Synced from golf-course-mapper/src/lib/geo.ts (polygonCentroid).
+ * For polygons of typical golf course size, the planar approximation is
+ * accurate to within a few centimeters.
+ *
+ * - 0 vertices → returns origin (0, 0)
+ * - 1–2 vertices → returns arithmetic mean
+ * - degenerate polygon (zero area) → falls back to arithmetic mean
+ */
+export function polygonCentroid(
+  coords: { lat: number; lng: number }[],
+): { lat: number; lng: number } {
+  const n = coords.length;
+  if (n === 0) return { lat: 0, lng: 0 };
+  if (n < 3) {
+    return {
+      lat: coords.reduce((s, c) => s + c.lat, 0) / n,
+      lng: coords.reduce((s, c) => s + c.lng, 0) / n,
+    };
+  }
+  // 注: 命名規則は pointInPolygon と統一して x=lng, y=lat（Mercator 慣習）
+  // mapper 側 polygonCentroid は (x=lat, y=lng) 命名だが、shoelace 公式は x/y 入れ替えに対し
+  // 不変なので結果は同じ。ファイル内の命名一貫性を優先して assistant 側のみ標準化
+  const lat0 = coords[0].lat;
+  const lng0 = coords[0].lng;
+  let area = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const xi = coords[i].lng - lng0;
+    const yi = coords[i].lat - lat0;
+    const xj = coords[j].lng - lng0;
+    const yj = coords[j].lat - lat0;
+    const cross = xi * yj - xj * yi;
+    area += cross;
+    cx += (xi + xj) * cross;
+    cy += (yi + yj) * cross;
+  }
+  area /= 2;
+  if (Math.abs(area) < 1e-12) {
+    return {
+      lat: coords.reduce((s, c) => s + c.lat, 0) / n,
+      lng: coords.reduce((s, c) => s + c.lng, 0) / n,
+    };
+  }
+  return { lat: lat0 + cy / (6 * area), lng: lng0 + cx / (6 * area) };
+}
+
 export type HoleAreaType =
   | 'ob_line'
   | 'bunker'
