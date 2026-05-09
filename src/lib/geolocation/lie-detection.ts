@@ -53,19 +53,25 @@ export function detectLie(input: LieDetectionInput): LieDetectionResult {
     : null;
 
   // 判定優先順位順に検査
-  const isInside = (type: HoleAreaType): boolean =>
+  const isInsideAny = (types: ReadonlySet<HoleAreaType>): boolean =>
     areas.some(
-      (a) => a.area_type === type && pointInPolygon(point, a.coordinates),
+      (a) => types.has(a.area_type) && pointInPolygon(point, a.coordinates),
     );
 
+  // Set リテラルは関数呼び出しごとに作らないようモジュールスコープでも良いが、
+  // areas 配列の走査は 1 回で済むため大半のケースで十分高速
+  const WATER_TYPES = new Set<HoleAreaType>(['water_pond', 'water_river', 'hazard']);
+  const BUNKER_TYPES = new Set<HoleAreaType>(['bunker']);
+  const FAIRWAY_TYPES = new Set<HoleAreaType>(['fairway']);
+
   let autoLie: AutoLie = 'unknown';
-  if (isInside('water_pond') || isInside('water_river') || isInside('hazard')) {
+  if (isInsideAny(WATER_TYPES)) {
     autoLie = 'water';
-  } else if (isInside('bunker')) {
+  } else if (isInsideAny(BUNKER_TYPES)) {
     autoLie = 'bunker';
   } else if (greenArea && pointInPolygon(point, greenArea.coordinates)) {
     autoLie = 'green';
-  } else if (isInside('fairway')) {
+  } else if (isInsideAny(FAIRWAY_TYPES)) {
     autoLie = 'fairway';
   }
   // 'rough'/'ob'/'tee' は本実装では返さない:

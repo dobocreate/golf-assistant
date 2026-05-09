@@ -86,6 +86,8 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
       }
       // race ガード: クリア or 再取得が間に挟まれた場合は dispatch しない
       if (pos && token === captureTokenRef.current) {
+        // updater は純粋関数として保つため、副作用 (new Date) は外で評価
+        const calculatedAt = new Date().toISOString();
         dispatch({
           type: 'UPDATE_FIELD',
           index,
@@ -97,7 +99,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
               autoLie: pos.autoLie,
               autoLieConfidence: pos.autoLieConfidence,
               remainingToGreenM: pos.remainingToGreenM,
-              autoLieCalculatedAt: new Date().toISOString(),
+              autoLieCalculatedAt: calculatedAt,
             };
           },
         });

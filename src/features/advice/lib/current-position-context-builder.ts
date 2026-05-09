@@ -36,9 +36,10 @@ export async function buildCurrentPositionContext(
 
   // 所有確認 + 最新の GPS タグ付き shot を 1 件取得（shot_number 降順 = 直近）
   // rounds!inner で user_id 制約を JOIN 内で適用
+  // 必要列のみを SELECT して advice_text/note 等の重いカラムを避ける（パフォーマンス対策）
   const { data } = await supabase
     .from('shots')
-    .select('*, rounds!inner(user_id)')
+    .select('auto_lie, gps_accuracy_m, remaining_to_green_m, auto_lie_confidence, gps_source, captured_at, rounds!inner(user_id)')
     .eq('rounds.user_id', userId)
     .eq('round_id', roundId)
     .eq('hole_number', holeNumber)
@@ -47,7 +48,11 @@ export async function buildCurrentPositionContext(
     .order('shot_number', { ascending: false })
     .limit(1);
 
-  const latest = ((data ?? []) as Array<Shot & { rounds?: unknown }>)[0];
+  type LatestShot = Pick<
+    Shot,
+    'auto_lie' | 'gps_accuracy_m' | 'remaining_to_green_m' | 'auto_lie_confidence' | 'gps_source' | 'captured_at'
+  >;
+  const latest = ((data ?? []) as Array<LatestShot & { rounds?: unknown }>)[0];
   if (!latest) return null;
 
   // staleness ガード: 10 分以上前の GPS 記録は「現在地」として扱わない。
