@@ -10,6 +10,8 @@ import { HoleMapInfo } from './hole-map-info';
 import type { HoleMapPoint, HoleViewConfig, HoleArea, AerialImageMetadata } from '@/lib/geo';
 import { parseAerialImageMetadata } from '@/lib/geo';
 import { AerialAreaOverlay } from './aerial-area-overlay';
+import { ShotMarkersOverlay } from './shot-markers-overlay';
+import type { Shot } from '@/features/score/types';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,8 @@ interface HoleListProps {
   mapPoints?: HoleMapPoint[];
   viewConfigs?: Record<string, HoleViewConfig>;
   holeAreas?: HoleArea[];
+  /** Sprint 5 PR4 (S-3b): hole_number → 過去の GPS 付きショット群 */
+  shotsByHoleNumber?: Map<number, Shot[]>;
 }
 
 interface LightboxImage {
@@ -28,9 +32,10 @@ interface LightboxImage {
   alt: string;
   areas?: HoleArea[];
   metadata?: AerialImageMetadata;
+  shots?: Shot[];
 }
 
-export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, holeAreas }: HoleListProps) {
+export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, holeAreas, shotsByHoleNumber }: HoleListProps) {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -216,8 +221,15 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
                     const metadata = isAerial
                       ? parseAerialImageMetadata(viewConfigs?.[hole.id]?.metadata_json)
                       : null;
+                    const shots = isAerial ? (shotsByHoleNumber?.get(hole.hole_number) ?? []) : [];
                     const altText = `${hole.hole_number}番ホール ${isAerial ? '航空写真' : 'レイアウト'}`;
-                    const lightboxPayload = { src: displayUrl, alt: altText, areas: areas.length > 0 ? areas : undefined, metadata: metadata ?? undefined };
+                    const lightboxPayload: LightboxImage = {
+                      src: displayUrl,
+                      alt: altText,
+                      areas: areas.length > 0 ? areas : undefined,
+                      metadata: metadata ?? undefined,
+                      shots: shots.length > 0 ? shots : undefined,
+                    };
                     return (
                       // eslint-disable-next-line @next/next/no-img-element
                       <div
@@ -236,9 +248,17 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
                         {isAerial && metadata && areas.length > 0 && (
                           <AerialAreaOverlay areas={areas} metadata={metadata} />
                         )}
+                        {isAerial && metadata && shots.length > 0 && (
+                          <ShotMarkersOverlay shots={shots} metadata={metadata} />
+                        )}
                         {isAerial && (
                           <span className="absolute bottom-1 left-1 text-[10px] bg-black/50 text-white rounded px-1 py-0.5 leading-none">
                             航空
+                          </span>
+                        )}
+                        {isAerial && shots.length > 0 && (
+                          <span className="absolute bottom-1 right-1 text-[10px] bg-emerald-600/80 text-white rounded px-1 py-0.5 leading-none">
+                            📍 {shots.length}
                           </span>
                         )}
                       </div>
@@ -337,6 +357,9 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
             />
             {lightbox.areas && lightbox.metadata && lightbox.areas.length > 0 && (
               <AerialAreaOverlay areas={lightbox.areas} metadata={lightbox.metadata} />
+            )}
+            {lightbox.shots && lightbox.metadata && lightbox.shots.length > 0 && (
+              <ShotMarkersOverlay shots={lightbox.shots} metadata={lightbox.metadata} />
             )}
           </div>
         </div>

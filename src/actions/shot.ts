@@ -322,6 +322,54 @@ export async function getShots(roundId: string, holeNumber: number): Promise<Sho
 }
 
 /** ラウンド全体のショットを一括取得（クライアントサイドキャッシュ用） */
+/**
+ * 指定コースの全ホールについて、認証ユーザーの GPS タグ付きショットを
+ * hole_number ごとにグループ化して取得する。
+ *
+ * Sprint 5 PR4 (S-3b) — コース詳細ページで全 18 ホール分のショットマーカーを
+ * 一度に取得するための効率化版。
+ *
+ * TODO(PR5+): ユーザーが同一コースで多数（数十〜数百）ラウンドを蓄積した場合、
+ * IN 句が膨らむため `.order('played_at', desc).limit(N)` で直近 N ラウンドに
+ * 絞るオプションを検討。
+ */
+export async function getShotsWithGpsByHoleForCourse(
+  courseId: string,
+): Promise<Map<number, Shot[]>> {
+  const empty = new Map<number, Shot[]>();
+  const user = await getAuthenticatedUser();
+  if (!user) return empty;
+  if (!isValidUUID(courseId)) return empty;
+
+  const supabase = await createClient();
+
+  const { data: rounds } = await supabase
+    .from('rounds')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('course_id', courseId);
+
+  const roundIds = (rounds ?? []).map((r) => r.id as string);
+  if (roundIds.length === 0) return empty;
+
+  const { data } = await supabase
+    .from('shots')
+    .select('*')
+    .in('round_id', roundIds)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('round_id')
+    .order('shot_number');
+
+  const grouped = new Map<number, Shot[]>();
+  for (const s of (data ?? []) as Shot[]) {
+    const arr = grouped.get(s.hole_number) ?? [];
+    arr.push(s);
+    grouped.set(s.hole_number, arr);
+  }
+  return grouped;
+}
+
 export async function getShotsForRound(roundId: string): Promise<Shot[]> {
   const user = await getAuthenticatedUser();
   if (!user) return [];

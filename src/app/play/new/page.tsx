@@ -1,4 +1,4 @@
-import { getSavedCourses } from '@/actions/course';
+import { getSavedCourses, getGpsReadyCourseIds } from '@/actions/course';
 import { getGamePlanSets } from '@/actions/game-plan-set';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
@@ -18,15 +18,21 @@ export default async function NewRoundPage({
   if (!user) redirect('/auth/login');
 
   const { courseId } = await searchParams;
-  const [courses, gamePlanSets] = await Promise.all([
+  const [courses, gamePlanSets, gpsReadyCourseIds] = await Promise.all([
     getSavedCourses(),
     getGamePlanSets(),
+    getGpsReadyCourseIds(),
   ]);
 
   return (
     <div className="max-w-md mx-auto space-y-6">
       <h1 className="text-2xl font-bold">ラウンド開始</h1>
-      <RoundStartForm courses={courses} selectedCourseId={courseId} gamePlanSets={gamePlanSets} />
+      <RoundStartForm
+        courses={courses}
+        selectedCourseId={courseId}
+        gamePlanSets={gamePlanSets}
+        gpsReadyCourseIds={gpsReadyCourseIds}
+      />
     </div>
   );
 }

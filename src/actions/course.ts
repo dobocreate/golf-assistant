@@ -39,6 +39,62 @@ export async function getSavedCourses(): Promise<Course[]> {
   return data ?? [];
 }
 
+/**
+ * GPS マップ機能（Sprint 5）が完全動作するコースの ID 集合を返す
+ *
+ * 判定基準（設計書 Section 2.1）:
+ * - 18 ホールすべてに hole_view_configs が存在
+ * - 各ホールに少なくとも green_a または green_b のポリゴンが存在
+ *
+ * 部分整備のコース（一部のホールだけ揃っている）は **対象外**として扱う。
+ * ホールごとに UI が出たり消えたりするのを避けるため、コース単位での判定。
+ *
+ * ※ 9H / 27H コースが将来加わる場合は別判定（現状は 18H 厳密一致のみ対象）
+ *
+ * Sprint 5 PR4 (S-3b) — コース選択画面の「🛰️ GPSマップ対応」バッジ用
+ *
+ * TODO(PR5+): コース数増加に伴うパフォーマンス対応。選択肢:
+ *   - unstable_cache で N 分キャッシュ（hole_view_configs / hole_areas は変動少）
+ *   - courses テーブルに is_gps_ready boolean を追加して mapper 側で更新
+ *   - materialized view gps_ready_courses を導入
+ */
+export async function getGpsReadyCourseIds(): Promise<Set<string>> {
+  const result = new Set<string>();
+  // 防御的に認証チェック（呼び出し元はいずれも (main) 配下の認証必須ルートだが、
+  // ファイル内の他関数と一貫性を取るため）
+  const user = await getAuthenticatedUser();
+  if (!user) return result;
+
+  const supabase = await createClient();
+
+  // 全コース + そのホール ID を取得
+  const { data: courses } = await supabase
+    .from('courses')
+    .select('id, holes!inner(id)');
+  if (!courses) return result;
+
+  // hole_view_configs が存在する hole_id 集合
+  const { data: vcRows } = await supabase
+    .from('hole_view_configs')
+    .select('hole_id');
+  const vcHoleIds = new Set((vcRows ?? []).map((r) => r.hole_id as string));
+
+  // green_a または green_b を持つ hole_id 集合
+  const { data: greenRows } = await supabase
+    .from('hole_areas')
+    .select('hole_id')
+    .in('area_type', ['green_a', 'green_b']);
+  const greenHoleIds = new Set((greenRows ?? []).map((r) => r.hole_id as string));
+
+  for (const c of courses as Array<{ id: string; holes: Array<{ id: string }> }>) {
+    if (c.holes.length !== 18) continue;
+    const allReady = c.holes.every((h) => vcHoleIds.has(h.id) && greenHoleIds.has(h.id));
+    if (allReady) result.add(c.id);
+  }
+
+  return result;
+}
+
 interface SaveCourseData {
   goraId: string;
   name: string;
