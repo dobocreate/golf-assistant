@@ -22,6 +22,11 @@ interface Props {
   aerialImageUrl: string;
   metadata: AerialImageMetadata;
   areas: HoleArea[];
+  /**
+   * z-index 制御。Sprint 6 PR1 — `MultiShotPositionEditor` から ネスト起動する際は
+   * 'nested' を指定して親モーダル (z-[60]) より前面に出す。デフォルト 'base' = z-[60]。
+   */
+  zIndexLevel?: 'base' | 'nested';
 }
 
 /**
@@ -47,6 +52,7 @@ export function EditPositionModal({
   aerialImageUrl,
   metadata,
   areas,
+  zIndexLevel = 'base',
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   // draft = ドラッグ中・再 GPS 取得後の位置（未確定）。null なら initialPosition を表示
@@ -213,7 +219,7 @@ export function EditPositionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-black/90"
+      className={`fixed inset-0 ${zIndexLevel === 'nested' ? 'z-[70]' : 'z-[60]'} flex flex-col bg-black/90`}
       role="dialog"
       aria-modal="true"
       aria-label="位置を編集"
