@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { ChevronDown, ChevronRight, MapPin, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, Pencil, Undo2 } from 'lucide-react';
 import { getHoleMapDataForCourseHole } from '@/actions/hole-map';
-import { updateShotPosition } from '@/actions/shot-position';
+import { updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
 import type { Shot } from '@/features/score/types';
 import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
@@ -129,6 +129,38 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole }: Props) {
       replaceShot(shot);
     }
     return { ok: true };
+  };
+
+  const handleRevert = async (shot: Shot) => {
+    if (shot.original_latitude == null || shot.original_longitude == null) return;
+    // 不可逆操作のため、破棄される情報と GPS 出自不確実性を明示
+    const ok = window.confirm(
+      '編集前の位置に戻します。\nこの操作で編集内容（座標と精度）は破棄され、元には戻せません。\nよろしいですか？',
+    );
+    if (!ok) return;
+    const { shot: reverted, error, latestShot } = await revertShotPositionToOriginal(
+      shot.id,
+      shot.position_revision,
+    );
+    if (error) {
+      // conflict: 並行編集が走ったため最新値で local state を同期
+      if (error === 'conflict' && latestShot) {
+        replaceShot(latestShot);
+        window.alert(
+          '他のデバイスで編集が入ったため、元に戻せませんでした。\n最新の状態を反映しましたので、必要であれば再度操作してください。',
+        );
+        return;
+      }
+      // conflict だが latestShot が取得できない (削除済み等): debug ログ
+      if (error === 'conflict') {
+        console.warn('revertShotPositionToOriginal conflict but latestShot unavailable');
+      } else {
+        console.warn('revertShotPositionToOriginal failed:', error);
+      }
+      window.alert('元の位置に戻せませんでした。通信状況を確認してください。');
+      return;
+    }
+    if (reverted) replaceShot(reverted);
   };
 
   const replaceShot = (updated: Shot) => {
@@ -259,16 +291,34 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole }: Props) {
                             )}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleEditClick(shot)}
-                          disabled={!mapData}
-                          className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded px-2 py-1 min-h-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label={`ショット ${shot.shot_number} の位置を編集`}
-                        >
-                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                          編集
-                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* 編集済バッジと条件を揃える: original_* 有 かつ 現在 gps_source !== 'gps' */}
+                          {/* (再 GPS 取得後は original_* が残っていてもバッジ非表示なため、ボタンも非表示が UX 整合) */}
+                          {shot.original_latitude != null &&
+                            shot.original_longitude != null &&
+                            shot.gps_source !== 'gps' && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevert(shot)}
+                              className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded px-2 py-1 min-h-[32px]"
+                              aria-label={`ショット ${shot.shot_number} の編集を取り消して元のGPS位置に戻す`}
+                              title="編集を取り消して元のGPS位置に戻す"
+                            >
+                              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              元に戻す
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleEditClick(shot)}
+                            disabled={!mapData}
+                            className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded px-2 py-1 min-h-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label={`ショット ${shot.shot_number} の位置を編集`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            編集
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

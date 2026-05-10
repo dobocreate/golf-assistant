@@ -76,6 +76,21 @@ export function ShotMarkersOverlay({ shots, metadata }: Props) {
             {points.map((p) => {
               const isManualPin = p.shot.gps_source === 'manual_pin';
               const isEdited = p.shot.gps_source === 'manual_edit';
+              // 編集済みショット (Sprint 5 PR9 / S-6d): 元 GPS 位置をゴーストマーカーで表示
+              // original_lat/lng が現在位置と異なれば破線で結ぶ
+              // 距離が小さすぎる場合 (≤ 6px) は重なって視覚情報がノイズになるため非表示
+              const originalPixel =
+                p.shot.original_latitude != null && p.shot.original_longitude != null
+                  ? latLngToPixel(p.shot.original_latitude, p.shot.original_longitude, metadata)
+                  : null;
+              const ghostDistancePx = originalPixel
+                ? Math.hypot(originalPixel.px - p.px, originalPixel.py - p.py)
+                : 0;
+              const hasOriginalGhost =
+                originalPixel &&
+                isFinite(originalPixel.px) &&
+                isFinite(originalPixel.py) &&
+                ghostDistancePx >= 6;
               return (
                 <g key={p.shot.id}>
                   {/*
@@ -92,6 +107,30 @@ export function ShotMarkersOverlay({ shots, metadata }: Props) {
                       stroke="rgba(16,185,129,0.3)"
                       strokeWidth={0.5}
                     />
+                  )}
+                  {/* 元 GPS 位置のゴーストマーカー（編集済ショットのみ） */}
+                  {hasOriginalGhost && (
+                    <g>
+                      <title>{`ショット ${p.shot.shot_number} の編集前位置`}</title>
+                      <line
+                        x1={originalPixel.px}
+                        y1={originalPixel.py}
+                        x2={p.px}
+                        y2={p.py}
+                        stroke="rgba(251,191,36,0.5)"
+                        strokeWidth={1}
+                        strokeDasharray="2 2"
+                      />
+                      <circle
+                        cx={originalPixel.px}
+                        cy={originalPixel.py}
+                        r={4}
+                        fill="rgba(251,191,36,0.3)"
+                        stroke="rgba(251,191,36,0.7)"
+                        strokeWidth={1}
+                        strokeDasharray="2 1"
+                      />
+                    </g>
                   )}
                   {/* マーカー本体 */}
                   <circle
