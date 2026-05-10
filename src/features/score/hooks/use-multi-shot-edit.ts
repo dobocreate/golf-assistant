@@ -103,22 +103,6 @@ export function useMultiShotEdit({
   // shots は props 変更で初期化（モーダル open のたびに新値が来る前提）
   const [shots, setShots] = useState<Shot[]>(initialShots);
 
-  // 親 props の shots 変化を検知して内部 state を同期
-  // ホール切替時に props.shots が変わったら、drafts / selection もリセット（M2 防御層）
-  const prevShotsKeyRef = useRef('');
-  useEffect(() => {
-    const key = initialShots.map((s) => s.id || `new:${s.shot_number}`).join('|');
-    if (key !== prevShotsKeyRef.current) {
-      prevShotsKeyRef.current = key;
-      setShots(initialShots);
-      // ホール跨ぎでの shotId 衝突対策（M2 防御）: shots set が変わったら drafts を全クリア
-      draftsRef.current = new Map();
-      forceRerender();
-      setSelectedShotId(null);
-      setSaveError(null);
-    }
-  }, [initialShots]);
-
   // drafts は useRef で保持して updater 重複実行を回避（Strict Mode 安全）
   const draftsRef = useRef<Map<string, DraftPosition>>(new Map());
   const [, forceRerender] = useReducer((x: number) => x + 1, 0);
@@ -129,6 +113,26 @@ export function useMultiShotEdit({
 
   // inflight ref: 同一 shotId への commit を重複実行させない
   const inflightRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  // 親 props の shots 変化を検知して内部 state を同期
+  // ホール切替時に props.shots が変わったら、drafts / selection もリセット（M2 防御層）
+  // null = 未初期化、初回 mount の no-op を区別する
+  const prevShotsKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    // hole_number を含めることで、別ホールの shot_number 重複（new:1 が複数ホールで衝突）を防ぐ
+    const key = initialShots.map((s) => `${s.hole_number}:${s.id || `new:${s.shot_number}`}`).join('|');
+    if (key === prevShotsKeyRef.current) return;
+    const isFirstRun = prevShotsKeyRef.current === null;
+    prevShotsKeyRef.current = key;
+    setShots(initialShots);
+    if (!isFirstRun) {
+      // ホール跨ぎでの shotId 衝突対策（M2 防御）: shots set が変わったら drafts を全クリア
+      draftsRef.current = new Map();
+      forceRerender();
+      setSelectedShotId(null);
+      setSaveError(null);
+    }
+  }, [initialShots]);
 
   const select = useCallback((shotId: string | null) => {
     setSelectedShotId((prev) => {
@@ -188,7 +192,8 @@ export function useMultiShotEdit({
 
       const promise = (async () => {
         setSavingShotIds((prev) => new Set(prev).add(shotId));
-        setSaveError(null);
+        // saveError は select() / 次の確定操作でクリアされる。
+        // ここで null リセットすると commitAll の途中 conflict が後続成功で消えてしまうため触らない。
         try {
           const result = await saveShotPosition({ shot, draft });
           if (result.ok) {
@@ -249,7 +254,7 @@ export function useMultiShotEdit({
 
       const promise = (async () => {
         setSavingShotIds((prev) => new Set(prev).add(shotId));
-        setSaveError(null);
+        // saveError は select() でクリアされる方針 (commit と同様)
         try {
           const result = await revertShotPosition(shot);
           if (result.ok) {

@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, MapPin, Check, Edit3, Undo2, AlertCircle, Loader2 } from 'lucide-react';
 import { pixelToLatLng, type AerialImageMetadata, type HoleArea } from '@/lib/geo';
+import { metersToYards } from '@/lib/geolocation/lie-detection';
 import { AerialAreaOverlay } from '@/features/course/components/aerial-area-overlay';
 import { MultiShotOverlay } from './multi-shot-overlay';
 import { EditPositionModal } from './edit-position-modal';
@@ -13,6 +14,17 @@ import type {
   DraftPosition,
 } from '@/features/score/hooks/use-multi-shot-edit';
 import type { Shot, GpsSource } from '@/features/score/types';
+
+/** tap vs drag 判定閾値 (px)。pointerDown→pointerUp の移動距離がこれ未満なら tap 扱い */
+const TAP_THRESHOLD_PX = 4;
+
+/** 選択中ショットの情報文字列 (ヒントバー表示用) */
+function formatSelectedShotInfo(shot: Shot): string {
+  const parts: string[] = [`${shot.shot_number}打目`];
+  if (shot.club) parts.push(shot.club);
+  if (shot.remaining_to_green_m != null) parts.push(`残${metersToYards(shot.remaining_to_green_m)}y`);
+  return parts.join(' / ');
+}
 
 interface Props {
   open: boolean;
@@ -73,6 +85,7 @@ export function MultiShotPositionEditor({
     select,
     dragTo,
     commit,
+    discardDraft,
     discardAllDrafts,
     revert,
     syncShot,
@@ -83,15 +96,13 @@ export function MultiShotPositionEditor({
 
   // ドラッグ状態管理 (tap vs drag 閾値)
   // pointerDown 時の座標を保持、pointerUp 時に閾値判定で tap か drag か決める
-  type DragState = {
+  const dragRef = useRef<{
     shotId: string;
     pointerId: number;
     startX: number;
     startY: number;
     moved: boolean;
-  } | null;
-  const dragRef = useRef<DragState>(null);
-  const TAP_THRESHOLD_PX = 4;
+  } | null>(null);
 
   // モーダルが閉じたら詳細編集も閉じる
   useEffect(() => {
@@ -148,6 +159,12 @@ export function MultiShotPositionEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // 選択中ショット (Hooks は条件分岐の前に必ず呼ぶ)
+  const selectedShot = useMemo(
+    () => (selectedShotId ? liveShots.find((s) => s.id === selectedShotId) ?? null : null),
+    [liveShots, selectedShotId],
+  );
+
   if (!open) return null;
 
   const hasDrafts = drafts.size > 0;
@@ -155,6 +172,12 @@ export function MultiShotPositionEditor({
   // マーカータップ / ドラッグ開始
   const handleShotPointerDown = (shotId: string, e: React.PointerEvent<SVGElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // 別マーカー (or 未選択) → 選択するだけ (drag は次回 pointerDown から、誤操作防止)
+    if (selectedShotId !== shotId) {
+      select(shotId);
+      return;
+    }
+    // 選択中マーカーへの再 pointerDown はドラッグ開始扱い
     dragRef.current = {
       shotId,
       pointerId: e.pointerId,
@@ -162,19 +185,11 @@ export function MultiShotPositionEditor({
       startY: e.clientY,
       moved: false,
     };
-    // 選択中マーカーへの再 pointerDown はドラッグ開始扱い
-    if (selectedShotId === shotId) {
-      // pointerCapture を SVG element に張る (コンテナ外にも追従)
-      try {
-        (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-      } catch {
-        /* noop */
-      }
-    } else {
-      // 別マーカー (or 未選択) → 選択するだけ (drag は次回 pointerDown から)
-      select(shotId);
-      dragRef.current = null;
-      return;
+    // pointerCapture を SVG element に張る (コンテナ外にも追従)
+    try {
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      /* noop */
     }
   };
 
@@ -204,6 +219,16 @@ export function MultiShotPositionEditor({
     dragRef.current = null;
   };
 
+  // pointercancel: タッチ中断 (電話・通知等)。moved 後の半端 draft は破棄、selection 誤 toggle も防止
+  const handleContainerPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.moved) {
+      discardDraft(drag.shotId);
+    }
+    dragRef.current = null;
+  };
+
   // フッターアクション
   const handleCommit = async () => {
     if (!selectedShotId) return;
@@ -212,8 +237,6 @@ export function MultiShotPositionEditor({
 
   const handleRevert = async () => {
     if (!selectedShotId) return;
-    const shot = liveShots.find((s) => s.id === selectedShotId);
-    if (!shot || shot.original_latitude == null || shot.original_longitude == null) return;
     if (drafts.has(selectedShotId)) {
       // S2 対応: draft ありの状態で revert は不可 (UI でも disable する)
       return;
@@ -234,7 +257,6 @@ export function MultiShotPositionEditor({
   };
 
   // 詳細編集 (EditPositionModal nested)
-  const selectedShot = selectedShotId ? liveShots.find((s) => s.id === selectedShotId) : null;
   const selectedDraft: DraftPosition | undefined = selectedShotId ? drafts.get(selectedShotId) : undefined;
   const detailInitialPosition = selectedShot
     ? {
@@ -260,8 +282,9 @@ export function MultiShotPositionEditor({
     };
     const result = await saveShotPosition({ shot: selectedShot, draft });
     if (result.ok) {
-      // syncShot で最新値反映 (drafts は既に空)
+      // syncShot で最新値反映 + drag draft が残っていれば破棄（M1 対応）
       if (result.latestShot) syncShot(result.latestShot);
+      discardDraft(selectedShot.id);
       setDetailEditOpen(false);
       return { ok: true };
     }
@@ -273,9 +296,7 @@ export function MultiShotPositionEditor({
   const overlayMode = selectedShotId ? 'selected' : 'list';
 
   // 選択中ショットのフッター情報
-  const selectedShotInfo = selectedShot
-    ? `${selectedShot.shot_number}打目${selectedShot.club ? ` / ${selectedShot.club}` : ''}${selectedShot.remaining_to_green_m != null ? ` / 残${Math.round(selectedShot.remaining_to_green_m * 1.0936)}y` : ''}`
-    : null;
+  const selectedShotInfo = selectedShot ? formatSelectedShotInfo(selectedShot) : null;
 
   const isSavingSelected = selectedShotId ? savingShotIds.has(selectedShotId) : false;
   const hasSelectedDraft = selectedShotId ? drafts.has(selectedShotId) : false;
@@ -329,7 +350,7 @@ export function MultiShotPositionEditor({
         style={{ touchAction: 'none' }}
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
-        onPointerCancel={handleContainerPointerUp}
+        onPointerCancel={handleContainerPointerCancel}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

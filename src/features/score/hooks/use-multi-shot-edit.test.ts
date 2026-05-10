@@ -140,6 +140,24 @@ describe('useMultiShotEdit', () => {
       expect(result.current.drafts.has('b')).toBe(true);
     });
 
+    it('同一 shotId への 2 回目の dragTo は draft を上書きする (n6)', () => {
+      const { result } = renderHook(() =>
+        useMultiShotEdit({
+          shots: [makeShot({ id: 'a', position_revision: 7 })],
+          saveShotPosition: vi.fn(),
+          revertShotPosition: vi.fn(),
+        }),
+      );
+      act(() => result.current.dragTo('a', 35.0, 135.0));
+      act(() => result.current.dragTo('a', 35.5, 135.5));
+      const draft = result.current.drafts.get('a');
+      expect(draft?.lat).toBe(35.5);
+      expect(draft?.lng).toBe(135.5);
+      // baseRevision は shotsRef.current から都度読まれるが、shots は変わっていないので 7
+      expect(draft?.baseRevision).toBe(7);
+      expect(result.current.drafts.size).toBe(1);
+    });
+
     it('discardAllDrafts で全 draft クリア', () => {
       const { result } = renderHook(() =>
         useMultiShotEdit({
@@ -160,7 +178,7 @@ describe('useMultiShotEdit', () => {
   describe('commit', () => {
     it('成功時: drafts から削除 + shots を latestShot で同期', async () => {
       const updated = makeShot({ id: 'a', latitude: 36.0, longitude: 136.0, position_revision: 2 });
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({
         ok: true,
         latestShot: updated,
       }));
@@ -184,7 +202,7 @@ describe('useMultiShotEdit', () => {
 
     it('conflict 時: latestShot で同期、draft 破棄、saveError=conflict', async () => {
       const latestShot = makeShot({ id: 'a', latitude: 37.0, longitude: 137.0, position_revision: 5 });
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({
         ok: false,
         error: 'conflict',
         latestShot,
@@ -211,7 +229,7 @@ describe('useMultiShotEdit', () => {
     });
 
     it('failed 時: saveError=failed、draft は維持', async () => {
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({
         ok: false,
         error: 'failed',
       }));
@@ -231,7 +249,7 @@ describe('useMultiShotEdit', () => {
     });
 
     it('saveShotPosition が throw した場合も saveError=failed で終了', async () => {
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => {
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => {
         throw new Error('boom');
       });
       const { result } = renderHook(() =>
@@ -249,7 +267,7 @@ describe('useMultiShotEdit', () => {
     });
 
     it('draft なしの shotId への commit は no-op', async () => {
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({ ok: true }));
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({ ok: true }));
       const { result } = renderHook(() =>
         useMultiShotEdit({
           shots: [makeShot({ id: 'a' })],
@@ -295,7 +313,7 @@ describe('useMultiShotEdit', () => {
 
   describe('commitAll', () => {
     it('全 draft を順次 commit する', async () => {
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({ ok: true }));
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({ ok: true }));
       const { result } = renderHook(() =>
         useMultiShotEdit({
           shots: [
@@ -317,11 +335,42 @@ describe('useMultiShotEdit', () => {
       });
       expect(saveShotPosition).toHaveBeenCalledTimes(3);
     });
+
+    it('部分失敗時: 後続 commit はスキップされず順次実行される (n5)', async () => {
+      // 2 番目だけ conflict、他は成功 → 3 回呼ばれて最後の saveError が conflict
+      const saveShotPosition: SaveShotPosition = vi.fn(async ({ shot }): Promise<CommitResult> => {
+        if (shot.id === 'b') return { ok: false, error: 'conflict' as const, latestShot: shot };
+        return { ok: true };
+      });
+      const { result } = renderHook(() =>
+        useMultiShotEdit({
+          shots: [
+            makeShot({ id: 'a' }),
+            makeShot({ id: 'b', shot_number: 2 }),
+            makeShot({ id: 'c', shot_number: 3 }),
+          ],
+          saveShotPosition,
+          revertShotPosition: vi.fn(),
+        }),
+      );
+      act(() => {
+        result.current.dragTo('a', 1, 1);
+        result.current.dragTo('b', 2, 2);
+        result.current.dragTo('c', 3, 3);
+      });
+      await act(async () => {
+        await result.current.commitAll();
+      });
+      expect(saveShotPosition).toHaveBeenCalledTimes(3);
+      expect(result.current.saveError).toBe('conflict');
+      // 成功した a / c の draft は破棄、conflict の b も破棄 (latestShot 同期のため)
+      expect(result.current.drafts.size).toBe(0);
+    });
   });
 
   describe('revert', () => {
     it('original_latitude/longitude がないショットへの revert は no-op', async () => {
-      const revertShotPosition: RevertShotPosition = vi.fn(async () => ({ ok: true }));
+      const revertShotPosition: RevertShotPosition = vi.fn(async (): Promise<CommitResult> => ({ ok: true }));
       const { result } = renderHook(() =>
         useMultiShotEdit({
           shots: [makeShot({ id: 'a', original_latitude: null, original_longitude: null })],
@@ -337,7 +386,7 @@ describe('useMultiShotEdit', () => {
 
     it('成功時: 当該 shot の draft 破棄 + shots に最新値反映', async () => {
       const latestShot = makeShot({ id: 'a', latitude: 30.0, longitude: 130.0, position_revision: 5 });
-      const revertShotPosition: RevertShotPosition = vi.fn(async () => ({
+      const revertShotPosition: RevertShotPosition = vi.fn(async (): Promise<CommitResult> => ({
         ok: true,
         latestShot,
       }));
@@ -426,7 +475,7 @@ describe('useMultiShotEdit', () => {
     });
 
     it('Strict Mode 下で commit を呼んでも saveShotPosition は 1 回のみ', async () => {
-      const saveShotPosition: SaveShotPosition = vi.fn(async () => ({ ok: true }));
+      const saveShotPosition: SaveShotPosition = vi.fn(async (): Promise<CommitResult> => ({ ok: true }));
       const { result } = renderHook(
         () =>
           useMultiShotEdit({

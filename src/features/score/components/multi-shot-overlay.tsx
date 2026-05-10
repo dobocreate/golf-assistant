@@ -38,7 +38,8 @@ interface Props {
  *
  * **マーカー仕様**:
  * - 視覚: r=12 (mode='list'/'selected') / r=5 (mode='readonly')
- * - hit area: r=20 の透明 circle を重ねて pointer events を拾う (Codex m5 対応)
+ * - hit area: mode='list'/'selected' のみ r=20 の透明 circle を重ねて pointer events を拾う
+ *   (Codex m5 対応 / readonly では拡張なし、視覚マーカーと同寸)
  * - 選択中 (mode='selected' && shotId === selectedShotId): amber-500 + glow
  * - 非選択ディム (mode='selected' && shotId !== selectedShotId): opacity 0.5 + pointer-events-none
  * - draft あり: 「未確定」表示として小さい amber dot を上に重ねる
@@ -93,6 +94,7 @@ export function MultiShotOverlay({
   const markerFontSize = mode === 'readonly' ? 7 : 11;
 
   const interactive = mode === 'list' || mode === 'selected';
+  const showHitArea = interactive && !!onShotPointerDown;
   const ariaLabel = mode === 'readonly' ? 'ショット位置 (読み取り専用)' : 'ショット位置編集';
 
   return (
@@ -227,14 +229,14 @@ export function MultiShotOverlay({
               />
             )}
             {/* 透明 hit area (Codex m5: pointer events 拾い拡張) */}
-            {interactive && !isDimmed && onShotPointerDown && (
+            {showHitArea && !isDimmed && (
               <circle
                 cx={p.px}
                 cy={p.py}
                 r={markerHitR}
                 fill="transparent"
                 style={{ cursor: mode === 'selected' && isSelected ? 'grab' : 'pointer', touchAction: 'none' }}
-                onPointerDown={(e) => onShotPointerDown(p.shot.id, e)}
+                onPointerDown={(e) => onShotPointerDown!(p.shot.id, e)}
               />
             )}
           </g>
