@@ -271,7 +271,10 @@ export async function updateShotPosition(
     return { error: 'conflict', latestShot: latest as Shot | undefined };
   }
 
+  // ラウンド中の score 画面 + ラウンド後の詳細画面の両方を revalidate
+  // （PR8 で /rounds/[roundId] にもショット軌跡セクションを追加したため）
   revalidatePath(`/play/${shotRow.round_id}/score`);
+  revalidatePath(`/rounds/${shotRow.round_id}`);
   return { shot: updated as Shot };
 }
 
@@ -406,6 +409,8 @@ export async function revertShotPositionToOriginal(
     return { error: 'conflict', latestShot: latest as Shot | undefined };
   }
 
+  // 両画面を revalidate（updateShotPosition と同パターン）
   revalidatePath(`/rounds/${shotRow.round_id}`);
+  revalidatePath(`/play/${shotRow.round_id}/score`);
   return { shot: updated as Shot };
 }
