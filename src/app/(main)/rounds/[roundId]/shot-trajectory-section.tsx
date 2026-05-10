@@ -54,15 +54,19 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole }: Props) {
       const inflight = inflightRef.current.get(holeNumber);
       if (inflight) return inflight;
       const promise = (async () => {
-        const data = await getHoleMapDataForCourseHole(courseId, holeNumber);
-        // null も明示的に set して「fetched but unavailable」を表現
-        setMapDataByHole((prev) => {
-          const next = new Map(prev);
-          next.set(holeNumber, data);
-          return next;
-        });
-        inflightRef.current.delete(holeNumber);
-        return data;
+        try {
+          const data = await getHoleMapDataForCourseHole(courseId, holeNumber);
+          // null も明示的に set して「fetched but unavailable」を表現
+          setMapDataByHole((prev) => {
+            const next = new Map(prev);
+            next.set(holeNumber, data);
+            return next;
+          });
+          return data;
+        } finally {
+          // 例外時も inflight を確実にクリアして次回 fetch を可能にする
+          inflightRef.current.delete(holeNumber);
+        }
       })();
       inflightRef.current.set(holeNumber, promise);
       return promise;
