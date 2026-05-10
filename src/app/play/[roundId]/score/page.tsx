@@ -3,6 +3,7 @@ import { getClubs } from '@/actions/club';
 import { getGamePlans } from '@/actions/game-plan';
 import { getProfile } from '@/actions/profile';
 import { getCompanions, getCompanionScores } from '@/actions/companion';
+import { getHoleMapDataAllForCourse } from '@/actions/hole-map';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import { ScoreClientShell, type ServerData } from '@/features/score/components/score-client-shell';
@@ -26,13 +27,18 @@ export default async function ScoreInputPage({
   let serverData: ServerData | null = null;
 
   try {
-    const [data, clubs, gamePlans, profile, companions, companionData] = await Promise.all([
-      getScoresWithHoles(roundId),
+    // 2 段階 fetch: courseId が必要な map prefetch (Sprint 5 PR10) のため
+    // getScoresWithHoles を先に解決してから残りを並列取得
+    const data = await getScoresWithHoles(roundId);
+
+    const [clubs, gamePlans, profile, companions, companionData, initialMapDataByHole] = await Promise.all([
       getClubs(),
       getGamePlans(roundId),
       getProfile(),
       getCompanions(roundId),
       getCompanionScores(roundId),
+      // S-5e: ラウンド開始時に全 18 ホール map data を 3 query で一括取得
+      data ? getHoleMapDataAllForCourse(data.round.courseId) : Promise.resolve([]),
     ]);
 
     if (data) {
@@ -55,6 +61,7 @@ export default async function ScoreInputPage({
         handicap: profile?.handicap ?? null,
         companions,
         initialCompanionScores: allCompanionScores,
+        initialMapDataByHole,
       };
     }
   } catch {

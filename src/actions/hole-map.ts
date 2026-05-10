@@ -6,7 +6,17 @@
 // No auth check is needed here.
 
 import { createClient } from '@/lib/supabase/server';
-import type { HoleMapPoint, HoleElevationGrid, HoleViewConfig, HoleArea } from '@/lib/geo';
+import type { HoleMapPoint, HoleElevationGrid, HoleViewConfig, HoleArea, AerialImageMetadata } from '@/lib/geo';
+
+/**
+ * GPS マップ表示用データ。getHoleMapDataForRoundHole / ForCourseHole / AllForCourse の
+ * 戻り値で共通利用する shape。client (use-hole-map-cache) 側でも同型を再宣言している。
+ */
+export interface HoleMapData {
+  aerialImageUrl: string;
+  metadata: AerialImageMetadata;
+  areas: HoleArea[];
+}
 
 /**
  * Get all map points for a course (joins holes to filter by course_id).
@@ -133,17 +143,13 @@ export async function getHoleAreasForCourse(courseId: string): Promise<HoleArea[
  * 認証チェックなし（hole_* テーブルは public 読み取り可。コース・ラウンドの
  * 所有確認は GPS 操作の前段（ShotForm 表示権限）で既に済んでいる前提）。
  *
- * TODO(PR7+, S-5e): ホール切替ごとにこの 4 クエリが走るため、ラウンド開始時に
- * 全 18 ホール分をプリフェッチしてクライアント側でキャッシュする最適化を検討。
+ * Sprint 5 PR10 (S-5e) で `getHoleMapDataAllForCourse` + `HoleMapCacheProvider` を
+ * 導入し、N+1 問題は解消済み。本関数は cache miss 時の fallback として残置。
  */
 export async function getHoleMapDataForRoundHole(
   roundId: string,
   holeNumber: number,
-): Promise<{
-  aerialImageUrl: string;
-  metadata: import('@/lib/geo').AerialImageMetadata;
-  areas: HoleArea[];
-} | null> {
+): Promise<HoleMapData | null> {
   // UUID 形式チェック（debugability のため、不正な roundId を Supabase に渡す前に弾く）
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(roundId)) return null;
@@ -203,11 +209,7 @@ export async function getHoleMapDataForRoundHole(
 export async function getHoleMapDataForCourseHole(
   courseId: string,
   holeNumber: number,
-): Promise<{
-  aerialImageUrl: string;
-  metadata: import('@/lib/geo').AerialImageMetadata;
-  areas: HoleArea[];
-} | null> {
+): Promise<HoleMapData | null> {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(courseId)) return null;
   if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) return null;
@@ -246,4 +248,92 @@ export async function getHoleMapDataForCourseHole(
     metadata,
     areas: (areasData ?? []) as HoleArea[],
   };
+}
+
+/**
+ * 全ホールの map data エントリ（client serialize 安全な形）
+ * Server Action の戻り値は plain object/array に限定（Map は serialize されない）
+ */
+export type HoleMapDataEntry = HoleMapData & { holeNumber: number };
+
+/**
+ * 指定コースの全ホールについて GPS マップ表示用データを 3 クエリで一括取得
+ *
+ * Sprint 5 PR10 (S-5e) — ホール切替ごとの 4 query × N ホール (N+1 問題) を
+ * ラウンド開始時の 3 query にまとめてクライアントキャッシュさせる最適化。
+ *
+ * 戻り値: HoleMapDataEntry[]（GPS-ready なホールのみ、hole_number 順）
+ *   - hole_view_configs.cached_image_url が NULL のホールは含まれない
+ *   - metadata_json が parse できないホールも含まれない
+ *
+ * 認証チェックなし（hole_* テーブルは public 読み取り可）。
+ */
+export async function getHoleMapDataAllForCourse(
+  courseId: string,
+): Promise<HoleMapDataEntry[]> {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(courseId)) return [];
+
+  const supabase = await createClient();
+
+  // 3 クエリ並列: holes (hole_id → hole_number) / hole_view_configs / hole_areas
+  const [holesResult, vcResult, areasResult] = await Promise.all([
+    supabase
+      .from('holes')
+      .select('id, hole_number')
+      .eq('course_id', courseId),
+    supabase
+      .from('hole_view_configs')
+      .select('hole_id, cached_image_url, metadata_json, holes!inner(course_id)')
+      .eq('holes.course_id', courseId),
+    supabase
+      .from('hole_areas')
+      .select('*, holes!inner(course_id)')
+      .eq('holes.course_id', courseId)
+      .order('sort_order'),
+  ]);
+
+  // 既存関数と同様、エラー時はログ出力してから空集合に縮退（プレビュー非表示で続行）
+  if (holesResult.error) console.error('Failed to fetch holes for course:', holesResult.error.message);
+  if (vcResult.error) console.error('Failed to fetch hole_view_configs for course:', vcResult.error.message);
+  if (areasResult.error) console.error('Failed to fetch hole_areas for course:', areasResult.error.message);
+
+  const holes = (holesResult.data ?? []) as Array<{ id: string; hole_number: number }>;
+  if (holes.length === 0) return [];
+
+  // hole_id → hole_number の lookup
+  const holeIdToNumber = new Map<string, number>();
+  for (const h of holes) holeIdToNumber.set(h.id, h.hole_number);
+
+  // hole_id → areas[] のグループ化（join 用 holes フィールドは除去）
+  const areasByHoleId = new Map<string, HoleArea[]>();
+  for (const row of (areasResult.data ?? []) as Array<HoleArea & { holes?: unknown }>) {
+    const { holes: _holes, ...area } = row;
+    const arr = areasByHoleId.get(area.hole_id) ?? [];
+    arr.push(area as HoleArea);
+    areasByHoleId.set(area.hole_id, arr);
+  }
+
+  const { parseAerialImageMetadata } = await import('@/lib/geo');
+
+  // hole_view_configs を hole_number に紐付けて entry を構築
+  type VcRow = { hole_id: string; cached_image_url: string | null; metadata_json: unknown };
+  const entries: HoleMapDataEntry[] = [];
+  for (const vc of (vcResult.data ?? []) as VcRow[]) {
+    if (!vc.cached_image_url) continue;
+    const metadata = parseAerialImageMetadata(vc.metadata_json);
+    if (!metadata) continue;
+    const holeNumber = holeIdToNumber.get(vc.hole_id);
+    if (holeNumber == null) continue;
+    entries.push({
+      holeNumber,
+      aerialImageUrl: vc.cached_image_url,
+      metadata,
+      areas: areasByHoleId.get(vc.hole_id) ?? [],
+    });
+  }
+
+  // hole_number 順にソート（クライアント表示順の安定化）
+  entries.sort((a, b) => a.holeNumber - b.holeNumber);
+  return entries;
 }

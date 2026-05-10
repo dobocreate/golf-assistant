@@ -5,9 +5,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScoreInput } from '@/features/score/components/score-input';
 import { useOfflineStore } from '@/features/score/hooks/use-offline-store';
 import { useRecovery, localScoresToScores } from '@/features/score/hooks/use-recovery';
+import { HoleMapCacheProvider } from '@/features/score/hooks/use-hole-map-cache';
 import type { Weather } from '@/features/round/types';
 import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
 import type { GamePlan } from '@/features/game-plan/types';
+import type { HoleMapDataEntry } from '@/actions/hole-map';
 
 /** Server-fetched data bundle passed from the page Server Component */
 export interface ServerData {
@@ -26,6 +28,9 @@ export interface ServerData {
   handicap: number | null;
   companions: Companion[];
   initialCompanionScores: CompanionScore[];
+  /** Sprint 5 PR10 (S-5e): ラウンド開始時にプリフェッチした全ホール map data
+   *  Server Action は serialize 安全な配列形式で返却（HoleMapCacheProvider が cache に seed） */
+  initialMapDataByHole?: HoleMapDataEntry[];
 }
 
 interface ScoreClientShellProps {
@@ -167,23 +172,26 @@ export function ScoreClientShell({ serverData, roundId }: ScoreClientShellProps)
 
   // Ready: render ScoreInput
   const { data } = state;
+  // HoleMapCacheProvider で配下に prefetched map data を共有（Sprint 5 PR10 / S-5e）
   return (
-    <ScoreInput
-      roundId={data.roundId}
-      holes={data.holes}
-      initialScores={data.initialScores}
-      courseName={data.courseName}
-      clubs={data.clubs}
-      editMode={data.editMode}
-      startingCourse={data.startingCourse}
-      initialHole={data.initialHole}
-      gamePlans={data.gamePlans}
-      targetScore={data.targetScore}
-      scoreLevel={data.scoreLevel}
-      handicap={data.handicap}
-      companions={data.companions}
-      initialCompanionScores={data.initialCompanionScores}
-    />
+    <HoleMapCacheProvider initialMapData={data.initialMapDataByHole}>
+      <ScoreInput
+        roundId={data.roundId}
+        holes={data.holes}
+        initialScores={data.initialScores}
+        courseName={data.courseName}
+        clubs={data.clubs}
+        editMode={data.editMode}
+        startingCourse={data.startingCourse}
+        initialHole={data.initialHole}
+        gamePlans={data.gamePlans}
+        targetScore={data.targetScore}
+        scoreLevel={data.scoreLevel}
+        handicap={data.handicap}
+        companions={data.companions}
+        initialCompanionScores={data.initialCompanionScores}
+      />
+    </HoleMapCacheProvider>
   );
 }
 

@@ -6,6 +6,7 @@ import { useGeolocation } from '@/lib/geolocation/use-geolocation';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
 import { computeShotPosition, updateShotPosition } from '@/actions/shot-position';
 import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
+import { useHoleMapCache } from '@/features/score/hooks/use-hole-map-cache';
 import type { ShotFormState, AutoLieConfidence, GpsSource } from '@/features/score/types';
 import type { ShotFormAction } from '@/features/score/hooks/use-shot-recorder';
 import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
@@ -54,17 +55,32 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
   const [manualPinOpen, setManualPinOpen] = useState(false);
   const [editPositionOpen, setEditPositionOpen] = useState(false);
 
+  // Sprint 5 PR10: 親 (ScoreClientShell) でプリフェッチ済みなら cache hit、未配置時は lazy load fallback
+  const mapCache = useHoleMapCache();
+
   useEffect(() => {
+    // cache hit: 即同期 set（fetch しない、モーダル状態にも触らない）
+    // 親の任意の再レンダーで cache 参照が変わってもモーダルが誤クローズしないよう、
+    // 状態リセットは cache miss 時のみに限定。
+    const cached = mapCache.get(holeNumber);
+    if (cached !== undefined) {
+      setMapData(cached);
+      return;
+    }
+
     let cancelled = false;
-    // ホール切替時は古い mapData / モーダル状態を即座にクリア
+    // cache miss: ホール切替直後を想定し、古い mapData / モーダル状態をクリア
     // （fetch resolve 前に古い画像・metadata で手動ピンされるのを防ぐ）
     setMapData(null);
     setMapLightboxOpen(false);
     setManualPinOpen(false);
     setEditPositionOpen(false);
+
     (async () => {
       try {
-        const data = await getHoleMapDataForRoundHole(roundId, holeNumber);
+        const data = await mapCache.ensure(holeNumber, () =>
+          getHoleMapDataForRoundHole(roundId, holeNumber),
+        );
         if (!cancelled) setMapData(data);
       } catch (err) {
         // ネットワークエラー等で fetch が失敗してもアプリは動作続行（プレビュー非表示のみ）
@@ -74,7 +90,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
     return () => {
       cancelled = true;
     };
-  }, [roundId, holeNumber]);
+  }, [roundId, holeNumber, mapCache]);
 
   const hasPosition = form.latitude != null && form.longitude != null;
   const accuracyText =
