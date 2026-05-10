@@ -251,12 +251,18 @@ export async function getHoleMapDataForCourseHole(
 }
 
 /**
+ * 全ホールの map data エントリ（client serialize 安全な形）
+ * Server Action の戻り値は plain object/array に限定（Map は serialize されない）
+ */
+export type HoleMapDataEntry = HoleMapData & { holeNumber: number };
+
+/**
  * 指定コースの全ホールについて GPS マップ表示用データを 3 クエリで一括取得
  *
  * Sprint 5 PR10 (S-5e) — ホール切替ごとの 4 query × N ホール (N+1 問題) を
  * ラウンド開始時の 3 query にまとめてクライアントキャッシュさせる最適化。
  *
- * 戻り値: hole_number → MapData の Map（GPS-ready なホールのみ）
+ * 戻り値: HoleMapDataEntry[]（GPS-ready なホールのみ、hole_number 順）
  *   - hole_view_configs.cached_image_url が NULL のホールは含まれない
  *   - metadata_json が parse できないホールも含まれない
  *
@@ -264,10 +270,9 @@ export async function getHoleMapDataForCourseHole(
  */
 export async function getHoleMapDataAllForCourse(
   courseId: string,
-): Promise<Map<number, HoleMapData>> {
-  const result = new Map<number, HoleMapData>();
+): Promise<HoleMapDataEntry[]> {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!UUID_RE.test(courseId)) return result;
+  if (!UUID_RE.test(courseId)) return [];
 
   const supabase = await createClient();
 
@@ -294,7 +299,7 @@ export async function getHoleMapDataAllForCourse(
   if (areasResult.error) console.error('Failed to fetch hole_areas for course:', areasResult.error.message);
 
   const holes = (holesResult.data ?? []) as Array<{ id: string; hole_number: number }>;
-  if (holes.length === 0) return result;
+  if (holes.length === 0) return [];
 
   // hole_id → hole_number の lookup
   const holeIdToNumber = new Map<string, number>();
@@ -311,20 +316,24 @@ export async function getHoleMapDataAllForCourse(
 
   const { parseAerialImageMetadata } = await import('@/lib/geo');
 
-  // hole_view_configs を hole_number に紐付けて MapData を構築
+  // hole_view_configs を hole_number に紐付けて entry を構築
   type VcRow = { hole_id: string; cached_image_url: string | null; metadata_json: unknown };
+  const entries: HoleMapDataEntry[] = [];
   for (const vc of (vcResult.data ?? []) as VcRow[]) {
     if (!vc.cached_image_url) continue;
     const metadata = parseAerialImageMetadata(vc.metadata_json);
     if (!metadata) continue;
     const holeNumber = holeIdToNumber.get(vc.hole_id);
     if (holeNumber == null) continue;
-    result.set(holeNumber, {
+    entries.push({
+      holeNumber,
       aerialImageUrl: vc.cached_image_url,
       metadata,
       areas: areasByHoleId.get(vc.hole_id) ?? [],
     });
   }
 
-  return result;
+  // hole_number 順にソート（クライアント表示順の安定化）
+  entries.sort((a, b) => a.holeNumber - b.holeNumber);
+  return entries;
 }

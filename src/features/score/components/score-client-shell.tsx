@@ -9,7 +9,7 @@ import { HoleMapCacheProvider } from '@/features/score/hooks/use-hole-map-cache'
 import type { Weather } from '@/features/round/types';
 import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
 import type { GamePlan } from '@/features/game-plan/types';
-import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
+import type { HoleMapDataEntry } from '@/actions/hole-map';
 
 /** Server-fetched data bundle passed from the page Server Component */
 export interface ServerData {
@@ -29,13 +29,8 @@ export interface ServerData {
   companions: Companion[];
   initialCompanionScores: CompanionScore[];
   /** Sprint 5 PR10 (S-5e): ラウンド開始時にプリフェッチした全ホール map data
-   *  Map は serialize 不可のため Array 形式で渡す。Client 側で Map に再構築。 */
-  initialMapDataByHole?: Array<{
-    holeNumber: number;
-    aerialImageUrl: string;
-    metadata: AerialImageMetadata;
-    areas: HoleArea[];
-  }>;
+   *  Server Action は serialize 安全な配列形式で返却（HoleMapCacheProvider が cache に seed） */
+  initialMapDataByHole?: HoleMapDataEntry[];
 }
 
 interface ScoreClientShellProps {

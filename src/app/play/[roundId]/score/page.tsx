@@ -3,7 +3,7 @@ import { getClubs } from '@/actions/club';
 import { getGamePlans } from '@/actions/game-plan';
 import { getProfile } from '@/actions/profile';
 import { getCompanions, getCompanionScores } from '@/actions/companion';
-import { getHoleMapDataAllForCourse, type HoleMapData } from '@/actions/hole-map';
+import { getHoleMapDataAllForCourse } from '@/actions/hole-map';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import { ScoreClientShell, type ServerData } from '@/features/score/components/score-client-shell';
@@ -31,25 +31,19 @@ export default async function ScoreInputPage({
     // getScoresWithHoles を先に解決してから残りを並列取得
     const data = await getScoresWithHoles(roundId);
 
-    const [clubs, gamePlans, profile, companions, companionData, mapDataByHole] = await Promise.all([
+    const [clubs, gamePlans, profile, companions, companionData, initialMapDataByHole] = await Promise.all([
       getClubs(),
       getGamePlans(roundId),
       getProfile(),
       getCompanions(roundId),
       getCompanionScores(roundId),
       // S-5e: ラウンド開始時に全 18 ホール map data を 3 query で一括取得
-      data ? getHoleMapDataAllForCourse(data.round.courseId) : Promise.resolve(new Map<number, HoleMapData>()),
+      data ? getHoleMapDataAllForCourse(data.round.courseId) : Promise.resolve([]),
     ]);
 
     if (data) {
       // 同伴者スコアをフラットな配列に変換
       const allCompanionScores = companionData.flatMap(cd => cd.scores);
-
-      // ShotPositionRecorder へ伝搬するため Map → Array にシリアライズ
-      const initialMapDataByHole = Array.from(mapDataByHole.entries()).map(([holeNumber, m]) => ({
-        holeNumber,
-        ...m,
-      }));
 
       serverData = {
         roundId,

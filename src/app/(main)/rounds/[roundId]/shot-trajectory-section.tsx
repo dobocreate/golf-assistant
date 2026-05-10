@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronRight, MapPin, Pencil, Undo2 } from 'lucide-react';
-import { getHoleMapDataForCourseHole } from '@/actions/hole-map';
+import { getHoleMapDataForCourseHole, type HoleMapDataEntry } from '@/actions/hole-map';
 import { updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
 import type { Shot } from '@/features/score/types';
@@ -22,12 +22,7 @@ interface Props {
   initialShotsByHole: Array<{ holeNumber: number; shots: Shot[] }>;
   /** Sprint 5 PR10 (S-5e): ラウンド開始時にプリフェッチした全ホール map data
    *  cache に seed することでアコーディオン展開時の lazy load が不要になる */
-  initialMapDataByHole?: Array<{
-    holeNumber: number;
-    aerialImageUrl: string;
-    metadata: AerialImageMetadata;
-    areas: HoleArea[];
-  }>;
+  initialMapDataByHole?: HoleMapDataEntry[];
 }
 
 /**

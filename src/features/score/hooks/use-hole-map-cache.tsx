@@ -1,14 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useReducer, useRef } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
-
-export interface HoleMapData {
-  aerialImageUrl: string;
-  metadata: AerialImageMetadata;
-  areas: HoleArea[];
-}
+import type { HoleMapData, HoleMapDataEntry } from '@/actions/hole-map';
 
 /**
  * 値が `HoleMapData` = 取得成功 / `null` = 取得済みだが unavailable / `undefined` = 未取得
@@ -46,14 +40,14 @@ const NO_OP_CACHE: HoleMapCacheContext = {
  * - initialMapData で渡された map data をそのまま seed
  * - cache miss 時の遅延 fetch は ensure() に渡された fetcher を経由（後方互換）
  * - 同一ホールへの並行 fetch は inflight ref で 1 つに集約（race 防止）
- * - cache 本体は useRef 保持。get/ensure は cache 依存から外し、
- *   毎回コンテキスト値が再生成されることによる consumer の useEffect 再発火を防ぐ
+ * - cache 本体は useRef 保持。consumer は ensure() の Promise からデータを受け取り、
+ *   render body で get() の戻り値変化に依存しない設計（Provider 再レンダー通知は不要）
  */
 export function HoleMapCacheProvider({
   initialMapData,
   children,
 }: {
-  initialMapData?: Array<{ holeNumber: number; aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[] }>;
+  initialMapData?: HoleMapDataEntry[];
   children: ReactNode;
 }) {
   const cacheRef = useRef<CacheState>(new Map());
@@ -70,9 +64,6 @@ export function HoleMapCacheProvider({
       });
     }
   }
-
-  // cache 更新通知用（consumer は get() を直接呼ぶので、再レンダーが必要なケースのみ起動）
-  const [, forceRerender] = useReducer((x: number) => x + 1, 0);
 
   const get = useCallback(
     (holeNumber: number): HoleMapData | null | undefined => cacheRef.current.get(holeNumber),
@@ -91,7 +82,6 @@ export function HoleMapCacheProvider({
         try {
           const data = await fetcher();
           cacheRef.current.set(holeNumber, data);
-          forceRerender();
           return data;
         } finally {
           inflightRef.current.delete(holeNumber);
