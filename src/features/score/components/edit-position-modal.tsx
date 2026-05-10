@@ -67,6 +67,20 @@ export function EditPositionModal({
     }
   }, [open]);
 
+  // initialPosition が外部から変更された場合（conflict 時に latestShot で同期されたケース等）、
+  // 古い draft が残ったままだと「ユーザーは新位置を見たつもりが古い draft を保存」してしまう。
+  // 検知して draft をリセット（saveError バナーは維持してユーザーに状況を伝える）
+  const initialPosKey = `${initialPosition.lat},${initialPosition.lng}`;
+  useEffect(() => {
+    if (open) {
+      setDraft(null);
+      setIsDragging(false);
+    }
+    // open は意図的に依存に含めない（open=true への遷移時は上の effect でクリア済み、
+    // ここでは「open のままで initialPosition が変化した」だけを検知したい）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPosKey]);
+
   // Escape で閉じる（親モーダルへの bubble 防止）
   // ManualPinModal と同じパターン: onClose を依存配列に含め stale closure を回避
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { getRoundWithCourse } from '@/actions/round';
 import { getScoresWithHoles } from '@/actions/score';
 import { getMemos } from '@/actions/memo';
+import { getShotsWithGpsByHoleForRound } from '@/actions/shot';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +10,7 @@ import { ArrowLeft, Flag, ChevronRight } from 'lucide-react';
 import { ReviewNoteSection } from './review-note-section';
 import { PracticeSuggestionSection } from './practice-suggestion-section';
 import { RoundSpeedDial } from './round-speed-dial';
+import { ShotTrajectorySection } from './shot-trajectory-section';
 import { getPracticeSuggestion } from '@/actions/round';
 import { FIRST_PUTT_DISTANCE_LABELS } from '@/features/score/types';
 import type { FirstPuttDistance } from '@/features/score/types';
@@ -26,11 +28,19 @@ export default async function RoundReviewPage({
   const round = await getRoundWithCourse(roundId);
   if (!round) notFound();
 
-  const [data, memos, practiceSuggestion] = await Promise.all([
+  const [data, memos, practiceSuggestion, shotsByHole] = await Promise.all([
     getScoresWithHoles(roundId),
     getMemos(roundId),
     round.status === 'completed' ? getPracticeSuggestion(roundId) : Promise.resolve(null),
+    // ショット軌跡セクションは completed のみ表示するため、in_progress では fetch 不要
+    round.status === 'completed' ? getShotsWithGpsByHoleForRound(roundId) : Promise.resolve(new Map()),
   ]);
+
+  // ShotTrajectorySection に渡すため Map → Array に変換（client component が serialize 可能な形に）
+  const initialShotsByHole = Array.from(shotsByHole.entries()).map(([holeNumber, shots]) => ({
+    holeNumber,
+    shots,
+  }));
 
   const holes = data?.holes ?? [];
   const scores = data?.scores ?? [];
@@ -237,6 +247,15 @@ export default async function RoundReviewPage({
               ))}
             </div>
           </details>
+        </section>
+      )}
+
+      {/* ショット軌跡（GPS タグ付きショットがあれば表示）— Sprint 5 PR8
+          注: in_progress 中は /play 側のクライアントキャッシュ (Map<holeNumber, Shot[]>) と
+          整合性が取れないため、completed のラウンドでのみ表示する。 */}
+      {round.status === 'completed' && initialShotsByHole.length > 0 && (
+        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4">
+          <ShotTrajectorySection courseId={round.course_id} initialShotsByHole={initialShotsByHole} />
         </section>
       )}
 
