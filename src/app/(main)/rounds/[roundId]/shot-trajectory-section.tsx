@@ -20,6 +20,14 @@ interface Props {
   courseId: string;
   /** server から渡される初期データ。client side で編集後は editedShots で上書きする */
   initialShotsByHole: Array<{ holeNumber: number; shots: Shot[] }>;
+  /** Sprint 5 PR10 (S-5e): ラウンド開始時にプリフェッチした全ホール map data
+   *  cache に seed することでアコーディオン展開時の lazy load が不要になる */
+  initialMapDataByHole?: Array<{
+    holeNumber: number;
+    aerialImageUrl: string;
+    metadata: AerialImageMetadata;
+    areas: HoleArea[];
+  }>;
 }
 
 /**
@@ -35,14 +43,23 @@ interface Props {
  *
  * GPS タグ付きショットがないホールは表示しない。
  */
-export function ShotTrajectorySection({ courseId, initialShotsByHole }: Props) {
+export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMapDataByHole }: Props) {
   const [shotsByHole, setShotsByHole] = useState<Map<number, Shot[]>>(
     () => new Map(initialShotsByHole.map((g) => [g.holeNumber, g.shots])),
   );
   const [openHoles, setOpenHoles] = useState<Set<number>>(new Set());
   // value が MapData = 取得成功 / null = 取得済みだが unavailable (hole_view_configs なし)
   // has() による fetched 判定で、loading 表示と unavailable 表示を区別する
-  const [mapDataByHole, setMapDataByHole] = useState<Map<number, MapData | null>>(new Map());
+  // Sprint 5 PR10 (S-5e): server 側で全ホール一括取得した map data を初期値として seed
+  const [mapDataByHole, setMapDataByHole] = useState<Map<number, MapData | null>>(
+    () => new Map(
+      (initialMapDataByHole ?? []).map((m) => [m.holeNumber, {
+        aerialImageUrl: m.aerialImageUrl,
+        metadata: m.metadata,
+        areas: m.areas,
+      }]),
+    ),
+  );
   const [editing, setEditing] = useState<{ shot: Shot; mapData: MapData } | null>(null);
   // 進行中の fetch promise を hole_number ごとに保持（同一ホール並行 fetch を防止）
   const inflightRef = useRef<Map<number, Promise<MapData | null>>>(new Map());

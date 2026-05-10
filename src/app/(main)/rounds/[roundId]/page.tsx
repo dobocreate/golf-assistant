@@ -2,6 +2,7 @@ import { getRoundWithCourse } from '@/actions/round';
 import { getScoresWithHoles } from '@/actions/score';
 import { getMemos } from '@/actions/memo';
 import { getShotsWithGpsByHoleForRound } from '@/actions/shot';
+import { getHoleMapDataAllForCourse, type HoleMapData } from '@/actions/hole-map';
 import { getAuthenticatedUser } from '@/lib/auth-utils';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -28,18 +29,24 @@ export default async function RoundReviewPage({
   const round = await getRoundWithCourse(roundId);
   if (!round) notFound();
 
-  const [data, memos, practiceSuggestion, shotsByHole] = await Promise.all([
+  const [data, memos, practiceSuggestion, shotsByHole, mapDataByHole] = await Promise.all([
     getScoresWithHoles(roundId),
     getMemos(roundId),
     round.status === 'completed' ? getPracticeSuggestion(roundId) : Promise.resolve(null),
     // ショット軌跡セクションは completed のみ表示するため、in_progress では fetch 不要
     round.status === 'completed' ? getShotsWithGpsByHoleForRound(roundId) : Promise.resolve(new Map()),
+    // Sprint 5 PR10 (S-5e): completed ラウンドの軌跡セクション用に全ホール map data を一括取得
+    round.status === 'completed' ? getHoleMapDataAllForCourse(round.course_id) : Promise.resolve(new Map<number, HoleMapData>()),
   ]);
 
   // ShotTrajectorySection に渡すため Map → Array に変換（client component が serialize 可能な形に）
   const initialShotsByHole = Array.from(shotsByHole.entries()).map(([holeNumber, shots]) => ({
     holeNumber,
     shots,
+  }));
+  const initialMapDataByHole = Array.from(mapDataByHole.entries()).map(([holeNumber, m]) => ({
+    holeNumber,
+    ...m,
   }));
 
   const holes = data?.holes ?? [];
@@ -255,7 +262,11 @@ export default async function RoundReviewPage({
           整合性が取れないため、completed のラウンドでのみ表示する。 */}
       {round.status === 'completed' && initialShotsByHole.length > 0 && (
         <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4">
-          <ShotTrajectorySection courseId={round.course_id} initialShotsByHole={initialShotsByHole} />
+          <ShotTrajectorySection
+            courseId={round.course_id}
+            initialShotsByHole={initialShotsByHole}
+            initialMapDataByHole={initialMapDataByHole}
+          />
         </section>
       )}
 
