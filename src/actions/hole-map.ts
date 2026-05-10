@@ -193,3 +193,57 @@ export async function getHoleMapDataForRoundHole(
     areas: (areasData ?? []) as HoleArea[],
   };
 }
+
+/**
+ * 指定コース・ホールの GPS マップ表示用データを 1 クエリで返す
+ *
+ * Sprint 5 PR8 (S-6a) — `/rounds/[roundId]` からは round 経由ではなく
+ * course_id を直接渡して呼ぶ。`getHoleMapDataForRoundHole` の course 版。
+ */
+export async function getHoleMapDataForCourseHole(
+  courseId: string,
+  holeNumber: number,
+): Promise<{
+  aerialImageUrl: string;
+  metadata: import('@/lib/geo').AerialImageMetadata;
+  areas: HoleArea[];
+} | null> {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(courseId)) return null;
+  if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) return null;
+
+  const supabase = await createClient();
+
+  const { data: hole } = await supabase
+    .from('holes')
+    .select('id')
+    .eq('course_id', courseId)
+    .eq('hole_number', holeNumber)
+    .single();
+  if (!hole) return null;
+
+  const [{ data: vc }, { data: areasData }] = await Promise.all([
+    supabase
+      .from('hole_view_configs')
+      .select('cached_image_url, metadata_json')
+      .eq('hole_id', hole.id)
+      .single(),
+    supabase
+      .from('hole_areas')
+      .select('*')
+      .eq('hole_id', hole.id)
+      .order('sort_order'),
+  ]);
+
+  if (!vc || !vc.cached_image_url) return null;
+
+  const { parseAerialImageMetadata } = await import('@/lib/geo');
+  const metadata = parseAerialImageMetadata(vc.metadata_json);
+  if (!metadata) return null;
+
+  return {
+    aerialImageUrl: vc.cached_image_url,
+    metadata,
+    areas: (areasData ?? []) as HoleArea[],
+  };
+}

@@ -718,3 +718,42 @@ export async function replaceShotsForHole(data: {
 
   return { shots: (insertedShots as Shot[]) ?? [] };
 }
+
+/**
+ * 指定ラウンドの GPS タグ付きショットを hole_number ごとにグループ化して取得する
+ *
+ * Sprint 5 PR8 (S-6a) — `/rounds/[roundId]` のショット軌跡セクション用。
+ * `getShotsWithGpsByHoleForCourse` と類似だが、こちらは単一ラウンドのみ取得。
+ *
+ * 認証 + ラウンド所有確認 + GPS タグ付き shot を hole_number でグループ化。
+ */
+export async function getShotsWithGpsByHoleForRound(
+  roundId: string,
+): Promise<Map<number, Shot[]>> {
+  const empty = new Map<number, Shot[]>();
+  const user = await getAuthenticatedUser();
+  if (!user) return empty;
+  if (!isValidUUID(roundId)) return empty;
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('shots')
+    .select('*, rounds!inner(user_id)')
+    .eq('rounds.user_id', user.id)
+    .eq('round_id', roundId)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('hole_number')
+    .order('shot_number');
+
+  const grouped = new Map<number, Shot[]>();
+  for (const row of (data ?? []) as Array<Shot & { rounds?: unknown }>) {
+    const { rounds: _rounds, ...shot } = row;
+    void _rounds;
+    const arr = grouped.get(shot.hole_number) ?? [];
+    arr.push(shot as Shot);
+    grouped.set(shot.hole_number, arr);
+  }
+  return grouped;
+}
