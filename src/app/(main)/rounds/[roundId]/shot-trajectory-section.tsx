@@ -95,6 +95,28 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
     [courseId, mapDataByHole],
   );
 
+  // 当該 shot を local state (shotsByHole) と editing.shot に最新値で同期する。
+  // updater は副作用を含まない pure に保つ（StrictMode の二重実行対策）。
+  // useCallback で stable 参照化 (Gemini PR #232 指摘対応: useCallback deps に含める前提のため)
+  // setState setter のみ呼ぶので deps は空でよい
+  const replaceShot = useCallback((updated: Shot) => {
+    setShotsByHole((prev) => {
+      const arr = (prev.get(updated.hole_number) ?? []).slice();
+      const idx = arr.findIndex((s) => s.id === updated.id);
+      if (idx < 0) return prev;
+      arr[idx] = updated;
+      const next = new Map(prev);
+      next.set(updated.hole_number, arr);
+      return next;
+    });
+    // editing 状態の shot も最新値に同期（再編集時に正しい revision を送るため）
+    setEditing((prevEdit) =>
+      prevEdit && prevEdit.shot.id === updated.id
+        ? { shot: updated, mapData: prevEdit.mapData }
+        : prevEdit,
+    );
+  }, []);
+
   const handleToggle = async (holeNumber: number) => {
     setOpenHoles((prev) => {
       const next = new Set(prev);
@@ -228,7 +250,7 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
       if (shot) replaceShot(shot);
       return { ok: true, latestShot: shot };
     },
-    [],
+    [replaceShot],
   );
 
   // Sprint 6 PR2: MultiShotPositionEditor へ inject する revertShotPosition callback
@@ -247,26 +269,7 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
     }
     if (reverted) replaceShot(reverted);
     return { ok: true, latestShot: reverted };
-  }, []);
-
-  const replaceShot = (updated: Shot) => {
-    // updater は副作用を含まない pure に保つ（StrictMode の二重実行対策）
-    setShotsByHole((prev) => {
-      const arr = (prev.get(updated.hole_number) ?? []).slice();
-      const idx = arr.findIndex((s) => s.id === updated.id);
-      if (idx < 0) return prev;
-      arr[idx] = updated;
-      const next = new Map(prev);
-      next.set(updated.hole_number, arr);
-      return next;
-    });
-    // editing 状態の shot も最新値に同期（再編集時に正しい revision を送るため）
-    setEditing((prevEdit) =>
-      prevEdit && prevEdit.shot.id === updated.id
-        ? { shot: updated, mapData: prevEdit.mapData }
-        : prevEdit,
-    );
-  };
+  }, [replaceShot]);
 
   // GPS タグ付きショットがあるホールのみ表示（hole_number 昇順）
   const sortedHoles = Array.from(shotsByHole.entries())
