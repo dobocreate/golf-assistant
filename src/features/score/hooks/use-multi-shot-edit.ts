@@ -4,6 +4,22 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { Shot, GpsSource } from '@/features/score/types';
 
 /**
+ * Shot 識別キー生成
+ *
+ * Sprint 6 PR3 — code-reviewer C1 / Codex P2-2 対応:
+ * 同一ホール内に未保存ショット (`id === ''`) が複数あると Map キーが衝突するため、
+ * `shot.id` が空の場合は `hole_number` + `shot_number` の合成キーで一意化する。
+ *
+ * - 保存済みショット: shot.id (UUID)
+ * - 未保存ショット: `new:${hole_number}:${shot_number}`
+ *
+ * 外部 API (select / dragTo / commit / revert / discardDraft) の引数は `string` のままで、
+ * 呼び出し側はこの shotKey を渡す。
+ */
+export const shotKey = (shot: Shot): string =>
+  shot.id !== '' ? shot.id : `new:${shot.hole_number}:${shot.shot_number}`;
+
+/**
  * 未確定の draft 位置
  */
 export interface DraftPosition {
@@ -157,8 +173,9 @@ export function useMultiShotEdit({
     setSaveError(null);
   }, []);
 
+  // Note: 全 public API の引数 `shotId` は shotKey(shot) と等価 (PR3: 未保存ショット衝突回避)
   const dragTo = useCallback((shotId: string, lat: number, lng: number) => {
-    const shot = shotsRef.current.find((s) => s.id === shotId);
+    const shot = shotsRef.current.find((s) => shotKey(s) === shotId);
     if (!shot) return;
     draftsRef.current = new Map(draftsRef.current).set(shotId, {
       lat,
@@ -185,7 +202,8 @@ export function useMultiShotEdit({
   }, []);
 
   const syncShot = useCallback((updated: Shot) => {
-    setShots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    const key = shotKey(updated);
+    setShots((prev) => prev.map((s) => (shotKey(s) === key ? updated : s)));
   }, []);
 
   // shotsRef: callback 内で参照する最新 shots（useState の closure を回避）
@@ -201,7 +219,7 @@ export function useMultiShotEdit({
       if (existing) return existing;
 
       const draft = draftsRef.current.get(shotId);
-      const shot = shotsRef.current.find((s) => s.id === shotId);
+      const shot = shotsRef.current.find((s) => shotKey(s) === shotId);
       if (!draft || !shot) return;
 
       const promise = (async () => {
@@ -216,14 +234,14 @@ export function useMultiShotEdit({
             nextDrafts.delete(shotId);
             draftsRef.current = nextDrafts;
             if (result.latestShot) {
-              setShots((prev) => prev.map((s) => (s.id === shotId ? result.latestShot! : s)));
+              setShots((prev) => prev.map((s) => (shotKey(s) === shotId ? result.latestShot! : s)));
             }
             forceRerender();
           } else {
             setSaveError(result.error);
             // conflict 時: latestShot で同期、draft は破棄して最新位置を見せる
             if (result.error === 'conflict' && result.latestShot) {
-              setShots((prev) => prev.map((s) => (s.id === shotId ? result.latestShot! : s)));
+              setShots((prev) => prev.map((s) => (shotKey(s) === shotId ? result.latestShot! : s)));
               const nextDrafts = new Map(draftsRef.current);
               nextDrafts.delete(shotId);
               draftsRef.current = nextDrafts;
@@ -262,7 +280,7 @@ export function useMultiShotEdit({
       const existing = inflightRef.current.get(shotId);
       if (existing) return existing;
 
-      const shot = shotsRef.current.find((s) => s.id === shotId);
+      const shot = shotsRef.current.find((s) => shotKey(s) === shotId);
       if (!shot) return;
       if (shot.original_latitude == null || shot.original_longitude == null) return;
 
@@ -277,13 +295,13 @@ export function useMultiShotEdit({
             nextDrafts.delete(shotId);
             draftsRef.current = nextDrafts;
             if (result.latestShot) {
-              setShots((prev) => prev.map((s) => (s.id === shotId ? result.latestShot! : s)));
+              setShots((prev) => prev.map((s) => (shotKey(s) === shotId ? result.latestShot! : s)));
             }
             forceRerender();
           } else {
             setSaveError(result.error);
             if (result.error === 'conflict' && result.latestShot) {
-              setShots((prev) => prev.map((s) => (s.id === shotId ? result.latestShot! : s)));
+              setShots((prev) => prev.map((s) => (shotKey(s) === shotId ? result.latestShot! : s)));
             }
           }
         } catch (err) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { StrictMode } from 'react';
-import { useMultiShotEdit } from './use-multi-shot-edit';
+import { useMultiShotEdit, shotKey } from './use-multi-shot-edit';
 import type { CommitResult, SaveShotPosition, RevertShotPosition } from './use-multi-shot-edit';
 import type { Shot } from '@/features/score/types';
 
@@ -454,6 +454,79 @@ describe('useMultiShotEdit', () => {
       });
       expect(result.current.shots[0].latitude).toBe(40.0);
       expect(result.current.shots[0].position_revision).toBe(9);
+    });
+  });
+
+  describe('未保存ショットの shotKey 衝突回避 (PR3 C1)', () => {
+    it('shotKey: 保存済みは shot.id、未保存は new:hole:shot_number を返す', () => {
+      expect(shotKey(makeShot({ id: 'abc', hole_number: 1, shot_number: 1 }))).toBe('abc');
+      expect(shotKey(makeShot({ id: '', hole_number: 5, shot_number: 3 }))).toBe('new:5:3');
+    });
+
+    it('同一ホールに未保存ショットが複数あっても select/dragTo/commit が独立に動く', async () => {
+      const saveShotPosition: SaveShotPosition = vi.fn(async ({ shot, draft }): Promise<CommitResult> => ({
+        ok: true,
+        // 未保存ショットの form 経路は合成 latestShot を返す前提
+        latestShot: { ...shot, latitude: draft.lat, longitude: draft.lng, gps_source: draft.source },
+      }));
+      const { result } = renderHook(() =>
+        useMultiShotEdit({
+          shots: [
+            makeShot({ id: '', hole_number: 1, shot_number: 1 }),
+            makeShot({ id: '', hole_number: 1, shot_number: 2 }),
+            makeShot({ id: '', hole_number: 1, shot_number: 3 }),
+          ],
+          saveShotPosition,
+          revertShotPosition: vi.fn(),
+        }),
+      );
+      // 各未保存ショットに個別の draft を設定
+      act(() => {
+        result.current.dragTo('new:1:1', 10, 10);
+        result.current.dragTo('new:1:2', 20, 20);
+        result.current.dragTo('new:1:3', 30, 30);
+      });
+      expect(result.current.drafts.size).toBe(3);
+      expect(result.current.drafts.get('new:1:1')?.lat).toBe(10);
+      expect(result.current.drafts.get('new:1:2')?.lat).toBe(20);
+      expect(result.current.drafts.get('new:1:3')?.lat).toBe(30);
+
+      // 2 番目だけ commit
+      await act(async () => {
+        await result.current.commit('new:1:2');
+      });
+      // 2 番目だけ saveShotPosition 呼ばれて draft が消える、他は維持
+      expect(saveShotPosition).toHaveBeenCalledTimes(1);
+      expect(saveShotPosition).toHaveBeenCalledWith(expect.objectContaining({
+        shot: expect.objectContaining({ shot_number: 2 }),
+        draft: expect.objectContaining({ lat: 20, lng: 20 }),
+      }));
+      expect(result.current.drafts.has('new:1:2')).toBe(false);
+      expect(result.current.drafts.size).toBe(2);
+      // commit 成功で内部 shots の対応ショットが更新される
+      const shot2 = result.current.shots.find((s) => s.shot_number === 2);
+      expect(shot2?.latitude).toBe(20);
+      expect(shot2?.longitude).toBe(20);
+    });
+
+    it('select の toggle が shotKey 単位で独立 (未保存ショット 3 件)', () => {
+      const { result } = renderHook(() =>
+        useMultiShotEdit({
+          shots: [
+            makeShot({ id: '', hole_number: 1, shot_number: 1 }),
+            makeShot({ id: '', hole_number: 1, shot_number: 2 }),
+          ],
+          saveShotPosition: vi.fn(),
+          revertShotPosition: vi.fn(),
+        }),
+      );
+      act(() => result.current.select('new:1:1'));
+      expect(result.current.selectedShotId).toBe('new:1:1');
+      act(() => result.current.select('new:1:2'));
+      expect(result.current.selectedShotId).toBe('new:1:2');
+      // 同じ key を再選択で解除
+      act(() => result.current.select('new:1:2'));
+      expect(result.current.selectedShotId).toBe(null);
     });
   });
 

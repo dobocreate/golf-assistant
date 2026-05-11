@@ -3,15 +3,15 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Save, CheckCircle, Users, Plus, MessageCircle, X } from 'lucide-react';
+import { Save, CheckCircle, Users, Plus, MessageCircle, X, Route, AlertCircle } from 'lucide-react';
 import { SaveStatusIndicator } from '@/components/ui/save-status-indicator';
 import { SyncStatusIndicator } from '@/features/score/components/sync-status-indicator';
 import { HoleNavigation } from '@/components/ui/hole-navigation';
 import { Stepper } from '@/components/ui/stepper';
-import { ShotRecorder } from '@/features/score/components/shot-recorder';
+import { ShotRecorder, type ShotActionsHandle } from '@/features/score/components/shot-recorder';
 import { useToast } from '@/components/ui/toast';
 import { usePlayRoundOptional } from '@/features/play/context/play-round-context';
-import type { Score, HoleInfo, Companion, CompanionScore } from '@/features/score/types';
+import type { Score, HoleInfo, Companion, CompanionScore, Shot } from '@/features/score/types';
 import { CompanionScoreModal, getCompanionInputsForHole, type CompanionHoleInput } from '@/features/score/components/companion-score-modal';
 import type { WindDirection, WindStrength } from '@/features/round/types';
 import { ManagementBand } from '@/features/score/components/management-band';
@@ -19,6 +19,15 @@ import type { GamePlan } from '@/features/game-plan/types';
 import { useSaveOrchestrator } from '@/features/score/hooks/use-save-orchestrator';
 import { checkIndexedDBAvailability, type LocalScore, type LocalShot } from '@/lib/offline-store';
 import type { replaceShotsForHole } from '@/actions/shot';
+// Sprint 6 PR3: マルチショット位置編集 UI 統合
+import { MultiShotPositionEditor } from '@/features/score/components/multi-shot-position-editor';
+import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
+import { updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
+import type {
+  SaveShotPosition,
+  RevertShotPosition,
+} from '@/features/score/hooks/use-multi-shot-edit';
+import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
 
 
 interface ClubOption {
@@ -145,14 +154,175 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   }, [currentHole]);
 
   const shotRecorderRef = useRef<HTMLDivElement>(null);
-  const shotActionsRef = useRef<{
-    saveCurrentHole: () => void;
-    hasPendingShots: () => boolean;
-    getLandingCounts: () => { ob: number; bunker: number };
-    addShot: () => void;
-    getShotsForHoleLocal?: (hole: number) => LocalShot[] | null;
-    buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null;
-  }>({ saveCurrentHole: () => {}, hasPendingShots: () => false, getLandingCounts: () => ({ ob: 0, bunker: 0 }), addShot: () => {} });
+  const shotActionsRef = useRef<ShotActionsHandle>({
+    saveCurrentHole: () => {},
+    hasPendingShots: () => false,
+    getLandingCounts: () => ({ ob: 0, bunker: 0 }),
+    addShot: () => {},
+  });
+
+  // Sprint 6 PR3: マルチショット軌跡編集モーダル
+  type MapData = { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[] };
+  const [multiEditing, setMultiEditing] = useState<{
+    holeNumber: number;
+    mapData: MapData;
+    shots: Shot[];
+  } | null>(null);
+  const [actionAlert, setActionAlert] = useState<string | null>(null);
+
+  // multiEditing.shots 内の slot index を解決する helper
+  // - 保存済み (id !== ''): id で照合
+  // - 未保存 (id === ''): shot_number で照合 (同ホール内で一意)
+  const findSlotIndex = useCallback((shot: Shot): number => {
+    if (!multiEditing) return -1;
+    return multiEditing.shots.findIndex((s) =>
+      s.id !== '' ? s.id === shot.id : s.id === '' && s.shot_number === shot.shot_number,
+    );
+  }, [multiEditing]);
+
+  // Sprint 6 PR3: MultiShotPositionEditor へ inject する saveShotPosition callback
+  // - 保存済みショット (shot.id !== ''): updateShotPosition Server Action + dispatch UPDATE_CACHED_SHOT
+  // - 未保存ショット (shot.id === ''): dispatch UPDATE_FIELD で form state へ書き戻し (次回 batchSave で永続化)
+  const saveShotPositionForPlay: SaveShotPosition = useCallback(
+    async ({ shot, draft }) => {
+      const slotIndex = findSlotIndex(shot);
+      if (slotIndex < 0) {
+        console.warn('saveShotPositionForPlay: slotIndex not found for shot', shot);
+        return { ok: false, error: 'failed' };
+      }
+
+      if (shot.id !== '') {
+        // 保存済みショット: DB 更新 + cache 同期
+        const { shot: updated, error: updErr, latestShot } = await updateShotPosition({
+          shotId: shot.id,
+          latitude: draft.lat,
+          longitude: draft.lng,
+          gpsSource: draft.source,
+          accuracyM: draft.accuracyM,
+          expectedRevision: shot.position_revision,
+        });
+        if (updErr) {
+          if (updErr === 'conflict') {
+            if (latestShot) {
+              shotActionsRef.current.applyLocalShotPositionPatch?.({
+                type: 'cached',
+                slotIndex,
+                updatedShot: latestShot,
+              });
+              return { ok: false, error: 'conflict', latestShot };
+            }
+            console.warn('updateShotPosition conflict but latestShot unavailable');
+            return { ok: false, error: 'failed' };
+          }
+          console.warn('updateShotPosition failed:', updErr);
+          return { ok: false, error: 'failed' };
+        }
+        if (updated) {
+          shotActionsRef.current.applyLocalShotPositionPatch?.({
+            type: 'cached',
+            slotIndex,
+            updatedShot: updated,
+          });
+        }
+        return { ok: true, latestShot: updated };
+      }
+
+      // 未保存ショット: form state に書き戻し (次回 batchSave で永続化)
+      shotActionsRef.current.applyLocalShotPositionPatch?.({
+        type: 'form',
+        slotIndex,
+        formPatch: {
+          latitude: draft.lat,
+          longitude: draft.lng,
+          gpsSource: draft.source,
+          gpsAccuracyM: draft.accuracyM,
+          // capturedAt は GPS 取得時のみ意味があるため manual_edit ではセットしない
+        },
+      });
+      // 未保存変更の dirty 通知 (Codex M1 / code-reviewer M1): beforeunload / Save indicator のため
+      setShotsDirty(true);
+      // useMultiShotEdit が liveShots を更新できるよう、合成 latestShot を返す
+      // (Codex P2-1 対応: form 経路で latestShot=null だと marker が古い座標に戻る)
+      const synthesizedLatest: Shot = {
+        ...shot,
+        latitude: draft.lat,
+        longitude: draft.lng,
+        gps_source: draft.source,
+        gps_accuracy_m: draft.accuracyM,
+      };
+      return { ok: true, latestShot: synthesizedLatest };
+    },
+    [findSlotIndex],
+  );
+
+  // Sprint 6 PR3: revertShotPosition callback (保存済みショット限定)
+  const revertShotPositionForPlay: RevertShotPosition = useCallback(async (shot) => {
+    if (shot.id === '') {
+      // 未保存ショットは元位置概念がないので no-op
+      return { ok: false, error: 'failed' };
+    }
+    const slotIndex = findSlotIndex(shot);
+    if (slotIndex < 0) return { ok: false, error: 'failed' };
+
+    const { shot: reverted, error, latestShot } = await revertShotPositionToOriginal(
+      shot.id,
+      shot.position_revision,
+    );
+    if (error) {
+      // updateShotPosition 用の分岐と統一 (code-reviewer M2)
+      if (error === 'conflict') {
+        if (latestShot) {
+          shotActionsRef.current.applyLocalShotPositionPatch?.({
+            type: 'cached',
+            slotIndex,
+            updatedShot: latestShot,
+          });
+          return { ok: false, error: 'conflict', latestShot };
+        }
+        console.warn('revertShotPositionToOriginal conflict but latestShot unavailable');
+        return { ok: false, error: 'failed' };
+      }
+      console.warn('revertShotPositionToOriginal failed:', error);
+      return { ok: false, error: 'failed' };
+    }
+    if (reverted) {
+      shotActionsRef.current.applyLocalShotPositionPatch?.({
+        type: 'cached',
+        slotIndex,
+        updatedShot: reverted,
+      });
+    }
+    return { ok: true, latestShot: reverted };
+  }, [findSlotIndex]);
+
+  // 「軌跡を編集」ボタンクリック → mapData 取得 + 現在ホールの shots を準備 → MultiShotPositionEditor 起動
+  const handleMultiEditClick = useCallback(async () => {
+    const localShots = shotActionsRef.current.getShotsForHoleLocal?.(currentHoleRef.current) ?? null;
+    if (!localShots || localShots.length === 0) {
+      setActionAlert('このホールにはまだショット記録がありません。先にショットを追加してください。');
+      return;
+    }
+    let data: { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[] } | null = null;
+    try {
+      data = await getHoleMapDataForRoundHole(roundId, currentHoleRef.current);
+    } catch (err) {
+      // ネットワーク / Server Action 例外: ユーザーに通知して終了 (code-reviewer m2)
+      console.error('getHoleMapDataForRoundHole failed:', err);
+      setActionAlert('地図データの読み込みに失敗しました。通信状況を確認してください。');
+      return;
+    }
+    if (!data) {
+      setActionAlert('このホールは地図データが未整備のため、軌跡編集はできません。');
+      return;
+    }
+    setActionAlert(null);
+    // LocalShot extends Shot のため as Shot[] で代入可能
+    setMultiEditing({
+      holeNumber: currentHoleRef.current,
+      mapData: data,
+      shots: localShots as Shot[],
+    });
+  }, [roundId]);
 
   // --- Save Orchestrator ---
   const orchestrator = useSaveOrchestrator(roundId);
@@ -484,6 +654,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // ホール切り替え: 現在ホールの入力値をscores Mapに反映してからホール切替
   const switchHole = useCallback((holeNum: number) => {
+    // Sprint 6 PR3 (M2 防御): MultiShotPositionEditor open 中はホール切替を抑止
+    // (open 中に shots props が切り替わると drafts が古いホールのまま残る race condition を防ぐ)
+    if (multiEditing) {
+      setActionAlert('軌跡編集を完了または閉じてからホールを切り替えてください。');
+      return;
+    }
     const { strokes: st, putts: pt, greenInReg: gir, windDirection: wd, windStrength: ws, currentHole: ch, scoreId, userTouched: touched } = currentInputRef.current;
     // 現在ホールの入力値をメモリのscores Mapに反映
     // scoresRefも同期的に更新（orchestrator executorがbuildSyncPayloadで参照するため）
@@ -511,6 +687,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     setSaveStatus('idle');
     setFailedSave(null);
     setShotsDirty(false);
+    setActionAlert(null); // ホール切替時に過去の警告を消す (code-reviewer M3)
     const s = scoresRef.current.get(holeNum);
     setStrokes(s?.strokes ?? null);
     setPutts(s?.putts ?? null);
@@ -525,7 +702,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     if (hasCompanions) {
       setCompanionInputs(allCompanionInputsRef.current?.get(holeNum) ?? []);
     }
-  }, [roundId, hasCompanions, companions, orchestrator]);
+  }, [roundId, hasCompanions, companions, orchestrator, multiEditing]);
 
 
   // スコアラベル
@@ -783,6 +960,34 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       </div>
 
 
+      {/* Sprint 6 PR3: 軌跡編集ボタン + inline alert banner */}
+      {actionAlert && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-amber-500/60 bg-amber-950/40 px-3 py-2 text-sm text-amber-200"
+        >
+          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <span className="flex-1">{actionAlert}</span>
+          <button
+            type="button"
+            onClick={() => setActionAlert(null)}
+            className="flex-shrink-0 rounded p-0.5 hover:bg-amber-900/40"
+            aria-label="通知を閉じる"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={handleMultiEditClick}
+        className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 text-sm font-medium px-3 py-2 min-h-[40px]"
+        aria-label="現在ホールの軌跡をまとめて編集"
+      >
+        <Route className="h-4 w-4" aria-hidden="true" />
+        軌跡を編集
+      </button>
+
       {/* ショット記録 */}
       <div ref={shotRecorderRef}>
       <ShotRecorder
@@ -881,6 +1086,21 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           holeNumber={currentHole}
           inputs={companionInputs}
           onCommit={handleCompanionCommit}
+        />
+      )}
+
+      {/* Sprint 6 PR3: マルチショット軌跡編集モーダル */}
+      {multiEditing && (
+        <MultiShotPositionEditor
+          open={true}
+          onClose={() => setMultiEditing(null)}
+          shots={multiEditing.shots}
+          aerialImageUrl={multiEditing.mapData.aerialImageUrl}
+          metadata={multiEditing.mapData.metadata}
+          areas={multiEditing.mapData.areas}
+          saveShotPosition={saveShotPositionForPlay}
+          revertShotPosition={revertShotPositionForPlay}
+          holeNumber={multiEditing.holeNumber}
         />
       )}
 
