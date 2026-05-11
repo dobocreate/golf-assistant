@@ -104,13 +104,21 @@ export function MultiShotPositionEditor({
     moved: boolean;
   } | null>(null);
 
-  // モーダルが閉じたら詳細編集も閉じる
-  useEffect(() => {
-    if (!open) {
-      setDetailEditOpen(false);
-      dragRef.current = null;
+  // モーダルが閉じる (open=false) と早期 return で本コンポーネントは unmount され、
+  // detailEditOpen / dragRef は自動破棄される。明示的な reset effect は不要 (lint set-state-in-effect 回避)
+
+  // handleClose を useCallback で安定参照化（Escape useEffect の stale closure 回避 / Gemini High 指摘対応）
+  // TODO(PR2+): window.confirm はモバイル UX を阻害するためカスタムインライン confirm UI への置換を検討
+  const hasDrafts = drafts.size > 0;
+  const handleClose = useCallback(() => {
+    if (hasDrafts) {
+      const ok = window.confirm('未確定の変更があります。破棄して閉じますか？');
+      if (!ok) return;
+      discardAllDrafts();
     }
-  }, [open]);
+    select(null);
+    onClose();
+  }, [hasDrafts, discardAllDrafts, select, onClose]);
 
   // フック類は条件分岐より前に必ず呼ぶ (react-hooks/rules-of-hooks)
   const finalWidth = metadata.final_width ?? metadata.rotated_width;
@@ -146,6 +154,7 @@ export function MultiShotPositionEditor({
   );
 
   // Escape キーで閉じる (未確定 draft があれば confirm)
+  // handleClose は useCallback で安定参照化済み
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -156,8 +165,7 @@ export function MultiShotPositionEditor({
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, handleClose]);
 
   // 選択中ショット (Hooks は条件分岐の前に必ず呼ぶ)
   const selectedShot = useMemo(
@@ -166,8 +174,6 @@ export function MultiShotPositionEditor({
   );
 
   if (!open) return null;
-
-  const hasDrafts = drafts.size > 0;
 
   // マーカータップ / ドラッグ開始
   const handleShotPointerDown = (shotId: string, e: React.PointerEvent<SVGElement>) => {
@@ -246,15 +252,7 @@ export function MultiShotPositionEditor({
     await revert(selectedShotId);
   };
 
-  const handleClose = () => {
-    if (hasDrafts) {
-      const ok = window.confirm('未確定の変更があります。破棄して閉じますか？');
-      if (!ok) return;
-      discardAllDrafts();
-    }
-    select(null);
-    onClose();
-  };
+  // handleClose は早期 return より前で useCallback 化済み
 
   // 詳細編集 (EditPositionModal nested)
   const selectedDraft: DraftPosition | undefined = selectedShotId ? drafts.get(selectedShotId) : undefined;

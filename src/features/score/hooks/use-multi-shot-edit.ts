@@ -94,6 +94,14 @@ interface UseMultiShotEditResult {
  * - pointer event → lat/lng 変換（`MultiShotPositionEditor`）
  * - モーダル open/close（`MultiShotPositionEditor`）
  * - 未保存ショット (`shotId === ''`) の form state 連携（PR3 で inject 経由）
+ *
+ * **既知の制約 (PR3 で対応予定)**:
+ * - 本 hook は `Shot.id` を drafts / selection / inflight の Map キーとして直接利用するため、
+ *   同一ホール内に複数の未保存ショット (`id === ''`) があると Map キーが衝突する。
+ * - PR1 / PR2 (ラウンド後画面) の利用範囲では全ショットが DB 確定済み (`id !== ''`) のため
+ *   問題は発生しないが、PR3 (プレー中画面) で未保存ショット編集を扱う際に、
+ *   外部 API を破壊しない範囲で内部 key 生成 (例: `shot.id || 'new:' + shot_number`) に
+ *   置き換える必要がある。
  */
 export function useMultiShotEdit({
   shots: initialShots,
@@ -115,8 +123,14 @@ export function useMultiShotEdit({
   const inflightRef = useRef<Map<string, Promise<void>>>(new Map());
 
   // 親 props の shots 変化を検知して内部 state を同期
-  // ホール切替時に props.shots が変わったら、drafts / selection もリセット（M2 防御層）
-  // null = 未初期化、初回 mount の no-op を区別する
+  // - shots set (id+hole_number) が変わった場合のみ setShots + drafts/selection リセット (M2 防御層)
+  // - 同じ shots set への再 push は無視 (内部の commit 後 latestShot を優先する設計)
+  // - null = 未初期化、初回 mount の no-op を区別する
+  //
+  // **Gemini 指摘 (PR #231 / TODO PR2+)**: 同じ shots set 内で position_revision 等の内容のみ
+  // 更新された場合、現状は内部 state を優先するため UI に反映されない。
+  // PR2/PR3 で「commit 成功時に親に latestShot を通知 → 親が自身の state を更新 → props として
+  // 再 push」のフローを構築することで、parent SoT 設計に移行する想定。
   const prevShotsKeyRef = useRef<string | null>(null);
   useEffect(() => {
     // hole_number を含めることで、別ホールの shot_number 重複（new:1 が複数ホールで衝突）を防ぐ
