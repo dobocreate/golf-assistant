@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { ChevronDown, ChevronRight, MapPin, Pencil, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, Pencil, Undo2, Route, AlertCircle, X } from 'lucide-react';
 import { getHoleMapDataForCourseHole, type HoleMapDataEntry } from '@/actions/hole-map';
 import { updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
 import { lieToJapanese, metersToYards } from '@/lib/geolocation/lie-detection';
 import type { Shot } from '@/features/score/types';
 import type { AerialImageMetadata, HoleArea } from '@/lib/geo';
 import { EditPositionModal } from '@/features/score/components/edit-position-modal';
+import { MultiShotPositionEditor } from '@/features/score/components/multi-shot-position-editor';
+import type {
+  SaveShotPosition,
+  RevertShotPosition,
+} from '@/features/score/hooks/use-multi-shot-edit';
 import { ShotMarkersOverlay } from '@/features/course/components/shot-markers-overlay';
 
 interface MapData {
@@ -56,6 +61,10 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
     ),
   );
   const [editing, setEditing] = useState<{ shot: Shot; mapData: MapData } | null>(null);
+  // Sprint 6 PR2: マルチショット軌跡編集モーダル (null なら閉じてる)
+  const [multiEditing, setMultiEditing] = useState<{ holeNumber: number; mapData: MapData } | null>(null);
+  // Sprint 6 PR2: revert / 共通操作の inline 警告 (window.alert 廃止 / Codex 観点 #10)
+  const [actionAlert, setActionAlert] = useState<string | null>(null);
   // 進行中の fetch promise を hole_number ごとに保持（同一ホール並行 fetch を防止）
   const inflightRef = useRef<Map<number, Promise<MapData | null>>>(new Map());
 
@@ -103,9 +112,12 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
   const handleEditClick = async (shot: Shot) => {
     const mapData = await ensureMapData(shot.hole_number);
     if (!mapData) return;
+    setActionAlert(null); // 新操作開始時に過去の警告を消す
     setEditing({ shot, mapData });
   };
 
+  // TODO(Sprint 6+): saveShotPositionForMulti とロジックがほぼ同一。旧 EditPositionModal 経路
+  // (各ショットの「編集」ボタン) を撤去するタイミングで両者を共通 helper に統合する。
   const handleSavePosition = async (data: {
     latitude: number;
     longitude: number;
@@ -158,8 +170,8 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
       // conflict: 並行編集が走ったため最新値で local state を同期
       if (error === 'conflict' && latestShot) {
         replaceShot(latestShot);
-        window.alert(
-          '他のデバイスで編集が入ったため、元に戻せませんでした。\n最新の状態を反映しましたので、必要であれば再度操作してください。',
+        setActionAlert(
+          '他のデバイスで編集が入ったため、元に戻せませんでした。最新の状態を反映しましたので、必要であれば再度操作してください。',
         );
         return;
       }
@@ -169,11 +181,73 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
       } else {
         console.warn('revertShotPositionToOriginal failed:', error);
       }
-      window.alert('元の位置に戻せませんでした。通信状況を確認してください。');
+      setActionAlert('元の位置に戻せませんでした。通信状況を確認してください。');
       return;
     }
-    if (reverted) replaceShot(reverted);
+    if (reverted) {
+      setActionAlert(null); // 成功時に過去の警告を消す
+      replaceShot(reverted);
+    }
   };
+
+  // Sprint 6 PR2: 「軌跡を編集」ボタンクリック → MultiShotPositionEditor 起動
+  const handleMultiEditClick = async (holeNumber: number) => {
+    const mapData = await ensureMapData(holeNumber);
+    if (!mapData) return;
+    setActionAlert(null);
+    setMultiEditing({ holeNumber, mapData });
+  };
+
+  // Sprint 6 PR2: MultiShotPositionEditor へ inject する saveShotPosition callback
+  // updateShotPosition + replaceShot を 1 関数にまとめる
+  // TODO(Sprint 6+): handleSavePosition (旧 EditPositionModal 経路) と挙動が等価。
+  // 旧 UI (各ショットの「編集」ボタン) 撤去のタイミングで共通 helper に統合する。
+  const saveShotPositionForMulti: SaveShotPosition = useCallback(
+    async ({ shot: targetShot, draft }) => {
+      const { shot, error: updErr, latestShot } = await updateShotPosition({
+        shotId: targetShot.id,
+        latitude: draft.lat,
+        longitude: draft.lng,
+        gpsSource: draft.source,
+        accuracyM: draft.accuracyM,
+        expectedRevision: targetShot.position_revision,
+      });
+      if (updErr) {
+        if (updErr === 'conflict') {
+          if (latestShot) {
+            replaceShot(latestShot);
+            return { ok: false, error: 'conflict', latestShot };
+          }
+          // latestShot 取得失敗: 永久 conflict ループ回避のため failed として扱う
+          console.warn('updateShotPosition conflict but latestShot unavailable');
+          return { ok: false, error: 'failed' };
+        }
+        console.warn('updateShotPosition failed:', updErr);
+        return { ok: false, error: 'failed' };
+      }
+      if (shot) replaceShot(shot);
+      return { ok: true, latestShot: shot };
+    },
+    [],
+  );
+
+  // Sprint 6 PR2: MultiShotPositionEditor へ inject する revertShotPosition callback
+  const revertShotPositionForMulti: RevertShotPosition = useCallback(async (shot) => {
+    const { shot: reverted, error, latestShot } = await revertShotPositionToOriginal(
+      shot.id,
+      shot.position_revision,
+    );
+    if (error) {
+      if (error === 'conflict' && latestShot) {
+        replaceShot(latestShot);
+        return { ok: false, error: 'conflict', latestShot };
+      }
+      console.warn('revertShotPositionToOriginal failed:', error);
+      return { ok: false, error: 'failed' };
+    }
+    if (reverted) replaceShot(reverted);
+    return { ok: true, latestShot: reverted };
+  }, []);
 
   const replaceShot = (updated: Shot) => {
     // updater は副作用を含まない pure に保つ（StrictMode の二重実行対策）
@@ -211,6 +285,24 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
         <MapPin className="h-5 w-5" aria-hidden="true" />
         ショット軌跡
       </h2>
+      {/* Sprint 6 PR2: revert / 軌跡編集の inline 警告バナー (window.alert 廃止) */}
+      {actionAlert && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+        >
+          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <span className="flex-1">{actionAlert}</span>
+          <button
+            type="button"
+            onClick={() => setActionAlert(null)}
+            className="flex-shrink-0 rounded p-0.5 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+            aria-label="閉じる"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <div className="space-y-2">
         {sortedHoles.map(([holeNumber, shots]) => {
           const isOpen = openHoles.has(holeNumber);
@@ -246,7 +338,7 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
                 return (
                   <div className="border-t border-gray-200 dark:border-gray-700 p-3 space-y-3">
                     {mapData ? (
-                      <div className="flex justify-center">
+                      <div className="flex flex-col items-center gap-2">
                         <div
                           className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
                           style={{
@@ -262,6 +354,16 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
                           />
                           <ShotMarkersOverlay shots={shots} metadata={mapData.metadata} />
                         </div>
+                        {/* Sprint 6 PR2: 「軌跡を編集」ボタン → MultiShotPositionEditor 起動 */}
+                        <button
+                          type="button"
+                          onClick={() => handleMultiEditClick(holeNumber)}
+                          className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 rounded-lg px-3 py-1.5 min-h-[36px]"
+                          aria-label={`ホール ${holeNumber} の軌跡をまとめて編集`}
+                        >
+                          <Route className="h-3.5 w-3.5" aria-hidden="true" />
+                          軌跡を編集
+                        </button>
                       </div>
                     ) : hasFetched ? (
                       <p className="text-xs text-center text-gray-500 dark:text-gray-400">
@@ -273,7 +375,9 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
                       </p>
                     )}
 
-                  {/* ショット一覧 */}
+                  {/* ショット一覧
+                      TODO(Sprint 6+): 各行の「編集/元に戻す」ボタンは新 MultiShotPositionEditor で
+                      機能的に内包済み。実機検証で問題なければ後続スプリントで撤去予定。 */}
                   <ul className="space-y-1">
                     {shots.map((shot) => (
                       <li
@@ -359,6 +463,21 @@ export function ShotTrajectorySection({ courseId, initialShotsByHole, initialMap
           aerialImageUrl={editing.mapData.aerialImageUrl}
           metadata={editing.mapData.metadata}
           areas={editing.mapData.areas}
+        />
+      )}
+
+      {/* Sprint 6 PR2: マルチショット軌跡編集モーダル */}
+      {multiEditing && (
+        <MultiShotPositionEditor
+          open={true}
+          onClose={() => setMultiEditing(null)}
+          shots={shotsByHole.get(multiEditing.holeNumber) ?? []}
+          aerialImageUrl={multiEditing.mapData.aerialImageUrl}
+          metadata={multiEditing.mapData.metadata}
+          areas={multiEditing.mapData.areas}
+          saveShotPosition={saveShotPositionForMulti}
+          revertShotPosition={revertShotPositionForMulti}
+          holeNumber={multiEditing.holeNumber}
         />
       )}
     </div>
