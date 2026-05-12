@@ -9,6 +9,28 @@ import { hasFormChanged, shouldSaveForm, shotToForm, type ClubOption } from '@/f
 
 import type { LocalShot } from '@/lib/offline-store';
 import type { replaceShotsForHole } from '@/actions/shot';
+import type { Shot, ShotFormState } from '@/features/score/types';
+
+/**
+ * Sprint 6 PR3: MultiShotPositionEditor から「現在ホールのショット位置」を
+ * ローカル state へ書き戻すための payload。
+ * - cached: 既存（保存済み）ショット → dispatch UPDATE_CACHED_SHOT
+ * - form: 未保存ショット → dispatch UPDATE_FIELD（次回 batchSave で永続化される）
+ */
+export type LocalShotPositionPatch =
+  | { type: 'cached'; slotIndex: number; updatedShot: Shot }
+  | { type: 'form'; slotIndex: number; formPatch: Partial<ShotFormState> };
+
+export interface ShotActionsHandle {
+  saveCurrentHole: () => void;
+  hasPendingShots: () => boolean;
+  getLandingCounts: () => { ob: number; bunker: number };
+  addShot: () => void;
+  getShotsForHoleLocal?: (hole: number) => LocalShot[] | null;
+  buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null;
+  /** Sprint 6 PR3: ローカル state へショット位置 patch を適用 */
+  applyLocalShotPositionPatch?: (payload: LocalShotPositionPatch) => void;
+}
 
 interface ShotRecorderProps {
   roundId: string;
@@ -22,7 +44,7 @@ interface ShotRecorderProps {
   /** パット距離が scores に同期された時に呼ばれる（親の scoresRef を同期させるため） */
   onPuttDistancePersisted?: (payload: PuttDistancePersistedPayload) => void;
   /** 親に saveCurrentHole / hasPendingShots / getLandingCounts / addShot を公開するコールバック */
-  onShotActionsReady?: (actions: { saveCurrentHole: () => void; hasPendingShots: () => boolean; getLandingCounts: () => { ob: number; bunker: number }; addShot: () => void; getShotsForHoleLocal?: (hole: number) => LocalShot[] | null; buildShotSyncPayload?: (hole: number) => Parameters<typeof replaceShotsForHole>[0] | null }) => void;
+  onShotActionsReady?: (actions: ShotActionsHandle) => void;
 }
 
 export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrchestratorSave, onShotsChanged, onPuttDistancePersisted, onShotActionsReady }: ShotRecorderProps) {
@@ -50,9 +72,13 @@ export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrch
   const [modalSlotIndex, setModalSlotIndex] = useState<number | null>(null);
 
   // ホール切替時にモーダルを閉じる
-  useEffect(() => {
+  // React 公式パターン "Resetting state when a prop changes" を採用
+  // (useEffect は lint ルール react-hooks/set-state-in-effect に抵触するため不可)
+  const [prevHole, setPrevHole] = useState(holeNumber);
+  if (prevHole !== holeNumber) {
+    setPrevHole(holeNumber);
     setModalSlotIndex(null);
-  }, [holeNumber]);
+  }
 
   // ショットのlanding集計
   const getLandingCounts = useCallback(() => {
@@ -71,10 +97,27 @@ export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrch
     setModalSlotIndex(newIndex);
   }, [handleAddShot]);
 
+  // Sprint 6 PR3: MultiShotPositionEditor から渡される位置 patch を local state へ適用
+  const applyLocalShotPositionPatch = useCallback((payload: LocalShotPositionPatch) => {
+    if (payload.type === 'cached') {
+      dispatch({ type: 'UPDATE_CACHED_SHOT', index: payload.slotIndex, updatedShot: payload.updatedShot });
+    } else {
+      const patch = payload.formPatch;
+      dispatch({
+        type: 'UPDATE_FIELD',
+        index: payload.slotIndex,
+        updater: (f) => ({ ...f, ...patch }),
+      });
+    }
+  }, [dispatch]);
+
   // 親コンポーネントにショット保存関数を公開
   useEffect(() => {
-    onShotActionsReady?.({ saveCurrentHole, hasPendingShots, getLandingCounts, addShot: handleAddAndOpen, getShotsForHoleLocal, buildShotSyncPayload });
-  }, [saveCurrentHole, hasPendingShots, getLandingCounts, handleAddAndOpen, onShotActionsReady, getShotsForHoleLocal, buildShotSyncPayload]);
+    onShotActionsReady?.({
+      saveCurrentHole, hasPendingShots, getLandingCounts, addShot: handleAddAndOpen,
+      getShotsForHoleLocal, buildShotSyncPayload, applyLocalShotPositionPatch,
+    });
+  }, [saveCurrentHole, hasPendingShots, getLandingCounts, handleAddAndOpen, onShotActionsReady, getShotsForHoleLocal, buildShotSyncPayload, applyLocalShotPositionPatch]);
 
   // モーダル用: 背景スクロール防止
   useEffect(() => {

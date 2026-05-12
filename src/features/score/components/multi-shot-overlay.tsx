@@ -3,7 +3,7 @@
 import type { AerialImageMetadata } from '@/lib/geo';
 import { latLngToPixel } from '@/lib/geo';
 import type { Shot } from '@/features/score/types';
-import type { DraftPosition } from '@/features/score/hooks/use-multi-shot-edit';
+import { shotKey, type DraftPosition } from '@/features/score/hooks/use-multi-shot-edit';
 
 interface Props {
   shots: Shot[];
@@ -18,7 +18,7 @@ interface Props {
   drafts?: Map<string, DraftPosition>;
   /** 選択中の shotId。mode='selected' のときに使う */
   selectedShotId?: string | null;
-  /** マーカータップ。mode='list'/'selected' で発火 */
+  /** マーカータップ。mode='list'/'selected' で発火。shotId は shotKey(shot) (未保存ショットは合成キー) */
   onShotPointerDown?: (shotId: string, e: React.PointerEvent<SVGElement>) => void;
 }
 
@@ -70,7 +70,8 @@ export function MultiShotOverlay({
   };
   const points: Point[] = [];
   for (const s of ordered) {
-    const draft = drafts?.get(s.id);
+    // 未保存ショット (id === '') の draft も正しく取得するため shotKey(s) で照合 (C2 対応)
+    const draft = drafts?.get(shotKey(s));
     const lat = draft ? draft.lat : s.latitude;
     const lng = draft ? draft.lng : s.longitude;
     if (lat == null || lng == null) continue;
@@ -122,8 +123,10 @@ export function MultiShotOverlay({
 
       {/* マーカー本体 + hit area */}
       {points.map((p) => {
-        const isSelected = mode === 'selected' && selectedShotId === p.shot.id;
-        const isDimmed = mode === 'selected' && selectedShotId !== null && selectedShotId !== p.shot.id;
+        // 未保存ショットの id 衝突回避 (PR3 C1 対応): shotKey で一意キー生成
+        const pKey = shotKey(p.shot);
+        const isSelected = mode === 'selected' && selectedShotId === pKey;
+        const isDimmed = mode === 'selected' && selectedShotId !== null && selectedShotId !== pKey;
 
         // 編集前位置 (ゴーストマーカー) - mode='readonly' でも表示
         const originalPixel =
@@ -146,7 +149,7 @@ export function MultiShotOverlay({
         const opacity = isDimmed ? 0.5 : 1;
 
         return (
-          <g key={p.shot.id} opacity={opacity}>
+          <g key={pKey} opacity={opacity}>
             {/* GPS 精度円 */}
             {p.shot.gps_source === 'gps' && p.shot.gps_accuracy_m != null && !p.isDraft && (
               <circle
@@ -236,7 +239,7 @@ export function MultiShotOverlay({
                 r={markerHitR}
                 fill="transparent"
                 style={{ cursor: mode === 'selected' && isSelected ? 'grab' : 'pointer', touchAction: 'none' }}
-                onPointerDown={(e) => onShotPointerDown!(p.shot.id, e)}
+                onPointerDown={(e) => onShotPointerDown!(pKey, e)}
               />
             )}
           </g>

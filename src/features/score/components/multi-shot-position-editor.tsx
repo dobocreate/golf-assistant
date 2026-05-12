@@ -7,7 +7,7 @@ import { metersToYards } from '@/lib/geolocation/lie-detection';
 import { AerialAreaOverlay } from '@/features/course/components/aerial-area-overlay';
 import { MultiShotOverlay } from './multi-shot-overlay';
 import { EditPositionModal } from './edit-position-modal';
-import { useMultiShotEdit } from '@/features/score/hooks/use-multi-shot-edit';
+import { useMultiShotEdit, shotKey } from '@/features/score/hooks/use-multi-shot-edit';
 import type {
   SaveShotPosition,
   RevertShotPosition,
@@ -168,8 +168,9 @@ export function MultiShotPositionEditor({
   }, [open, handleClose]);
 
   // 選択中ショット (Hooks は条件分岐の前に必ず呼ぶ)
+  // selectedShotId は shotKey(shot) (未保存ショットも一意、PR3 C1 対応)
   const selectedShot = useMemo(
-    () => (selectedShotId ? liveShots.find((s) => s.id === selectedShotId) ?? null : null),
+    () => (selectedShotId ? liveShots.find((s) => shotKey(s) === selectedShotId) ?? null : null),
     [liveShots, selectedShotId],
   );
 
@@ -282,7 +283,7 @@ export function MultiShotPositionEditor({
     if (result.ok) {
       // syncShot で最新値反映 + drag draft が残っていれば破棄（M1 対応）
       if (result.latestShot) syncShot(result.latestShot);
-      discardDraft(selectedShot.id);
+      discardDraft(shotKey(selectedShot));
       setDetailEditOpen(false);
       return { ok: true };
     }
