@@ -55,12 +55,17 @@ export function HoleMapCacheProvider({
 
   // 初期 seed (mount 時 1 回のみ)。useState 初期化子と等価。
   // initialMapData が後から変わっても再 seed しない（read-once 設計）。
+  // Sprint 7 PR1 (S-7a): centerline / refStart / refEnd も seed (自動軌跡用)
   if (cacheRef.current.size === 0 && initialMapData && initialMapData.length > 0) {
     for (const entry of initialMapData) {
       cacheRef.current.set(entry.holeNumber, {
         aerialImageUrl: entry.aerialImageUrl,
         metadata: entry.metadata,
         areas: entry.areas,
+        centerlineA: entry.centerlineA,
+        centerlineB: entry.centerlineB,
+        refStart: entry.refStart,
+        refEnd: entry.refEnd,
       });
     }
   }
