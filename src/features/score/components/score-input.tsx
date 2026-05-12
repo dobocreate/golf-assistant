@@ -22,7 +22,8 @@ import type { replaceShotsForHole } from '@/actions/shot';
 // Sprint 6 PR3: マルチショット位置編集 UI 統合
 import { MultiShotPositionEditor } from '@/features/score/components/multi-shot-position-editor';
 import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
-import { updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
+import { computeShotPosition, updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
+import { Loader2 } from 'lucide-react';
 import type {
   SaveShotPosition,
   RevertShotPosition,
@@ -169,6 +170,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     shots: Shot[];
   } | null>(null);
   const [actionAlert, setActionAlert] = useState<string | null>(null);
+  // 「軌跡を編集」ボタン押下時の地図データ取得中フラグ (Gemini Medium #2)
+  const [multiEditLoading, setMultiEditLoading] = useState(false);
 
   // multiEditing.shots 内の slot index を解決する helper
   // - 保存済み (id !== ''): id で照合
@@ -227,6 +230,24 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         return { ok: true, latestShot: updated };
       }
 
+      // 未保存ショット: lie / 残距離も同期させるため computeShotPosition を呼ぶ
+      // (Gemini Medium #1: auto_lie / remaining_to_green_m がドラッグ後も古いままになる問題)
+      // 失敗してもサイレントに座標のみ反映 (致命的ではない)
+      type ComputeResult = Awaited<ReturnType<typeof computeShotPosition>>['result'];
+      let pos: ComputeResult | null = null;
+      try {
+        const ret = await computeShotPosition({
+          roundId: roundIdRef.current,
+          holeNumber: shot.hole_number,
+          latitude: draft.lat,
+          longitude: draft.lng,
+          accuracyM: draft.accuracyM ?? 0,
+        });
+        pos = ret.result ?? null;
+      } catch (err) {
+        console.warn('computeShotPosition (form unsaved) failed:', err);
+      }
+
       // 未保存ショット: form state に書き戻し (次回 batchSave で永続化)
       shotActionsRef.current.applyLocalShotPositionPatch?.({
         type: 'form',
@@ -237,6 +258,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
           gpsSource: draft.source,
           gpsAccuracyM: draft.accuracyM,
           // capturedAt は GPS 取得時のみ意味があるため manual_edit ではセットしない
+          autoLie: pos?.autoLie ?? null,
+          autoLieConfidence: pos?.autoLieConfidence ?? null,
+          remainingToGreenM: pos?.remainingToGreenM ?? null,
         },
       });
       // 未保存変更の dirty 通知 (Codex M1 / code-reviewer M1): beforeunload / Save indicator のため
@@ -249,6 +273,9 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
         longitude: draft.lng,
         gps_source: draft.source,
         gps_accuracy_m: draft.accuracyM,
+        auto_lie: pos?.autoLie ?? shot.auto_lie,
+        auto_lie_confidence: pos?.autoLieConfidence ?? shot.auto_lie_confidence,
+        remaining_to_green_m: pos?.remainingToGreenM ?? shot.remaining_to_green_m,
       };
       return { ok: true, latestShot: synthesizedLatest };
     },
@@ -297,11 +324,14 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
 
   // 「軌跡を編集」ボタンクリック → mapData 取得 + 現在ホールの shots を準備 → MultiShotPositionEditor 起動
   const handleMultiEditClick = useCallback(async () => {
+    // 重複ガード (Gemini Medium #2: 二重クリック防止)
+    if (multiEditLoading) return;
     const localShots = shotActionsRef.current.getShotsForHoleLocal?.(currentHoleRef.current) ?? null;
     if (!localShots || localShots.length === 0) {
       setActionAlert('このホールにはまだショット記録がありません。先にショットを追加してください。');
       return;
     }
+    setMultiEditLoading(true);
     let data: { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[] } | null = null;
     try {
       data = await getHoleMapDataForRoundHole(roundId, currentHoleRef.current);
@@ -309,10 +339,12 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       // ネットワーク / Server Action 例外: ユーザーに通知して終了 (code-reviewer m2)
       console.error('getHoleMapDataForRoundHole failed:', err);
       setActionAlert('地図データの読み込みに失敗しました。通信状況を確認してください。');
+      setMultiEditLoading(false);
       return;
     }
     if (!data) {
       setActionAlert('このホールは地図データが未整備のため、軌跡編集はできません。');
+      setMultiEditLoading(false);
       return;
     }
     setActionAlert(null);
@@ -322,7 +354,8 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       mapData: data,
       shots: localShots as Shot[],
     });
-  }, [roundId]);
+    setMultiEditLoading(false);
+  }, [roundId, multiEditLoading]);
 
   // --- Save Orchestrator ---
   const orchestrator = useSaveOrchestrator(roundId);
@@ -981,11 +1014,22 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       <button
         type="button"
         onClick={handleMultiEditClick}
-        className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 text-sm font-medium px-3 py-2 min-h-[40px]"
+        disabled={multiEditLoading}
+        className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 text-sm font-medium px-3 py-2 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="現在ホールの軌跡をまとめて編集"
+        aria-busy={multiEditLoading || undefined}
       >
-        <Route className="h-4 w-4" aria-hidden="true" />
-        軌跡を編集
+        {multiEditLoading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            読み込み中…
+          </>
+        ) : (
+          <>
+            <Route className="h-4 w-4" aria-hidden="true" />
+            軌跡を編集
+          </>
+        )}
       </button>
 
       {/* ショット記録 */}
