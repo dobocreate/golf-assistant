@@ -22,7 +22,7 @@ import type { replaceShotsForHole } from '@/actions/shot';
 // Sprint 6 PR3: マルチショット位置編集 UI 統合
 import { MultiShotPositionEditor } from '@/features/score/components/multi-shot-position-editor';
 import { buildDisplayedShots } from '@/features/score/hooks/use-displayed-shots';
-import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
+import { getHoleMapDataForRoundHole, type HoleMapData } from '@/actions/hole-map';
 import { computeShotPosition, updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
 import { Loader2 } from 'lucide-react';
 import type {
@@ -355,7 +355,7 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     // M1 対応: 関数開始時のホール番号をスナップショットして以降の async 中の race を回避
     const targetHole = currentHoleRef.current;
     setMultiEditLoading(true);
-    let data: { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[]; centerlineA: import('@/actions/hole-map').CenterlinePoint[] | null; centerlineB: import('@/actions/hole-map').CenterlinePoint[] | null; refStart: import('@/actions/hole-map').CenterlinePoint | null; refEnd: import('@/actions/hole-map').CenterlinePoint | null } | null = null;
+    let data: HoleMapData | null = null;
     try {
       data = await getHoleMapDataForRoundHole(roundId, targetHole);
     } catch (err) {
