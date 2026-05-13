@@ -9,13 +9,31 @@ import { createClient } from '@/lib/supabase/server';
 import type { HoleMapPoint, HoleElevationGrid, HoleViewConfig, HoleArea, AerialImageMetadata } from '@/lib/geo';
 
 /**
+ * mapper のセンターライン点 (`{ lat, lng }`)。
+ * `hole_view_configs.centerline_json_a/b` に JSON 配列として保存される。
+ * 2 点以上 (最初がティー、最後がグリーン、間に waypoint)。
+ */
+export interface CenterlinePoint {
+  lat: number;
+  lng: number;
+}
+
+/**
  * GPS マップ表示用データ。getHoleMapDataForRoundHole / ForCourseHole / AllForCourse の
  * 戻り値で共通利用する shape。client (use-hole-map-cache) 側でも同型を再宣言している。
+ *
+ * Sprint 7 PR1 (S-7a): 自動軌跡生成のためにセンターラインと参照点を追加
+ *   - centerlineA / centerlineB: mapper の `centerline_json_a/b` (整備済み 15/18 ホール)
+ *   - refStart / refEnd: 未整備ホールの fallback 用 (`hole_view_configs.ref_start_lat/lng` 等、全 18 整備済み)
  */
 export interface HoleMapData {
   aerialImageUrl: string;
   metadata: AerialImageMetadata;
   areas: HoleArea[];
+  centerlineA: CenterlinePoint[] | null;
+  centerlineB: CenterlinePoint[] | null;
+  refStart: CenterlinePoint | null;
+  refEnd: CenterlinePoint | null;
 }
 
 /**
@@ -174,10 +192,11 @@ export async function getHoleMapDataForRoundHole(
   if (!hole) return null;
 
   // view_config + areas を並列取得
+  // Sprint 7 PR1 (S-7a): centerline / ref_start/end も取得
   const [{ data: vc }, { data: areasData }] = await Promise.all([
     supabase
       .from('hole_view_configs')
-      .select('cached_image_url, metadata_json')
+      .select('cached_image_url, metadata_json, centerline_json_a, centerline_json_b, ref_start_lat, ref_start_lng, ref_end_lat, ref_end_lng')
       .eq('hole_id', hole.id)
       .single(),
     supabase
@@ -197,7 +216,58 @@ export async function getHoleMapDataForRoundHole(
     aerialImageUrl: vc.cached_image_url,
     metadata,
     areas: (areasData ?? []) as HoleArea[],
+    centerlineA: parseCenterlineJson(vc.centerline_json_a),
+    centerlineB: parseCenterlineJson(vc.centerline_json_b),
+    refStart: parseRefPoint(vc.ref_start_lat, vc.ref_start_lng),
+    refEnd: parseRefPoint(vc.ref_end_lat, vc.ref_end_lng),
   };
+}
+
+/**
+ * 緯度経度の妥当性チェック。WGS84 範囲 (-90..90 / -180..180) + 有限値。
+ */
+function isValidLatLng(lat: number, lng: number): boolean {
+  if (!isFinite(lat) || !isFinite(lng)) return false;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+  return true;
+}
+
+/**
+ * unknown 入力を lat/lng の number ペアに正規化 (DB の numeric が string で返るケースも吸収)。
+ */
+function toLatLngNumber(latRaw: unknown, lngRaw: unknown): { lat: number; lng: number } | null {
+  // null/undefined を先に弾く (Number(null) === 0 罠回避)
+  if (latRaw == null || lngRaw == null) return null;
+  const lat = typeof latRaw === 'number' ? latRaw : Number(latRaw);
+  const lng = typeof lngRaw === 'number' ? lngRaw : Number(lngRaw);
+  if (!isValidLatLng(lat, lng)) return null;
+  return { lat, lng };
+}
+
+/**
+ * Sprint 7 PR1: mapper の `centerline_json_a/b` (JSON 配列) を CenterlinePoint[] にパース。
+ * 不正な形 (lat/lng が number / 数値文字列でない、範囲外) はスキップ。空配列や null は null を返す。
+ * 結果が 2 点未満なら null (centerline として使えない)。
+ */
+function parseCenterlineJson(raw: unknown): CenterlinePoint[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const result: CenterlinePoint[] = [];
+  for (const item of raw) {
+    if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      const point = toLatLngNumber(obj.lat, obj.lng);
+      if (point) result.push(point);
+    }
+  }
+  return result.length >= 2 ? result : null;
+}
+
+/**
+ * Sprint 7 PR1: `ref_start_lat/lng` (numeric) を CenterlinePoint にパース。
+ * いずれかが null/NaN/範囲外 なら null。
+ */
+function parseRefPoint(latRaw: unknown, lngRaw: unknown): CenterlinePoint | null {
+  return toLatLngNumber(latRaw, lngRaw);
 }
 
 /**
@@ -227,7 +297,7 @@ export async function getHoleMapDataForCourseHole(
   const [{ data: vc }, { data: areasData }] = await Promise.all([
     supabase
       .from('hole_view_configs')
-      .select('cached_image_url, metadata_json')
+      .select('cached_image_url, metadata_json, centerline_json_a, centerline_json_b, ref_start_lat, ref_start_lng, ref_end_lat, ref_end_lng')
       .eq('hole_id', hole.id)
       .single(),
     supabase
@@ -247,6 +317,10 @@ export async function getHoleMapDataForCourseHole(
     aerialImageUrl: vc.cached_image_url,
     metadata,
     areas: (areasData ?? []) as HoleArea[],
+    centerlineA: parseCenterlineJson(vc.centerline_json_a),
+    centerlineB: parseCenterlineJson(vc.centerline_json_b),
+    refStart: parseRefPoint(vc.ref_start_lat, vc.ref_start_lng),
+    refEnd: parseRefPoint(vc.ref_end_lat, vc.ref_end_lng),
   };
 }
 
@@ -284,7 +358,7 @@ export async function getHoleMapDataAllForCourse(
       .eq('course_id', courseId),
     supabase
       .from('hole_view_configs')
-      .select('hole_id, cached_image_url, metadata_json, holes!inner(course_id)')
+      .select('hole_id, cached_image_url, metadata_json, centerline_json_a, centerline_json_b, ref_start_lat, ref_start_lng, ref_end_lat, ref_end_lng, holes!inner(course_id)')
       .eq('holes.course_id', courseId),
     supabase
       .from('hole_areas')
@@ -317,7 +391,17 @@ export async function getHoleMapDataAllForCourse(
   const { parseAerialImageMetadata } = await import('@/lib/geo');
 
   // hole_view_configs を hole_number に紐付けて entry を構築
-  type VcRow = { hole_id: string; cached_image_url: string | null; metadata_json: unknown };
+  type VcRow = {
+    hole_id: string;
+    cached_image_url: string | null;
+    metadata_json: unknown;
+    centerline_json_a: unknown;
+    centerline_json_b: unknown;
+    ref_start_lat: unknown;
+    ref_start_lng: unknown;
+    ref_end_lat: unknown;
+    ref_end_lng: unknown;
+  };
   const entries: HoleMapDataEntry[] = [];
   for (const vc of (vcResult.data ?? []) as VcRow[]) {
     if (!vc.cached_image_url) continue;
@@ -330,6 +414,10 @@ export async function getHoleMapDataAllForCourse(
       aerialImageUrl: vc.cached_image_url,
       metadata,
       areas: areasByHoleId.get(vc.hole_id) ?? [],
+      centerlineA: parseCenterlineJson(vc.centerline_json_a),
+      centerlineB: parseCenterlineJson(vc.centerline_json_b),
+      refStart: parseRefPoint(vc.ref_start_lat, vc.ref_start_lng),
+      refEnd: parseRefPoint(vc.ref_end_lat, vc.ref_end_lng),
     });
   }
 
