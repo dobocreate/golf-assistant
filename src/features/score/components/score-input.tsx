@@ -21,6 +21,7 @@ import { checkIndexedDBAvailability, type LocalScore, type LocalShot } from '@/l
 import type { replaceShotsForHole } from '@/actions/shot';
 // Sprint 6 PR3: マルチショット位置編集 UI 統合
 import { MultiShotPositionEditor } from '@/features/score/components/multi-shot-position-editor';
+import { buildDisplayedShots } from '@/features/score/hooks/use-displayed-shots';
 import { getHoleMapDataForRoundHole } from '@/actions/hole-map';
 import { computeShotPosition, updateShotPosition, revertShotPositionToOriginal } from '@/actions/shot-position';
 import { Loader2 } from 'lucide-react';
@@ -186,8 +187,32 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
   // Sprint 6 PR3: MultiShotPositionEditor へ inject する saveShotPosition callback
   // - 保存済みショット (shot.id !== ''): updateShotPosition Server Action + dispatch UPDATE_CACHED_SHOT
   // - 未保存ショット (shot.id === ''): dispatch UPDATE_FIELD で form state へ書き戻し (次回 batchSave で永続化)
+  // - Sprint 7 PR2: 自動軌跡スロット (id='' かつ shot_number が cache + form に存在しない) は
+  //   保存スコープ外 (PR3 で対応)。ドラッグは可能だが確定で alert 表示してエラー返却
   const saveShotPositionForPlay: SaveShotPosition = useCallback(
     async ({ shot, draft }) => {
+      // Sprint 7 PR2: 自動軌跡スロット判定 (cache + form に存在しない shot_number)
+      // - shot.hole_number で localShots を引く (currentHoleRef.current だと async race リスク、M2 対応)
+      // - 暗黙契約: getShotsForHoleLocal は shouldSaveForm 通過後の form のみ返す
+      //   (use-shot-recorder.ts:621)。そのため空 form は localShots に含まれず、
+      //   buildDisplayedShots の existingMap にも入らない → ここの自動判定が正しく機能する。
+      //   getShotsForHoleLocal の filter 仕様変更時はこのガードも見直し必要。
+      // C1 対応: 自動スロットは ok: true で擬似コミット (latestShot=元 shot で visual を維持)
+      // → useMultiShotEdit.commit が draft 破棄するため、コミット永久ループに陥らない
+      // → DB には何も書かれず、次回開くと自動軌跡が再描画される
+      if (shot.id === '') {
+        const localShots = shotActionsRef.current.getShotsForHoleLocal?.(shot.hole_number) ?? [];
+        const isAutoSlot = !localShots.some((s) => s.shot_number === shot.shot_number);
+        if (isAutoSlot) {
+          setActionAlert(
+            '自動軌跡スロットの保存は次回アップデートで対応予定です。詳細を記録するには「ショット追加」から個別に登録してください。',
+          );
+          // ok: true + latestShot=元 shot で「擬似コミット」: useMultiShotEdit が draft 破棄
+          // visual は元の自動軌跡位置に戻る (alert で説明済み)
+          return { ok: true, latestShot: shot };
+        }
+      }
+
       const slotIndex = findSlotIndex(shot);
       if (slotIndex < 0) {
         console.warn('saveShotPositionForPlay: slotIndex not found for shot', shot);
@@ -322,19 +347,17 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
     return { ok: true, latestShot: reverted };
   }, [findSlotIndex]);
 
-  // 「軌跡を編集」ボタンクリック → mapData 取得 + 現在ホールの shots を準備 → MultiShotPositionEditor 起動
+  // 「軌跡を編集」ボタンクリック → mapData 取得 + 自動軌跡を含む shots を準備 → MultiShotPositionEditor 起動
+  // Sprint 7 PR2: 既存ショット記録がなくても自動軌跡で起動可能 (Par + 一律 2 パットで自動補完)
   const handleMultiEditClick = useCallback(async () => {
     // 重複ガード (Gemini Medium #2: 二重クリック防止)
     if (multiEditLoading) return;
-    const localShots = shotActionsRef.current.getShotsForHoleLocal?.(currentHoleRef.current) ?? null;
-    if (!localShots || localShots.length === 0) {
-      setActionAlert('このホールにはまだショット記録がありません。先にショットを追加してください。');
-      return;
-    }
+    // M1 対応: 関数開始時のホール番号をスナップショットして以降の async 中の race を回避
+    const targetHole = currentHoleRef.current;
     setMultiEditLoading(true);
-    let data: { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[] } | null = null;
+    let data: { aerialImageUrl: string; metadata: AerialImageMetadata; areas: HoleArea[]; centerlineA: import('@/actions/hole-map').CenterlinePoint[] | null; centerlineB: import('@/actions/hole-map').CenterlinePoint[] | null; refStart: import('@/actions/hole-map').CenterlinePoint | null; refEnd: import('@/actions/hole-map').CenterlinePoint | null } | null = null;
     try {
-      data = await getHoleMapDataForRoundHole(roundId, currentHoleRef.current);
+      data = await getHoleMapDataForRoundHole(roundId, targetHole);
     } catch (err) {
       // ネットワーク / Server Action 例外: ユーザーに通知して終了 (code-reviewer m2)
       console.error('getHoleMapDataForRoundHole failed:', err);
@@ -347,15 +370,42 @@ export function ScoreInput({ roundId, holes: rawHoles, initialScores, courseName
       setMultiEditLoading(false);
       return;
     }
-    setActionAlert(null);
-    // LocalShot extends Shot のため as Shot[] で代入可能
-    setMultiEditing({
-      holeNumber: currentHoleRef.current,
+
+    // M1 対応: 開始時から currentHole が変化していたら捨てる (race 防止の最終ガード)
+    if (currentHoleRef.current !== targetHole) {
+      setMultiEditLoading(false);
+      return;
+    }
+
+    // Sprint 7 PR2: 自動軌跡で displayedShots を構築 (詳細記録 + 不足分自動補完)
+    const localShots = shotActionsRef.current.getShotsForHoleLocal?.(targetHole) ?? [];
+    const currentInput = currentInputRef.current;
+    const holeInfo = holes.find((h) => h.hole_number === targetHole);
+    const par = holeInfo?.par ?? 4;
+    const { displayedShots, mismatchWarning } = buildDisplayedShots({
+      existingShots: localShots as Shot[],
+      strokes: currentInput.strokes,
+      putts: currentInput.putts,
+      par,
+      holeNumber: targetHole,
+      roundId,
       mapData: data,
-      shots: localShots as Shot[],
+      activeGreen: null, // 将来 Round.active_green を ScoreInput props 経由で受け取り (PR3+)
+    });
+
+    if (mismatchWarning) {
+      setActionAlert(mismatchWarning);
+    } else {
+      setActionAlert(null);
+    }
+
+    setMultiEditing({
+      holeNumber: targetHole,
+      mapData: data,
+      shots: displayedShots,
     });
     setMultiEditLoading(false);
-  }, [roundId, multiEditLoading]);
+  }, [roundId, multiEditLoading, holes]);
 
   // --- Save Orchestrator ---
   const orchestrator = useSaveOrchestrator(roundId);

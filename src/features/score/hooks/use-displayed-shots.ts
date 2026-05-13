@@ -121,11 +121,13 @@ function autoSlotToShot(
 }
 
 /**
- * メイン hook
+ * Pure 関数版: useDisplayedShots と同じロジックを React フック外でも呼べるように export。
+ * Sprint 7 PR2: ScoreInput の `handleMultiEditClick` から同期計算するために使用。
+ *
+ * 戻り値とロジックは useDisplayedShots の useMemo 内と完全一致。
  */
-export function useDisplayedShots(args: UseDisplayedShotsArgs): UseDisplayedShotsResult {
-  return useMemo(() => {
-    const persistableShots: PersistableShot[] = args.existingShots;
+export function buildDisplayedShots(args: UseDisplayedShotsArgs): UseDisplayedShotsResult {
+  const persistableShots: PersistableShot[] = args.existingShots;
 
     // clamp 後の理論合計スロット数 (auto-trajectory と同じ仕様)
     // 注: 詳細な clamp (putts も含む) は computeInitialPositions 内で完結する。
@@ -219,14 +221,16 @@ export function useDisplayedShots(args: UseDisplayedShotsArgs): UseDisplayedShot
         : null;
 
     return { displayedShots, persistableShots, mismatchWarning };
-  }, [
-    args.existingShots,
-    args.strokes,
-    args.putts,
-    args.par,
-    args.holeNumber,
-    args.roundId,
-    args.mapData,
-    args.activeGreen,
-  ]);
+}
+
+/**
+ * メイン hook (内部実装は buildDisplayedShots を useMemo 化)
+ */
+export function useDisplayedShots(args: UseDisplayedShotsArgs): UseDisplayedShotsResult {
+  // 個別フィールドに分解して useMemo の deps を明示 (react-hooks/exhaustive-deps 対応)
+  const { existingShots, strokes, putts, par, holeNumber, roundId, mapData, activeGreen } = args;
+  return useMemo(
+    () => buildDisplayedShots({ existingShots, strokes, putts, par, holeNumber, roundId, mapData, activeGreen }),
+    [existingShots, strokes, putts, par, holeNumber, roundId, mapData, activeGreen],
+  );
 }

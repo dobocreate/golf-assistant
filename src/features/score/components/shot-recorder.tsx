@@ -12,14 +12,22 @@ import type { replaceShotsForHole } from '@/actions/shot';
 import type { Shot, ShotFormState } from '@/features/score/types';
 
 /**
- * Sprint 6 PR3: MultiShotPositionEditor から「現在ホールのショット位置」を
+ * Sprint 6 PR3 / Sprint 7 PR2: MultiShotPositionEditor から「現在ホールのショット位置」を
  * ローカル state へ書き戻すための payload。
  * - cached: 既存（保存済み）ショット → dispatch UPDATE_CACHED_SHOT
  * - form: 未保存ショット → dispatch UPDATE_FIELD（次回 batchSave で永続化される）
+ * - new-form: Sprint 7 PR3 で使用予定の予約型 (auto slot 保存対応時に使用)。
+ *   現状 'form' と同じ振る舞いだが、呼び出し側意図を明確化するため型レベルで分離。
+ *
+ * **slotIndex の責務**: 呼び出し側が「ShotRecorder の cache + form 上の正しい index」を
+ * 計算して渡す責務を持つ。useShotRecorder の reducer は slotIndex >= cache.length なら
+ * 自動的に新規 form slot として扱うため (use-shot-recorder.ts:67-75)、新規追加時は
+ * cache.length 以上の値を渡せば良い。詳細は呼び出し側の JSDoc を参照。
  */
 export type LocalShotPositionPatch =
   | { type: 'cached'; slotIndex: number; updatedShot: Shot }
-  | { type: 'form'; slotIndex: number; formPatch: Partial<ShotFormState> };
+  | { type: 'form'; slotIndex: number; formPatch: Partial<ShotFormState> }
+  | { type: 'new-form'; slotIndex: number; formPatch: Partial<ShotFormState> };
 
 export interface ShotActionsHandle {
   saveCurrentHole: () => void;
@@ -97,11 +105,15 @@ export function ShotRecorder({ roundId, holeNumber, clubs, holeDistance, useOrch
     setModalSlotIndex(newIndex);
   }, [handleAddShot]);
 
-  // Sprint 6 PR3: MultiShotPositionEditor から渡される位置 patch を local state へ適用
+  // Sprint 6 PR3 / Sprint 7 PR2: MultiShotPositionEditor から渡される位置 patch を local state へ適用
+  // - cached / form: 既存 slot index を更新
+  // - new-form (Sprint 7): 自動軌跡スロットを form state に新規追加。useShotRecorder の reducer は
+  //   slotIndex >= cache.length を「新規 form slot」として扱うため、UPDATE_FIELD でそのまま動く
   const applyLocalShotPositionPatch = useCallback((payload: LocalShotPositionPatch) => {
     if (payload.type === 'cached') {
       dispatch({ type: 'UPDATE_CACHED_SHOT', index: payload.slotIndex, updatedShot: payload.updatedShot });
     } else {
+      // form / new-form: どちらも UPDATE_FIELD で書き戻し
       const patch = payload.formPatch;
       dispatch({
         type: 'UPDATE_FIELD',
