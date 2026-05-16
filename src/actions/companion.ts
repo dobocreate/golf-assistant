@@ -70,11 +70,16 @@ export async function addCompanion(
         }
 
         try {
+          // sort_order は MAX+1 で決定 (COUNT(*) だと削除後の追加で重複し得る)
           const r = await client.query<Companion>(
             `INSERT INTO companions (round_id, name, sort_order)
-             VALUES ($1, $2, $3)
+             VALUES (
+               $1,
+               $2,
+               COALESCE((SELECT MAX(sort_order) + 1 FROM companions WHERE round_id = $1), 0)
+             )
              RETURNING *`,
-            [roundId, trimmed, count],
+            [roundId, trimmed],
           );
           return r.rows[0];
         } catch (err: unknown) {

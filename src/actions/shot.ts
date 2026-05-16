@@ -569,6 +569,10 @@ export async function saveShotsForHole(data: {
         for (const s of data.shots) {
           if (s.id) {
             // UPDATE existing
+            // 注: position_revision は SET から除外して既存値を保持する。
+            //     ホール切替時の一般情報保存（本関数）と位置編集（updateShotPosition）は
+            //     別経路で、こちらでクライアント送信値で上書きすると updateShotPosition の
+            //     楽観的ロック (Gemini PR#238 指摘) が壊れる。
             await client.query(
               `UPDATE shots SET
                   shot_number = $3,
@@ -599,8 +603,7 @@ export async function saveShotsForHole(data: {
                   original_longitude = $28,
                   edited_at = $29,
                   auto_lie_confidence = $30,
-                  position_revision = $31,
-                  auto_lie_calculated_at = $32
+                  auto_lie_calculated_at = $31
                 WHERE id = $1 AND round_id = $2`,
               [
                 s.id,
@@ -633,7 +636,6 @@ export async function saveShotsForHole(data: {
                 s.originalLongitude ?? null,
                 s.editedAt ?? null,
                 s.autoLieConfidence ?? null,
-                s.positionRevision ?? 0,
                 s.autoLieCalculatedAt ?? null,
               ],
             );
