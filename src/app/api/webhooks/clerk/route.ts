@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable */
-//
 // ============================================================================
 // /api/webhooks/clerk (Phase 1 D-3 で骨組み、Section 11.1 / Round 7 Major 2)
 //
@@ -54,7 +51,7 @@ export async function POST(req: Request) {
 }
 
 // TODO (Phase 5): svix 実装で置き換え
-async function verifyClerkWebhook(req: Request): Promise<{ type: string; data: { id: string } } | null> {
+async function verifyClerkWebhook(_req: Request): Promise<{ type: string; data: { id: string } } | null> {
   // 仮実装: Phase 1 では常に null (= 401) 返却。Phase 5 で svix 検証ロジックに差し替え
   return null;
 }

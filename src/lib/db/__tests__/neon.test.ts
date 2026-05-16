@@ -1,9 +1,6 @@
-// @ts-nocheck
-/* eslint-disable */
-//
 // ============================================================================
 // src/lib/db/__tests__/neon.test.ts
-// Phase 1 D-3 で骨組み作成、Phase 5 で実装 (Section 9.2 / 9.3)
+// Phase 1 D-3 で骨組み作成、Phase 3-4 で実装 (Section 9.2 / 9.3)
 //
 // 目的 (Round 4 Major 2 反映): db helper の誤用検知を機械化する。
 //

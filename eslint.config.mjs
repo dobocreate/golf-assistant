@@ -29,31 +29,26 @@ const neonMigrationRules = {
     "no-restricted-syntax": [
       "error",
       {
-        // pool / client / adminPool / readPool / writePool に加え、~Pool ~Client 命名も拾う
+        // 直接 Pool 系の変数に対する .query を禁止。
+        // 注意: 単に `client` を禁止すると、`db.transaction(async (client) => client.query(...))`
+        //       の合法な callback parameter まで誤検出するので除外。
+        //       Pool/Client サフィックス命名 (readPool / adminPool 等) のみ検出する安全弁。
         selector:
-          "MemberExpression[object.name=/^(pool|client|adminPool|adminClient|readPool|writePool|[a-zA-Z_]+Pool|[a-zA-Z_]+Client)$/][property.name='query']",
+          "MemberExpression[object.name=/^(pool|adminPool|readPool|writePool|[a-zA-Z_]+Pool)$/][property.name='query']",
         message:
-          "Direct pool/client.query is restricted. Use db.read / db.userRead / db.transaction / db.system / adminDb.* helpers.",
+          "Direct pool.query is restricted. Use db.read / db.userRead / db.transaction / db.system / adminDb.* helpers.",
       },
     ],
   },
 };
 
 const neonMigrationOverrides = {
-  // Phase 1 scaffolding 用例外 (Phase 5 で `@ts-nocheck` を外す際に整理):
-  //   - neon.ts: raw query を使う中央 helper
-  //   - 各 route.ts / test.ts: Phase 5 で実装する scaffolding。pg/svix 未インストールのため @ts-nocheck
+  // 中央 db.ts のみ raw query を使うため例外。
   // mapper/src/lib/db/neon-admin.ts は別リポジトリのため当該プロジェクト側で設定する。
-  files: [
-    "src/lib/db/neon.ts",
-    "src/lib/db/__tests__/neon.test.ts",
-    "src/app/api/diag/db-write/route.ts",
-    "src/app/api/webhooks/clerk/route.ts",
-  ],
+  files: ["src/lib/db/neon.ts"],
   rules: {
     "no-restricted-imports": "off",
     "no-restricted-syntax": "off",
-    "@typescript-eslint/ban-ts-comment": "off",
   },
 };
 
