@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { requireUser, db } from '@/lib/db/neon';
 import { getProfile } from '@/actions/profile';
 import { getActiveRound } from '@/actions/round';
 import { ButtonLink } from '@/components/ui/button';
@@ -10,13 +10,53 @@ export const metadata: Metadata = {
   title: 'ダッシュボード | Golf Assistant',
 };
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+interface RecentRound {
+  id: string;
+  played_at: string;
+  total_score: number | null;
+  status: string;
+  course_name: string | null;
+}
 
-  if (!user) {
+async function loadDashboardData(): Promise<
+  | { authenticated: false }
+  | {
+      authenticated: true;
+      profile: Awaited<ReturnType<typeof getProfile>>;
+      activeRound: Awaited<ReturnType<typeof getActiveRound>>;
+      recentRounds: RecentRound[];
+    }
+> {
+  try {
+    return await requireUser(async () => {
+      const [profile, activeRound, recentRounds] = await Promise.all([
+        getProfile(),
+        getActiveRound(),
+        db.userRead(async (client) => {
+          const r = await client.query<RecentRound>(
+            `SELECT r.id, r.played_at, r.total_score, r.status,
+                    c.name AS course_name
+               FROM rounds r
+               LEFT JOIN courses c ON c.id = r.course_id
+              WHERE r.user_id = current_user_id()::uuid
+                AND r.status = 'completed'
+              ORDER BY r.played_at DESC
+              LIMIT 3`,
+          );
+          return r.rows;
+        }),
+      ]);
+      return { authenticated: true as const, profile, activeRound, recentRounds };
+    });
+  } catch {
+    return { authenticated: false as const };
+  }
+}
+
+export default async function Home() {
+  const data = await loadDashboardData();
+
+  if (!data.authenticated) {
     return (
       <section className="flex min-h-[80vh] flex-col items-center justify-center p-8">
         <h1 className="text-4xl font-bold mb-4">Golf Assistant</h1>
@@ -33,20 +73,7 @@ export default async function Home() {
     );
   }
 
-  // Fetch data in parallel
-  const [profile, activeRound, recentRoundsResult] = await Promise.all([
-    getProfile(),
-    getActiveRound(),
-    supabase
-      .from('rounds')
-      .select('id, played_at, total_score, status, courses(name)')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('played_at', { ascending: false })
-      .limit(3),
-  ]);
-
-  const recentRounds = recentRoundsResult.data ?? [];
+  const { profile, activeRound, recentRounds } = data;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -128,7 +155,7 @@ export default async function Home() {
         ) : (
           <div className="space-y-2">
             {recentRounds.map(round => {
-              const courseName = ((round.courses as unknown) as { name: string } | null)?.name ?? '不明なコース';
+              const courseName = round.course_name ?? '不明なコース';
               return (
                 <Link
                   key={round.id}

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/db/neon';
 import { env } from '@/lib/env';
 
 const GORA_BASE = 'https://openapi.rakuten.co.jp/engine/api/Gora';
 
 export async function GET(request: Request) {
-  // 認証チェック
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  // 認証チェックのみ (DB 操作なし → requireUser でユーザコンテキスト確認だけする)
+  try {
+    await requireUser(async () => undefined);
+  } catch {
     return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   }
 

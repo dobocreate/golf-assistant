@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { requireUser, db } from '@/lib/db/neon';
 import { buildPracticeContext } from '@/features/advice/lib/practice-context-builder';
 import { createPracticeSystemPrompt, createPracticeUserPrompt } from '@/features/advice/lib/practice-prompt-template';
 import { jsonError, createGeminiStream } from '@/lib/llm';
@@ -6,10 +6,6 @@ import { isValidUUID } from '@/lib/utils';
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return jsonError('ログインが必要です。', 401);
-
     if (!process.env.GEMINI_API_KEY) return jsonError('Gemini APIが設定されていません。', 503);
 
     let body: { roundId: string };
@@ -21,23 +17,36 @@ export async function POST(request: Request) {
 
     if (!body.roundId || !isValidUUID(body.roundId)) return jsonError('ラウンドIDが不正です。', 400);
 
-    // ラウンドのステータス確認（completedのみ）
-    const { data: round } = await supabase
-      .from('rounds')
-      .select('status, review_note')
-      .eq('id', body.roundId)
-      .eq('user_id', user.id)
-      .single();
+    const built = await requireUser(async () => {
+      const round = await db.userRead(async (client) => {
+        const r = await client.query<{ status: string; review_note: string | null }>(
+          `SELECT status, review_note FROM rounds
+            WHERE id = $1 AND user_id = current_user_id()::uuid`,
+          [body.roundId],
+        );
+        return r.rows[0] ?? null;
+      });
+      if (!round) return { error: 'round_not_found' as const };
+      if (round.status !== 'completed') return { error: 'not_completed' as const };
 
-    if (!round) return jsonError('ラウンドが見つかりません。', 404);
-    if (round.status !== 'completed') return jsonError('完了済みのラウンドのみ練習提案を受けられます。', 400);
+      const context = await buildPracticeContext(body.roundId);
+      if (!context) return { error: 'no_data' as const };
 
-    // コンテキスト構築
-    const context = await buildPracticeContext(body.roundId, user.id);
-    if (!context) return jsonError('ラウンドデータの取得に失敗しました。', 404);
+      return { ok: true as const, context, reviewNote: round.review_note };
+    }).catch((err) => {
+      if (err instanceof Error && err.message.startsWith('unauthorized')) {
+        return { error: 'unauthorized' as const };
+      }
+      throw err;
+    });
 
-    const systemPrompt = createPracticeSystemPrompt(context);
-    const userPrompt = createPracticeUserPrompt(round.review_note);
+    if (built.error === 'unauthorized') return jsonError('ログインが必要です。', 401);
+    if (built.error === 'round_not_found') return jsonError('ラウンドが見つかりません。', 404);
+    if (built.error === 'not_completed') return jsonError('完了済みのラウンドのみ練習提案を受けられます。', 400);
+    if (built.error === 'no_data') return jsonError('ラウンドデータの取得に失敗しました。', 404);
+
+    const systemPrompt = createPracticeSystemPrompt(built.context);
+    const userPrompt = createPracticeUserPrompt(built.reviewNote);
 
     return createGeminiStream(systemPrompt, userPrompt, 4096);
   } catch (error) {
