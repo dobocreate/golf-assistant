@@ -64,8 +64,10 @@ FREEZE_FUNCTIONS="$(
 )"
 
 # (3) 差分検出
-ONLY_IN_DB="$(comm -23 <(echo "$DB_FUNCTIONS" | sort -u) <(echo "$FREEZE_FUNCTIONS"))"
-ONLY_IN_FREEZE="$(comm -13 <(echo "$DB_FUNCTIONS" | sort -u) <(echo "$FREEZE_FUNCTIONS"))"
+#     ※ 空変数を echo すると単独改行が出力されて comm が空行を 1 行として扱う問題があるため、
+#       printf + grep . で空行を除去する (Gemini review PR#236 指摘)
+ONLY_IN_DB="$(comm -23 <(printf '%s' "$DB_FUNCTIONS" | grep . | sort -u) <(printf '%s' "$FREEZE_FUNCTIONS" | grep . | sort -u))"
+ONLY_IN_FREEZE="$(comm -13 <(printf '%s' "$DB_FUNCTIONS" | grep . | sort -u) <(printf '%s' "$FREEZE_FUNCTIONS" | grep . | sort -u))"
 
 EXIT_CODE=0
 

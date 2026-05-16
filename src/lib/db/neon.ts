@@ -22,20 +22,39 @@ import { auth } from '@clerk/nextjs/server';
 
 // ----------------------------------------------------------------------------
 // 接続プール (Section 4.2)
+//
+// Next.js dev mode の HMR で module 再評価が走ると Pool が累積し、Neon の
+// connection limit を食い潰す。global singleton で persist させて防ぐ
+// (Gemini review PR#236 指摘)。pool 自体は引き続き非 export
+// (Codex Round 1 Major 1: raw pool は export しない)。
 // ----------------------------------------------------------------------------
 
+const globalForPools = global as unknown as {
+  __neonReadPool: Pool | undefined;
+  __neonWritePool: Pool | undefined;
+};
+
 /** Pooled (PgBouncer transaction mode、role=assistant_app_readonly、SELECT only) */
-const readPool = new Pool({
-  connectionString: process.env.NEON_DATABASE_URL_POOLED,
-  max: 20,
-});
+const readPool =
+  globalForPools.__neonReadPool ??
+  new Pool({
+    connectionString: process.env.NEON_DATABASE_URL_POOLED,
+    max: 20,
+  });
 
 /** Direct (session mode、role=assistant_app、RLS は SET LOCAL で強制) */
-const writePool = new Pool({
-  connectionString: process.env.NEON_DATABASE_URL_DIRECT,
-  max: 5,
-  connectionTimeoutMillis: 5000,
-});
+const writePool =
+  globalForPools.__neonWritePool ??
+  new Pool({
+    connectionString: process.env.NEON_DATABASE_URL_DIRECT,
+    max: 5,
+    connectionTimeoutMillis: 5000,
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPools.__neonReadPool = readPool;
+  globalForPools.__neonWritePool = writePool;
+}
 
 // ----------------------------------------------------------------------------
 // AsyncLocalStorage per-request context (Section 4.0 / Round 7 Major 1)
