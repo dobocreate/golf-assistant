@@ -1,8 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db } from '@/lib/db/neon';
 import { isValidUUID } from '@/lib/utils';
 
 export interface Memo {
@@ -20,9 +19,6 @@ export async function saveMemo(data: {
   content: string;
   source: 'voice' | 'text';
 }): Promise<{ error?: string; memo?: Memo }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   if (!Number.isInteger(data.holeNumber) || data.holeNumber < 1 || data.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
@@ -34,89 +30,85 @@ export async function saveMemo(data: {
     return { error: 'メモは1000文字以内で入力してください。' };
   }
 
-  const supabase = await createClient();
+  const trimmedContent = data.content.trim();
 
-  // ラウンドの所有確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', data.roundId)
-    .eq('user_id', user.id)
-    .single();
+  try {
+    const memo = await requireUser(async () => {
+      return db.transaction(async (client) => {
+        // RLS で round の所有権が強制される (insert_own ポリシー: round.user_id 確認)
+        const r = await client.query<Memo>(
+          `INSERT INTO memos (round_id, hole_number, content, source)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [data.roundId, data.holeNumber, trimmedContent, data.source],
+        );
+        if (r.rowCount === 0) {
+          throw new Error('round_not_owned');
+        }
+        return r.rows[0];
+      });
+    });
 
-  if (!round) return { error: 'ラウンドが見つかりません。' };
-
-  const { data: memo, error } = await supabase
-    .from('memos')
-    .insert({
-      round_id: data.roundId,
-      hole_number: data.holeNumber,
-      content: data.content.trim(),
-      source: data.source,
-    })
-    .select()
-    .single();
-
-  if (error) return { error: 'メモの保存に失敗しました。' };
-
-  revalidatePath(`/play/${data.roundId}/score`);
-  return { memo: memo as Memo };
+    revalidatePath(`/play/${data.roundId}/score`);
+    return { memo };
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === 'round_not_owned') return { error: 'ラウンドが見つかりません。' };
+      if (err.message.startsWith('unauthorized')) return { error: 'ログインが必要です。' };
+    }
+    console.error('saveMemo error', err);
+    return { error: 'メモの保存に失敗しました。' };
+  }
 }
 
 export async function getMemos(roundId: string, holeNumber?: number): Promise<Memo[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
   if (!isValidUUID(roundId)) return [];
-
-  const supabase = await createClient();
-
-  // ラウンドの所有確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return [];
-
-  let query = supabase
-    .from('memos')
-    .select('*')
-    .eq('round_id', roundId);
-
-  if (holeNumber !== undefined) {
-    query = query.eq('hole_number', holeNumber);
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const sql =
+          holeNumber !== undefined
+            ? `SELECT m.* FROM memos m JOIN rounds r ON r.id = m.round_id
+               WHERE m.round_id = $1 AND m.hole_number = $2 AND r.user_id = current_user_id()::uuid
+               ORDER BY m.created_at DESC`
+            : `SELECT m.* FROM memos m JOIN rounds r ON r.id = m.round_id
+               WHERE m.round_id = $1 AND r.user_id = current_user_id()::uuid
+               ORDER BY m.created_at DESC`;
+        const params = holeNumber !== undefined ? [roundId, holeNumber] : [roundId];
+        const r = await client.query<Memo>(sql, params);
+        return r.rows;
+      });
+    });
+  } catch {
+    return [];
   }
-
-  const { data } = await query.order('created_at', { ascending: false });
-
-  return (data as Memo[]) ?? [];
 }
 
 export async function deleteMemo(memoId: string): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(memoId)) return { error: 'メモIDが不正です。' };
 
-  const supabase = await createClient();
+  try {
+    const roundId = await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const r = await client.query<{ round_id: string }>(
+          'DELETE FROM memos WHERE id = $1 RETURNING round_id',
+          [memoId],
+        );
+        if (r.rowCount === 0) {
+          throw new Error('memo_not_found');
+        }
+        return r.rows[0].round_id;
+      });
+    });
 
-  // メモの所有確認（RLSに依存）
-  const { data: memo } = await supabase
-    .from('memos')
-    .select('id, round_id')
-    .eq('id', memoId)
-    .single();
-
-  if (!memo) return { error: 'メモが見つかりません。' };
-
-  const { error } = await supabase
-    .from('memos')
-    .delete()
-    .eq('id', memoId);
-
-  if (error) return { error: 'メモの削除に失敗しました。' };
-
-  revalidatePath(`/play/${memo.round_id}/score`);
-  return {};
+    revalidatePath(`/play/${roundId}/score`);
+    return {};
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === 'memo_not_found') return { error: 'メモが見つかりません。' };
+      if (err.message.startsWith('unauthorized')) return { error: 'ログインが必要です。' };
+    }
+    console.error('deleteMemo error', err);
+    return { error: 'メモの削除に失敗しました。' };
+  }
 }

@@ -16,6 +16,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Pool, PoolClient } from 'pg';
 import { auth } from '@clerk/nextjs/server';
 
+// Re-export PoolClient type so Server Actions can reference query callback types
+// without importing pg directly (forbidden by eslint no-restricted-imports).
+export type { PoolClient } from 'pg';
+
 // ----------------------------------------------------------------------------
 // 接続プール (Section 4.2)
 //
@@ -90,7 +94,7 @@ export function getCurrentInternalUserId(): string {
 /**
  * Server Action / Route Handler 入口で auth を解決し context をセットするヘルパー。
  *
- * Phase 3 で Clerk へ移行後の使い方:
+ * 使い方:
  * ```ts
  * 'use server';
  * import { requireUser, db } from '@/lib/db/neon';
@@ -104,16 +108,38 @@ export function getCurrentInternalUserId(): string {
  * }
  * ```
  *
- * Phase 3 で `@clerk/nextjs/server` の `auth()` を呼び出すよう実装する。
- * 現状はインポートできるが Clerk middleware を統合していないため、Phase 3 完了
- * までは Server Action から呼ばないこと (Supabase 経路と二重認証になる)。
+ * Phase 5 transition period:
+ *   1. Clerk middleware が設定されていれば Clerk userId → profiles.clerk_user_id lookup
+ *   2. 未設定なら Supabase Auth から user.id を取得して直接 profiles.user_id として使用
+ *   両者の結果はどちらも `app.current_user_id` に同じ UUID 文字列をセットする。
+ *
+ * Phase 7 cutover 完了後、Supabase Auth フォールバックを削除する (TODO)。
  */
 export async function requireUser<T>(fn: () => Promise<T>): Promise<T> {
-  const { userId } = await auth();
-  if (!userId) {
-    throw new Error('unauthorized: no Clerk session');
+  // (1) Clerk auth を優先
+  try {
+    const { userId: clerkUserId } = await auth();
+    if (clerkUserId) {
+      return await withResolvedUser(clerkUserId, fn);
+    }
+  } catch {
+    // Clerk middleware 未設定時は auth() が throw する → Supabase に fallback
   }
-  return withResolvedUser(userId, fn);
+
+  // (2) Supabase Auth フォールバック (Phase 5 transition、Phase 7 で削除)
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('unauthorized: no Clerk session and no Supabase session');
+  }
+  // Supabase user.id == auth.users.id == profiles.user_id (既存 schema での FK 関係)
+  return userContextStore.run(
+    { clerkUserId: `supabase:${user.id}`, internalUserId: user.id },
+    fn,
+  );
 }
 
 // ----------------------------------------------------------------------------

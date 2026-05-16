@@ -1,8 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db, type PoolClient } from '@/lib/db/neon';
 import type { Course } from '@/features/course/types';
 import { isValidUUID } from '@/lib/utils';
 
@@ -26,74 +25,58 @@ function validateOptionalEnum(value: string | null, allowed: string[], label: st
   return null;
 }
 
+function mapError(err: unknown, fallback: string): { error: string } {
+  if (err instanceof Error && err.message.startsWith('unauthorized')) {
+    return { error: 'ログインが必要です。' };
+  }
+  console.error(fallback, err);
+  return { error: fallback };
+}
+
 export async function getSavedCourses(): Promise<Course[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
-
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('courses')
-    .select('id, gora_id, name, prefecture, address, layout_url')
-    .order('name');
-
-  return data ?? [];
+  try {
+    return await requireUser(async () => {
+      return db.read(async (client) => {
+        const r = await client.query<Course>(
+          `SELECT id, gora_id, name, prefecture, address, layout_url
+             FROM courses
+            ORDER BY name`,
+        );
+        return r.rows;
+      });
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**
- * GPS マップ機能（Sprint 5）が完全動作するコースの ID 集合を返す
- *
- * 判定基準（設計書 Section 2.1）:
- * - 18 ホールすべてに hole_view_configs が存在
- * - 各ホールに少なくとも green_a または green_b のポリゴンが存在
- *
- * 部分整備のコース（一部のホールだけ揃っている）は **対象外**として扱う。
- * ホールごとに UI が出たり消えたりするのを避けるため、コース単位での判定。
- *
- * ※ 9H / 27H コースが将来加わる場合は別判定（現状は 18H 厳密一致のみ対象）
- *
- * Sprint 5 PR4 (S-3b) — コース選択画面の「🛰️ GPSマップ対応」バッジ用
- *
- * TODO(PR5+): コース数増加に伴うパフォーマンス対応。選択肢:
- *   - unstable_cache で N 分キャッシュ（hole_view_configs / hole_areas は変動少）
- *   - courses テーブルに is_gps_ready boolean を追加して mapper 側で更新
- *   - materialized view gps_ready_courses を導入
+ * GPS マップ機能（Sprint 5）が完全動作するコースの ID 集合を返す。
+ * 18 ホール全てに hole_view_configs があり、各ホールに green_a/green_b の polygon があるコース。
  */
 export async function getGpsReadyCourseIds(): Promise<Set<string>> {
   const result = new Set<string>();
-  // 防御的に認証チェック（呼び出し元はいずれも (main) 配下の認証必須ルートだが、
-  // ファイル内の他関数と一貫性を取るため）
-  const user = await getAuthenticatedUser();
-  if (!user) return result;
-
-  const supabase = await createClient();
-
-  // !inner join で「hole_view_configs と green_a/green_b の hole_areas を両方持つホール」のみ
-  // 取得し、コース単位で 18 ホール揃っているか判定する。これにより全テーブル走査を回避。
-  // 注: 単一クエリだと「ALL 18 holes ready」を厳密に表現するのは PostgREST では困難なため、
-  // 「ready なホールが 18 件あるコース」を JS 側で count して判定する。
-  const { data: courses } = await supabase
-    .from('courses')
-    .select(`
-      id,
-      holes!inner(
-        id,
-        hole_view_configs!inner(hole_id),
-        hole_areas!inner(hole_id, area_type)
-      )
-    `)
-    .in('holes.hole_areas.area_type', ['green_a', 'green_b']);
-
-  if (!courses) return result;
-
-  for (const c of courses as Array<{ id: string; holes: Array<{ id: string }> }>) {
-    // 同じ hole_id が green_a と green_b で 2 行返る可能性があるため、unique 化して数える
-    const uniqueHoleIds = new Set(c.holes.map((h) => h.id));
-    if (uniqueHoleIds.size === 18) {
-      result.add(c.id);
-    }
+  try {
+    return await requireUser(async () => {
+      return db.read(async (client) => {
+        const r = await client.query<{ course_id: string; hole_count: string }>(
+          `SELECT c.id AS course_id, COUNT(DISTINCT h.id)::text AS hole_count
+             FROM courses c
+             JOIN holes h ON h.course_id = c.id
+             JOIN hole_view_configs hvc ON hvc.hole_id = h.id
+             JOIN hole_areas ha ON ha.hole_id = h.id AND ha.area_type IN ('green_a', 'green_b')
+           GROUP BY c.id
+            HAVING COUNT(DISTINCT h.id) = 18`,
+        );
+        for (const row of r.rows) {
+          result.add(row.course_id);
+        }
+        return result;
+      });
+    });
+  } catch {
+    return result;
   }
-
-  return result;
 }
 
 interface SaveCourseData {
@@ -105,72 +88,124 @@ interface SaveCourseData {
 }
 
 export async function saveCourse(data: SaveCourseData): Promise<{ error?: string; courseId?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!data.goraId || !data.name) return { error: 'コース情報が不足しています。' };
 
-  const supabase = await createClient();
+  let courseId: string;
+  try {
+    courseId = await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const existing = await client.query<{ id: string }>(
+          'SELECT id FROM courses WHERE gora_id = $1',
+          [data.goraId],
+        );
+        if (existing.rowCount && existing.rows[0]) {
+          return existing.rows[0].id;
+        }
 
-  // 既に保存済みかチェック
-  const { data: existing } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('gora_id', data.goraId)
-    .single();
-
-  if (existing) {
-    return { courseId: existing.id };
+        const r = await client.query<{ id: string }>(
+          `INSERT INTO courses (gora_id, name, prefecture, address, layout_url)
+             VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`,
+          [data.goraId, data.name, data.prefecture, data.address, data.imageUrl ?? null],
+        );
+        return r.rows[0].id;
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'コースの保存に失敗しました。');
   }
 
-  // DBに保存（検索結果のデータをそのまま使用）
-  const { data: course, error } = await supabase
-    .from('courses')
-    .insert({
-      gora_id: data.goraId,
-      name: data.name,
-      prefecture: data.prefecture,
-      address: data.address,
-      layout_url: data.imageUrl || null,
-    })
-    .select('id')
-    .single();
-
-  if (error) return { error: 'コースの保存に失敗しました。' };
-
   revalidatePath('/courses');
-  return { courseId: course.id };
+  return { courseId };
 }
 
-
 export async function getCourseWithHoles(courseId: string) {
-  const user = await getAuthenticatedUser();
-  if (!user) return { course: null, holes: [], holeNotes: [] };
   if (!isValidUUID(courseId)) return { course: null, holes: [], holeNotes: [] };
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const [courseR, holesR, notesR] = await Promise.all([
+          client.query<Course>('SELECT * FROM courses WHERE id = $1', [courseId]),
+          client.query(
+            'SELECT * FROM holes WHERE course_id = $1 ORDER BY hole_number',
+            [courseId],
+          ),
+          client.query(
+            `SELECT hn.id, hn.user_id, hn.hole_id, hn.note, hn.strategy
+               FROM hole_notes hn
+               JOIN holes h ON h.id = hn.hole_id
+              WHERE hn.user_id = current_user_id()::uuid
+                AND h.course_id = $1`,
+            [courseId],
+          ),
+        ]);
+        return {
+          course: courseR.rows[0] as Course | undefined ?? null,
+          holes: holesR.rows,
+          holeNotes: notesR.rows,
+        };
+      });
+    });
+  } catch {
+    return { course: null, holes: [], holeNotes: [] };
+  }
+}
 
-  const supabase = await createClient();
-
-  const [courseResult, holesResult, notesResult] = await Promise.all([
-    supabase.from('courses').select('*').eq('id', courseId).single(),
-    supabase.from('holes').select('*').eq('course_id', courseId).order('hole_number'),
-    supabase
-      .from('hole_notes')
-      .select('id, user_id, hole_id, note, strategy, holes!inner(course_id)')
-      .eq('user_id', user.id)
-      .eq('holes.course_id', courseId),
-  ]);
-
-  return {
-    course: courseResult.data as Course | null,
-    holes: holesResult.data ?? [],
-    holeNotes: notesResult.data ?? [],
-  };
+async function upsertHoleInner(
+  client: PoolClient,
+  fields: {
+    courseId: string;
+    holeNumber: number;
+    par: number;
+    distance: number | null;
+    hdcp: number | null;
+    dogleg: string | null;
+    elevation: string | null;
+    distanceBack: number | null;
+    distanceFront: number | null;
+    distanceLadies: number | null;
+    hazard: string | null;
+    ob: string | null;
+    description: string | null;
+  },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO holes (
+        course_id, hole_number, par, distance, hdcp, dogleg, elevation,
+        distance_back, distance_front, distance_ladies, hazard, ob, description
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ON CONFLICT (course_id, hole_number) DO UPDATE SET
+        par = EXCLUDED.par,
+        distance = EXCLUDED.distance,
+        hdcp = EXCLUDED.hdcp,
+        dogleg = EXCLUDED.dogleg,
+        elevation = EXCLUDED.elevation,
+        distance_back = EXCLUDED.distance_back,
+        distance_front = EXCLUDED.distance_front,
+        distance_ladies = EXCLUDED.distance_ladies,
+        hazard = EXCLUDED.hazard,
+        ob = EXCLUDED.ob,
+        description = EXCLUDED.description`,
+    [
+      fields.courseId,
+      fields.holeNumber,
+      fields.par,
+      fields.distance,
+      fields.hdcp,
+      fields.dogleg,
+      fields.elevation,
+      fields.distanceBack,
+      fields.distanceFront,
+      fields.distanceLadies,
+      fields.hazard,
+      fields.ob,
+      fields.description,
+    ],
+  );
 }
 
 export async function upsertHole(formData: FormData): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   const courseId = formData.get('course_id') as string;
   const holeNumberRaw = formData.get('hole_number') as string;
   const parRaw = formData.get('par') as string;
@@ -193,7 +228,6 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
     return { error: '距離は0〜700の範囲で入力してください。' };
   }
 
-  // 新フィールドの読み取り
   const hdcp = parseOptionalInt(formData.get('hdcp') as string);
   const distanceBack = parseOptionalInt(formData.get('distance_back') as string);
   const distanceFront = parseOptionalInt(formData.get('distance_front') as string);
@@ -210,60 +244,67 @@ export async function upsertHole(formData: FormData): Promise<{ error?: string }
     validateOptionalInt(distanceLadies, 0, 700, 'レディースティー距離');
   if (fieldError) return { error: fieldError };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('holes')
-    .upsert(
-      {
-        course_id: courseId,
-        hole_number: holeNumber,
-        par,
-        distance,
-        hdcp,
-        dogleg,
-        elevation,
-        distance_back: distanceBack,
-        distance_front: distanceFront,
-        distance_ladies: distanceLadies,
-        hazard: (formData.get('hazard') as string) || null,
-        ob: (formData.get('ob') as string) || null,
-        description: (formData.get('description') as string) || null,
-      },
-      { onConflict: 'course_id,hole_number' }
-    );
-
-  if (error) return { error: 'ホール情報の保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await upsertHoleInner(client, {
+          courseId,
+          holeNumber,
+          par,
+          distance,
+          hdcp,
+          dogleg,
+          elevation,
+          distanceBack,
+          distanceFront,
+          distanceLadies,
+          hazard: (formData.get('hazard') as string) || null,
+          ob: (formData.get('ob') as string) || null,
+          description: (formData.get('description') as string) || null,
+        });
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'ホール情報の保存に失敗しました。');
+  }
 
   revalidatePath(`/courses/${courseId}`);
   return {};
 }
 
 export async function upsertHoleNote(formData: FormData): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   const holeId = formData.get('hole_id') as string;
-  if (!holeId) return { error: 'ホールIDが必要です。' };
+  if (!holeId || !isValidUUID(holeId)) return { error: 'ホールIDが必要です。' };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('hole_notes')
-    .upsert(
-      {
-        user_id: user.id,
-        hole_id: holeId,
-        note: (formData.get('note') as string) || null,
-        strategy: (formData.get('strategy') as string) || null,
-      },
-      { onConflict: 'user_id,hole_id' }
-    );
+  let courseId: string | null = null;
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await client.query(
+          `INSERT INTO hole_notes (user_id, hole_id, note, strategy)
+             VALUES (current_user_id()::uuid, $1, $2, $3)
+             ON CONFLICT (user_id, hole_id) DO UPDATE SET
+               note = EXCLUDED.note,
+               strategy = EXCLUDED.strategy`,
+          [
+            holeId,
+            (formData.get('note') as string) || null,
+            (formData.get('strategy') as string) || null,
+          ],
+        );
+        const r = await client.query<{ course_id: string }>(
+          'SELECT course_id FROM holes WHERE id = $1',
+          [holeId],
+        );
+        courseId = r.rows[0]?.course_id ?? null;
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'メモの保存に失敗しました。');
+  }
 
-  if (error) return { error: 'メモの保存に失敗しました。' };
-
-  // holeIdからcourse_idを取得してコース詳細ページも再検証
-  const { data: hole } = await supabase.from('holes').select('course_id').eq('id', holeId).single();
-  if (hole?.course_id) {
-    revalidatePath(`/courses/${hole.course_id}`);
+  if (courseId) {
+    revalidatePath(`/courses/${courseId}`);
   }
   revalidatePath('/courses');
   return {};
@@ -286,18 +327,13 @@ interface HoleImportData {
 
 export async function importHoles(
   courseId: string,
-  holes: HoleImportData[]
+  holes: HoleImportData[],
 ): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(courseId)) return { error: 'コースIDが不正です。' };
-
   if (!Array.isArray(holes) || holes.length === 0) {
     return { error: 'ホールデータが必要です。' };
   }
 
-  // バリデーション
   const seenHoles = new Set<number>();
   for (const h of holes) {
     if (!Number.isInteger(h.holeNumber) || h.holeNumber < 1 || h.holeNumber > 18) {
@@ -321,39 +357,38 @@ export async function importHoles(
     if (holeError) return { error: prefix + holeError };
   }
 
-  const supabase = await createClient();
-
-  // コースの存在確認
-  const { data: course } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('id', courseId)
-    .single();
-  if (!course) return { error: 'コースが見つかりません。' };
-
-  // 全ホールをupsert
-  const { error } = await supabase
-    .from('holes')
-    .upsert(
-      holes.map(h => ({
-        course_id: courseId,
-        hole_number: h.holeNumber,
-        par: h.par,
-        distance: h.distance,
-        hdcp: h.hdcp,
-        dogleg: h.dogleg,
-        elevation: h.elevation,
-        distance_back: h.distanceBack,
-        distance_front: h.distanceFront,
-        distance_ladies: h.distanceLadies,
-        hazard: h.hazard,
-        ob: h.ob,
-        description: h.description,
-      })),
-      { onConflict: 'course_id,hole_number' }
-    );
-
-  if (error) return { error: 'ホール情報のインポートに失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const c = await client.query<{ id: string }>('SELECT id FROM courses WHERE id = $1', [courseId]);
+        if (c.rowCount === 0) {
+          throw new Error('course_not_found');
+        }
+        for (const h of holes) {
+          await upsertHoleInner(client, {
+            courseId,
+            holeNumber: h.holeNumber,
+            par: h.par,
+            distance: h.distance,
+            hdcp: h.hdcp,
+            dogleg: h.dogleg,
+            elevation: h.elevation,
+            distanceBack: h.distanceBack,
+            distanceFront: h.distanceFront,
+            distanceLadies: h.distanceLadies,
+            hazard: h.hazard,
+            ob: h.ob,
+            description: h.description,
+          });
+        }
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'course_not_found') {
+      return { error: 'コースが見つかりません。' };
+    }
+    return mapError(err, 'ホール情報のインポートに失敗しました。');
+  }
 
   revalidatePath(`/courses/${courseId}`);
   return {};

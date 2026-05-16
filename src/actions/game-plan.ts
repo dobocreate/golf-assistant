@@ -1,27 +1,19 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db, type PoolClient } from '@/lib/db/neon';
 import type { GamePlan, RiskLevel } from '@/features/game-plan/types';
 import { RISK_LEVEL_VALUES } from '@/features/game-plan/types';
 import { isValidUUID } from '@/lib/utils';
 
-async function verifyRoundOwnership(roundId: string) {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' as const, supabase: null };
-  if (!isValidUUID(roundId)) return { error: 'ラウンドIDが不正です。' as const, supabase: null };
-
-  const supabase = await createClient();
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return { error: 'ラウンドが見つかりません。' as const, supabase: null };
-
-  return { error: null, supabase };
+async function assertRoundOwned(client: PoolClient, roundId: string): Promise<void> {
+  const r = await client.query<{ id: string }>(
+    'SELECT id FROM rounds WHERE id = $1 AND user_id = current_user_id()::uuid',
+    [roundId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('round_not_found');
+  }
 }
 
 function validateHoleNumber(holeNumber: number): string | null {
@@ -59,22 +51,31 @@ function revalidateGamePlanPaths(roundId: string) {
   revalidatePath(`/rounds/${roundId}`);
 }
 
+function mapError(err: unknown, fallback: string): { error: string } {
+  if (err instanceof Error) {
+    if (err.message === 'round_not_found') return { error: 'ラウンドが見つかりません。' };
+    if (err.message.startsWith('unauthorized')) return { error: 'ログインが必要です。' };
+  }
+  console.error(fallback, err);
+  return { error: fallback };
+}
+
 export async function getGamePlans(roundId: string): Promise<GamePlan[]> {
-  const { error, supabase } = await verifyRoundOwnership(roundId);
-  if (error || !supabase) return [];
-
-  const { data, error: dbError } = await supabase
-    .from('game_plans')
-    .select('*')
-    .eq('round_id', roundId)
-    .order('hole_number');
-
-  if (dbError) {
-    console.error('Failed to fetch game plans:', dbError.message);
+  if (!isValidUUID(roundId)) return [];
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        await assertRoundOwned(client, roundId);
+        const r = await client.query<GamePlan>(
+          'SELECT * FROM game_plans WHERE round_id = $1 ORDER BY hole_number',
+          [roundId],
+        );
+        return r.rows;
+      });
+    });
+  } catch {
     return [];
   }
-
-  return (data as GamePlan[]) ?? [];
 }
 
 export async function upsertGamePlan(data: {
@@ -85,30 +86,38 @@ export async function upsertGamePlan(data: {
   riskLevel?: RiskLevel | null;
   targetStrokes?: number | null;
 }): Promise<{ error?: string }> {
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   const holeError = validateHoleNumber(data.holeNumber);
   if (holeError) return { error: holeError };
-
   const fieldError = validateGamePlanFields(data);
   if (fieldError) return { error: fieldError };
 
-  const { error, supabase } = await verifyRoundOwnership(data.roundId);
-  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
-
-  const { error: upsertError } = await supabase
-    .from('game_plans')
-    .upsert(
-      {
-        round_id: data.roundId,
-        hole_number: data.holeNumber,
-        plan_text: data.planText ?? null,
-        alert_text: data.alertText ?? null,
-        risk_level: data.riskLevel ?? null,
-        target_strokes: data.targetStrokes ?? null,
-      },
-      { onConflict: 'round_id,hole_number' }
-    );
-
-  if (upsertError) return { error: 'ゲームプランの保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertRoundOwned(client, data.roundId);
+        await client.query(
+          `INSERT INTO game_plans (round_id, hole_number, plan_text, alert_text, risk_level, target_strokes)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (round_id, hole_number) DO UPDATE SET
+             plan_text = EXCLUDED.plan_text,
+             alert_text = EXCLUDED.alert_text,
+             risk_level = EXCLUDED.risk_level,
+             target_strokes = EXCLUDED.target_strokes`,
+          [
+            data.roundId,
+            data.holeNumber,
+            data.planText ?? null,
+            data.alertText ?? null,
+            data.riskLevel ?? null,
+            data.targetStrokes ?? null,
+          ],
+        );
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'ゲームプランの保存に失敗しました。');
+  }
 
   revalidateGamePlanPaths(data.roundId);
   return {};
@@ -127,7 +136,7 @@ export async function upsertGamePlansBatch(data: {
   if (data.plans.length === 0) return {};
   if (data.plans.length > 18) return { error: 'プランは最大18件です。' };
 
-  const holeNumbers = data.plans.map(p => p.holeNumber);
+  const holeNumbers = data.plans.map((p) => p.holeNumber);
   if (new Set(holeNumbers).size !== holeNumbers.length) {
     return { error: 'ホール番号が重複しています。' };
   }
@@ -135,29 +144,40 @@ export async function upsertGamePlansBatch(data: {
   for (const plan of data.plans) {
     const holeError = validateHoleNumber(plan.holeNumber);
     if (holeError) return { error: holeError };
-
     const fieldError = validateGamePlanFields(plan);
     if (fieldError) return { error: fieldError };
   }
 
-  const { error, supabase } = await verifyRoundOwnership(data.roundId);
-  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
 
-  const { error: upsertError } = await supabase
-    .from('game_plans')
-    .upsert(
-      data.plans.map(plan => ({
-        round_id: data.roundId,
-        hole_number: plan.holeNumber,
-        plan_text: plan.planText ?? null,
-        alert_text: plan.alertText ?? null,
-        risk_level: plan.riskLevel ?? null,
-        target_strokes: plan.targetStrokes ?? null,
-      })),
-      { onConflict: 'round_id,hole_number' }
-    );
-
-  if (upsertError) return { error: 'ゲームプランの一括保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertRoundOwned(client, data.roundId);
+        for (const plan of data.plans) {
+          await client.query(
+            `INSERT INTO game_plans (round_id, hole_number, plan_text, alert_text, risk_level, target_strokes)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (round_id, hole_number) DO UPDATE SET
+               plan_text = EXCLUDED.plan_text,
+               alert_text = EXCLUDED.alert_text,
+               risk_level = EXCLUDED.risk_level,
+               target_strokes = EXCLUDED.target_strokes`,
+            [
+              data.roundId,
+              plan.holeNumber,
+              plan.planText ?? null,
+              plan.alertText ?? null,
+              plan.riskLevel ?? null,
+              plan.targetStrokes ?? null,
+            ],
+          );
+        }
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'ゲームプランの一括保存に失敗しました。');
+  }
 
   revalidateGamePlanPaths(data.roundId);
   return {};
@@ -167,19 +187,23 @@ export async function deleteGamePlan(data: {
   roundId: string;
   holeNumber: number;
 }): Promise<{ error?: string }> {
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   const holeError = validateHoleNumber(data.holeNumber);
   if (holeError) return { error: holeError };
 
-  const { error, supabase } = await verifyRoundOwnership(data.roundId);
-  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
-
-  const { error: deleteError } = await supabase
-    .from('game_plans')
-    .delete()
-    .eq('round_id', data.roundId)
-    .eq('hole_number', data.holeNumber);
-
-  if (deleteError) return { error: 'ゲームプランの削除に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertRoundOwned(client, data.roundId);
+        await client.query(
+          'DELETE FROM game_plans WHERE round_id = $1 AND hole_number = $2',
+          [data.roundId, data.holeNumber],
+        );
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'ゲームプランの削除に失敗しました。');
+  }
 
   revalidateGamePlanPaths(data.roundId);
   return {};
@@ -189,21 +213,28 @@ export async function updateTargetScore(data: {
   roundId: string;
   targetScore: number | null;
 }): Promise<{ error?: string }> {
+  if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
   if (data.targetScore !== null) {
     if (!Number.isInteger(data.targetScore) || data.targetScore < 50 || data.targetScore > 200) {
       return { error: '目標スコアが不正です（50〜200）。' };
     }
   }
 
-  const { error, supabase } = await verifyRoundOwnership(data.roundId);
-  if (error || !supabase) return { error: error ?? 'エラーが発生しました。' };
-
-  const { error: updateError } = await supabase
-    .from('rounds')
-    .update({ target_score: data.targetScore })
-    .eq('id', data.roundId);
-
-  if (updateError) return { error: '目標スコアの更新に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const r = await client.query(
+          'UPDATE rounds SET target_score = $1 WHERE id = $2 AND user_id = current_user_id()::uuid',
+          [data.targetScore, data.roundId],
+        );
+        if (r.rowCount === 0) {
+          throw new Error('round_not_found');
+        }
+      });
+    });
+  } catch (err) {
+    return mapError(err, '目標スコアの更新に失敗しました。');
+  }
 
   revalidateGamePlanPaths(data.roundId);
   return {};

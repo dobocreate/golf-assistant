@@ -1,8 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db, type PoolClient } from '@/lib/db/neon';
 import { isValidUUID } from '@/lib/utils';
 import { detectLie, type AutoLie, type AutoLieConfidence } from '@/lib/geolocation/lie-detection';
 import type { HoleArea } from '@/lib/geo';
@@ -22,23 +21,36 @@ export interface ComputeShotPositionResult {
   remainingToGreenM: number | null;
 }
 
+interface RoundOwnerRow {
+  id: string;
+  course_id: string;
+  active_green: 'A' | 'B' | null;
+}
+
+async function getOwnedRound(client: PoolClient, roundId: string): Promise<RoundOwnerRow | null> {
+  const r = await client.query<RoundOwnerRow>(
+    `SELECT id, course_id, active_green
+       FROM rounds
+      WHERE id = $1 AND user_id = current_user_id()::uuid`,
+    [roundId],
+  );
+  return r.rows[0] ?? null;
+}
+
+async function getHoleAreas(client: PoolClient, holeId: string): Promise<HoleArea[]> {
+  const r = await client.query<HoleArea>(
+    `SELECT * FROM hole_areas WHERE hole_id = $1 ORDER BY sort_order`,
+    [holeId],
+  );
+  return r.rows;
+}
+
 /**
  * GPS 座標と holes/hole_areas/active_green から auto_lie / 信頼度 / 残距離を算出する
- *
- * Sprint 5 PR5 (S-5b 改) — ShotPositionRecorder で「📍 位置を記録」直後に呼び出し、
- * 結果を form state に格納してユーザー入力欄を pre-fill + AI コンテキストに利用する。
- *
- * 入力検証:
- *   - 認証必須（ラウンド所有確認）
- *   - lat/lng は範囲チェック
- *   - hole_number は 1..18
  */
 export async function computeShotPosition(
   input: ComputeShotPositionInput,
 ): Promise<{ error?: string; result?: ComputeShotPositionResult }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(input.roundId)) return { error: 'ラウンドIDが不正です。' };
   if (!Number.isInteger(input.holeNumber) || input.holeNumber < 1 || input.holeNumber > 18) {
     return { error: 'ホール番号が不正です。' };
@@ -53,102 +65,83 @@ export async function computeShotPosition(
     return { error: '精度値が不正です。' };
   }
 
-  const supabase = await createClient();
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const round = await getOwnedRound(client, input.roundId);
+        if (!round) return { error: 'ラウンドが見つかりません。' };
 
-  // ラウンド所有確認 + active_green + course_id 取得
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id, course_id, active_green')
-    .eq('id', input.roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return { error: 'ラウンドが見つかりません。' };
+        const holeR = await client.query<{ id: string }>(
+          'SELECT id FROM holes WHERE course_id = $1 AND hole_number = $2',
+          [round.course_id, input.holeNumber],
+        );
+        if (holeR.rowCount === 0) {
+          return {
+            result: { autoLie: 'unknown' as AutoLie, autoLieConfidence: 'low' as AutoLieConfidence, remainingToGreenM: null },
+          };
+        }
 
-  // hole_id を取得
-  const { data: hole } = await supabase
-    .from('holes')
-    .select('id')
-    .eq('course_id', round.course_id)
-    .eq('hole_number', input.holeNumber)
-    .single();
-  if (!hole) {
-    // ホール定義がないコースでは判定不能として unknown / null を返す（エラーではない）
-    return {
-      result: { autoLie: 'unknown', autoLieConfidence: 'low', remainingToGreenM: null },
-    };
+        const areas = await getHoleAreas(client, holeR.rows[0].id);
+        const result = detectLie({
+          point: { lat: input.latitude, lng: input.longitude },
+          accuracyM: input.accuracyM,
+          areas,
+          activeGreen: round.active_green,
+        });
+
+        return {
+          result: {
+            autoLie: result.autoLie,
+            autoLieConfidence: result.confidence,
+            remainingToGreenM: result.remainingToGreenM,
+          },
+        };
+      });
+    });
+  } catch (err) {
+    console.error('computeShotPosition failed:', err);
+    return { error: '位置情報の計算に失敗しました。' };
   }
-
-  // hole_areas を取得（lie 判定用）
-  const { data: areasRaw } = await supabase
-    .from('hole_areas')
-    .select('*')
-    .eq('hole_id', hole.id)
-    .order('sort_order');
-  const areas = (areasRaw ?? []) as HoleArea[];
-
-  const result = detectLie({
-    point: { lat: input.latitude, lng: input.longitude },
-    accuracyM: input.accuracyM,
-    areas,
-    activeGreen: (round.active_green as 'A' | 'B' | null) ?? null,
-  });
-
-  return {
-    result: {
-      autoLie: result.autoLie,
-      autoLieConfidence: result.confidence,
-      remainingToGreenM: result.remainingToGreenM,
-    },
-  };
 }
 
 export interface UpdateShotPositionInput {
   shotId: string;
   latitude: number;
   longitude: number;
-  /** 'manual_edit' (ドラッグ補正) / 'gps' (再 GPS 取得) / 'manual_pin' (手動再配置) */
   gpsSource: GpsSource;
-  /** 再 GPS 取得時のみ。manual_edit/manual_pin では null */
   accuracyM?: number | null;
-  /** 楽観的ロック用。指定時は revision 不一致で 'conflict' エラーを返す */
   expectedRevision?: number;
 }
 
-/** updateShotPosition の戻り値 */
 export interface UpdateShotPositionResult {
   error?: string;
   shot?: Shot;
-  /** conflict 時の最新 shot（呼び出し側で cache/form を同期するため） */
   latestShot?: Shot;
 }
 
-/**
- * 既存ショットの GPS 位置を単体 PATCH で更新する
- *
- * Sprint 5 PR7 (S-5c) — ラウンド中の位置補正フロー（ドラッグ + 再 GPS 取得）。
- *
- * 副作用:
- *   - latitude/longitude/gps_source/edited_at を更新
- *   - 初回編集時 (original_latitude IS NULL) は元の lat/lng を original_* に退避
- *   - position_revision を +1
- *   - hole_areas を再フェッチして auto_lie / auto_lie_confidence /
- *     remaining_to_green_m / auto_lie_calculated_at を再計算
- *
- * 楽観的ロック:
- *   - expectedRevision を渡せば DB の position_revision と一致時のみ更新
- *   - 不一致時は { error: 'conflict' } を返し、UI 側で「他の編集が入りました」を表示
- *
- * gps_source 別の挙動:
- *   - 'manual_edit': accuracyM=null、auto_lie_confidence='medium' （手動補正は GPS 精度ベースでないが、ユーザー意図の精度として中庸）
- *   - 'gps': accuracyM 必須、detectLie の confidence をそのまま使用
- *   - 'manual_pin': accuracyM=null、auto_lie_confidence='low'
- */
+interface ShotWithRoundRow extends Shot {
+  round_user_id: string;
+  round_course_id: string;
+  round_active_green: 'A' | 'B' | null;
+}
+
+async function getOwnedShot(client: PoolClient, shotId: string): Promise<ShotWithRoundRow | null> {
+  const r = await client.query<ShotWithRoundRow>(
+    `SELECT s.*,
+            r.user_id AS round_user_id,
+            r.course_id AS round_course_id,
+            r.active_green AS round_active_green
+       FROM shots s
+       JOIN rounds r ON r.id = s.round_id
+      WHERE s.id = $1 AND r.user_id = current_user_id()::uuid`,
+    [shotId],
+  );
+  return r.rows[0] ?? null;
+}
+
 export async function updateShotPosition(
   input: UpdateShotPositionInput,
 ): Promise<UpdateShotPositionResult> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(input.shotId)) return { error: 'ショットIDが不正です。' };
   if (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90) {
     return { error: '緯度が不正です。' };
@@ -160,257 +153,215 @@ export async function updateShotPosition(
     return { error: '精度値が不正です。' };
   }
 
-  const supabase = await createClient();
+  try {
+    return await requireUser(async () => {
+      return db.transaction(async (client): Promise<UpdateShotPositionResult> => {
+        const shotRow = await getOwnedShot(client, input.shotId);
+        if (!shotRow) return { error: 'ショットが見つかりません。' };
 
-  // ショット + ラウンド所有確認 + 既存 lat/lng/revision 取得
-  const { data: shot } = await supabase
-    .from('shots')
-    .select('*, rounds!inner(user_id, course_id, active_green)')
-    .eq('id', input.shotId)
-    .eq('rounds.user_id', user.id)
-    .single();
-  if (!shot) return { error: 'ショットが見つかりません。' };
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== shotRow.position_revision
+        ) {
+          return { error: 'conflict', latestShot: shotRow };
+        }
 
-  const shotRow = shot as Shot & { rounds: { user_id: string; course_id: string; active_green: 'A' | 'B' | null } };
+        // hole_id 取得 → hole_areas → detectLie
+        const holeR = await client.query<{ id: string }>(
+          'SELECT id FROM holes WHERE course_id = $1 AND hole_number = $2',
+          [shotRow.round_course_id, shotRow.hole_number],
+        );
+        let autoLie: AutoLie = 'unknown';
+        let autoLieConfidence: AutoLieConfidence = 'low';
+        let remainingToGreenM: number | null = null;
+        const hasHole = (holeR.rowCount ?? 0) > 0;
+        if (hasHole) {
+          const areas = await getHoleAreas(client, holeR.rows[0].id);
+          const detected = detectLie({
+            point: { lat: input.latitude, lng: input.longitude },
+            accuracyM: input.accuracyM ?? 0,
+            areas,
+            activeGreen: shotRow.round_active_green,
+          });
+          autoLie = detected.autoLie;
+          remainingToGreenM = detected.remainingToGreenM;
+          if (input.gpsSource === 'manual_edit') {
+            autoLieConfidence = 'medium';
+          } else if (input.gpsSource === 'manual_pin') {
+            autoLieConfidence = 'low';
+          } else {
+            autoLieConfidence = detected.confidence;
+          }
+        }
 
-  // 早期チェック: SELECT 時点で revision 不一致なら、UPDATE まで進まずに conflict
-  // （ただし最終判定は UPDATE 内の .eq('position_revision', ...) で atomic に行う）
-  // latestShot を返すことで呼び出し側が cache/form を最新値に同期できる
-  if (
-    input.expectedRevision !== undefined &&
-    input.expectedRevision !== shotRow.position_revision
-  ) {
-    return { error: 'conflict', latestShot: shotRow };
-  }
+        const originalLatitude = shotRow.original_latitude ?? shotRow.latitude;
+        const originalLongitude = shotRow.original_longitude ?? shotRow.longitude;
+        const nowIso = new Date().toISOString();
 
-  // hole_id 取得（auto_lie 再計算用）
-  const { data: hole } = await supabase
-    .from('holes')
-    .select('id')
-    .eq('course_id', shotRow.rounds.course_id)
-    .eq('hole_number', shotRow.hole_number)
-    .single();
+        // Atomic 楽観的ロック: WHERE 句に position_revision を含める
+        let sql = `
+          UPDATE shots SET
+            latitude = $2,
+            longitude = $3,
+            gps_accuracy_m = $4,
+            captured_at = $5,
+            auto_lie = $6,
+            auto_lie_confidence = $7,
+            remaining_to_green_m = $8,
+            auto_lie_calculated_at = $9,
+            gps_source = $10,
+            original_latitude = $11,
+            original_longitude = $12,
+            edited_at = $13,
+            position_revision = position_revision + 1
+          WHERE id = $1`;
+        const params: unknown[] = [
+          input.shotId,
+          input.latitude,
+          input.longitude,
+          input.accuracyM ?? null,
+          input.gpsSource === 'gps' ? nowIso : shotRow.captured_at,
+          autoLie,
+          autoLieConfidence,
+          remainingToGreenM,
+          hasHole ? nowIso : null,
+          input.gpsSource,
+          originalLatitude,
+          originalLongitude,
+          input.gpsSource === 'gps' ? null : nowIso,
+        ];
+        if (input.expectedRevision !== undefined) {
+          sql += ` AND position_revision = $${params.length + 1}`;
+          params.push(input.expectedRevision);
+        }
+        sql += ' RETURNING *';
 
-  // hole_areas 取得 → detectLie
-  let autoLie: AutoLie = 'unknown';
-  let autoLieConfidence: AutoLieConfidence = 'low';
-  let remainingToGreenM: number | null = null;
-  if (hole) {
-    const { data: areasRaw } = await supabase
-      .from('hole_areas')
-      .select('*')
-      .eq('hole_id', hole.id)
-      .order('sort_order');
-    const areas = (areasRaw ?? []) as HoleArea[];
-    const detected = detectLie({
-      point: { lat: input.latitude, lng: input.longitude },
-      accuracyM: input.accuracyM ?? 0,
-      areas,
-      activeGreen: shotRow.rounds.active_green,
+        const updR = await client.query<Shot>(sql, params);
+        if (updR.rowCount === 0) {
+          // 0 行 = revision 不一致。最新を返す
+          const latestR = await client.query<Shot>(
+            'SELECT * FROM shots WHERE id = $1',
+            [input.shotId],
+          );
+          return { error: 'conflict', latestShot: latestR.rows[0] };
+        }
+
+        return { shot: updR.rows[0], _roundId: shotRow.round_id } as UpdateShotPositionResult & {
+          _roundId?: string;
+        };
+      });
+    }).then((result) => {
+      const r = result as UpdateShotPositionResult & { _roundId?: string };
+      if (r.shot && r._roundId) {
+        revalidatePath(`/play/${r._roundId}/score`);
+        revalidatePath(`/rounds/${r._roundId}`);
+      }
+      const { _roundId: _omit, ...clean } = r;
+      void _omit;
+      return clean;
     });
-    autoLie = detected.autoLie;
-    remainingToGreenM = detected.remainingToGreenM;
-    // gps_source ごとに confidence を上書き（手動操作は GPS 精度ベースでないため）
-    if (input.gpsSource === 'manual_edit') {
-      autoLieConfidence = 'medium';
-    } else if (input.gpsSource === 'manual_pin') {
-      autoLieConfidence = 'low';
-    } else {
-      autoLieConfidence = detected.confidence;
-    }
-  }
-
-  // 初回編集時 (original_latitude IS NULL) のみ元値を退避
-  const originalLatitude = shotRow.original_latitude ?? shotRow.latitude;
-  const originalLongitude = shotRow.original_longitude ?? shotRow.longitude;
-
-  const nowIso = new Date().toISOString();
-  // Atomic 楽観的ロック: UPDATE の WHERE に position_revision を含めることで、
-  // 並行クライアントが同じ expectedRevision で同時更新しても片方しか成功しない
-  let updateQuery = supabase
-    .from('shots')
-    .update({
-      latitude: input.latitude,
-      longitude: input.longitude,
-      gps_accuracy_m: input.accuracyM ?? null,
-      captured_at: input.gpsSource === 'gps' ? nowIso : shotRow.captured_at,
-      auto_lie: autoLie,
-      auto_lie_confidence: autoLieConfidence,
-      remaining_to_green_m: remainingToGreenM,
-      // hole 定義がないコース（lie 判定スキップ）では unknown 上書きと整合性を取り null に
-      auto_lie_calculated_at: hole ? nowIso : null,
-      gps_source: input.gpsSource,
-      original_latitude: originalLatitude,
-      original_longitude: originalLongitude,
-      // 再 GPS 取得は「手動編集」ではないため edited_at をリセット（null）
-      // manual_edit / manual_pin の場合のみ now を記録
-      edited_at: input.gpsSource === 'gps' ? null : nowIso,
-      position_revision: shotRow.position_revision + 1,
-    })
-    .eq('id', input.shotId);
-
-  // expectedRevision が指定されている場合のみ atomic な revision check を追加
-  if (input.expectedRevision !== undefined) {
-    updateQuery = updateQuery.eq('position_revision', input.expectedRevision);
-  }
-
-  const { data: updated, error: updateErr } = await updateQuery.select('*').maybeSingle();
-
-  if (updateErr) {
-    console.error('updateShotPosition failed:', updateErr);
+  } catch (err) {
+    console.error('updateShotPosition failed:', err);
     return { error: '位置情報の更新に失敗しました。' };
   }
-  if (!updated) {
-    // .maybeSingle() で 0 行返却 = revision 不一致（並行更新が先に走った）
-    // 並行更新後の最新値を取得して返す（呼び出し側で cache/form を同期）
-    const { data: latest } = await supabase
-      .from('shots')
-      .select('*')
-      .eq('id', input.shotId)
-      .maybeSingle();
-    return { error: 'conflict', latestShot: latest as Shot | undefined };
-  }
-
-  // ラウンド中の score 画面 + ラウンド後の詳細画面の両方を revalidate
-  // （PR8 で /rounds/[roundId] にもショット軌跡セクションを追加したため）
-  revalidatePath(`/play/${shotRow.round_id}/score`);
-  revalidatePath(`/rounds/${shotRow.round_id}`);
-  return { shot: updated as Shot };
 }
 
 /**
  * 編集された位置を元の GPS 値に復元する（atomic）
- *
- * Sprint 5 PR9 (S-6d) — 編集を取り消したい場合の手段。
- * - original_latitude/longitude が NULL（一度も編集していない）の場合は no-op で成功
- * - 単一 SQL UPDATE で原子性を担保（PR7 で削除した 2 段階版の中間状態リスクを排除）
- * - 復元後: latitude=original_*、gps_source='gps'、original_*=null、edited_at=null
- * - position_revision を +1
- * - auto_lie/remaining_to_green_m を新しい位置で再計算
- *
- * 注 (1): 元の GPS 精度 (gps_accuracy_m) は復元できない（編集時に上書きされている）。
- *         この制約は PR8 の Codex M3 指摘どおりで、original_gps_accuracy_m カラムを
- *         追加すれば改善可能だが Sprint 5 では現状の挙動で許容。
- *
- * 注 (2): 元データが manual_pin (GPS 取得失敗時の手動配置) だった shot を後で
- *         manual_edit してこの関数で revert すると、gps_source='gps' として記録される
- *         （= 実際は GPS で取得していない座標を gps として記録する整合性ずれ）。
- *         これは original_gps_source カラムを持っていないため復元不可能な制約。
- *         UI 側の confirm ダイアログでは破壊性のみ警告する（GPS 出自不確実性は
- *         典型ユーザーには冗長な情報のため）。スキーマ拡張は別 PR で検討。
  */
 export async function revertShotPositionToOriginal(
   shotId: string,
-  /** 楽観的ロック用。指定時は revision 不一致で 'conflict' エラーを返す */
   expectedRevision?: number,
 ): Promise<{ error?: string; shot?: Shot; latestShot?: Shot }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(shotId)) return { error: 'ショットIDが不正です。' };
 
-  const supabase = await createClient();
+  try {
+    return await requireUser(async () => {
+      return db.transaction(async (client): Promise<{ error?: string; shot?: Shot; latestShot?: Shot; _roundId?: string }> => {
+        const shotRow = await getOwnedShot(client, shotId);
+        if (!shotRow) return { error: 'ショットが見つかりません。' };
 
-  // shot 取得 + 所有確認
-  const { data: shot } = await supabase
-    .from('shots')
-    .select('*, rounds!inner(user_id, course_id, active_green)')
-    .eq('id', shotId)
-    .eq('rounds.user_id', user.id)
-    .single();
-  if (!shot) return { error: 'ショットが見つかりません。' };
+        if (expectedRevision !== undefined && expectedRevision !== shotRow.position_revision) {
+          return { error: 'conflict', latestShot: shotRow };
+        }
 
-  const shotRow = shot as Shot & {
-    rounds: { user_id: string; course_id: string; active_green: 'A' | 'B' | null };
-  };
+        if (shotRow.original_latitude == null || shotRow.original_longitude == null) {
+          return { shot: shotRow, _roundId: shotRow.round_id };
+        }
 
-  // 早期 conflict チェック（無駄な lie 再計算を回避）
-  if (
-    expectedRevision !== undefined &&
-    expectedRevision !== shotRow.position_revision
-  ) {
-    return { error: 'conflict', latestShot: shotRow };
-  }
+        const holeR = await client.query<{ id: string }>(
+          'SELECT id FROM holes WHERE course_id = $1 AND hole_number = $2',
+          [shotRow.round_course_id, shotRow.hole_number],
+        );
+        let autoLie: AutoLie = 'unknown';
+        let autoLieConfidence: AutoLieConfidence = 'low';
+        let remainingToGreenM: number | null = null;
+        const hasHole = (holeR.rowCount ?? 0) > 0;
+        if (hasHole) {
+          const areas = await getHoleAreas(client, holeR.rows[0].id);
+          const detected = detectLie({
+            point: { lat: shotRow.original_latitude, lng: shotRow.original_longitude },
+            accuracyM: 0,
+            areas,
+            activeGreen: shotRow.round_active_green,
+          });
+          autoLie = detected.autoLie;
+          remainingToGreenM = detected.remainingToGreenM;
+          autoLieConfidence = detected.confidence;
+        }
 
-  // 編集されていない（original_* が null）場合は no-op 成功
-  if (shotRow.original_latitude == null || shotRow.original_longitude == null) {
-    return { shot: shotRow };
-  }
+        const nowIso = new Date().toISOString();
+        let sql = `
+          UPDATE shots SET
+            latitude = $2,
+            longitude = $3,
+            auto_lie = $4,
+            auto_lie_confidence = $5,
+            remaining_to_green_m = $6,
+            auto_lie_calculated_at = $7,
+            gps_source = 'gps',
+            original_latitude = NULL,
+            original_longitude = NULL,
+            edited_at = NULL,
+            position_revision = position_revision + 1
+          WHERE id = $1`;
+        const params: unknown[] = [
+          shotId,
+          shotRow.original_latitude,
+          shotRow.original_longitude,
+          autoLie,
+          autoLieConfidence,
+          remainingToGreenM,
+          hasHole ? nowIso : null,
+        ];
+        if (expectedRevision !== undefined) {
+          sql += ` AND position_revision = $${params.length + 1}`;
+          params.push(expectedRevision);
+        }
+        sql += ' RETURNING *';
 
-  // hole_id 取得 + hole_areas で lie/距離を新位置で再計算
-  const { data: hole } = await supabase
-    .from('holes')
-    .select('id')
-    .eq('course_id', shotRow.rounds.course_id)
-    .eq('hole_number', shotRow.hole_number)
-    .single();
+        const updR = await client.query<Shot>(sql, params);
+        if (updR.rowCount === 0) {
+          const latestR = await client.query<Shot>(
+            'SELECT * FROM shots WHERE id = $1',
+            [shotId],
+          );
+          return { error: 'conflict', latestShot: latestR.rows[0] };
+        }
 
-  let autoLie: AutoLie = 'unknown';
-  let autoLieConfidence: AutoLieConfidence = 'low';
-  let remainingToGreenM: number | null = null;
-  if (hole) {
-    const { data: areasRaw } = await supabase
-      .from('hole_areas')
-      .select('*')
-      .eq('hole_id', hole.id)
-      .order('sort_order');
-    const areas = (areasRaw ?? []) as HoleArea[];
-    const detected = detectLie({
-      point: { lat: shotRow.original_latitude, lng: shotRow.original_longitude },
-      // 元の精度は復元不能のため 0 で計算（detectLie は accuracyM == 0 を high 扱いするが、
-      // ここでは「元 GPS は信頼できる」前提なので high で問題ない）
-      accuracyM: 0,
-      areas,
-      activeGreen: shotRow.rounds.active_green,
+        return { shot: updR.rows[0], _roundId: shotRow.round_id };
+      });
+    }).then((result) => {
+      if (result.shot && result._roundId) {
+        revalidatePath(`/rounds/${result._roundId}`);
+        revalidatePath(`/play/${result._roundId}/score`);
+      }
+      const { _roundId: _omit, ...clean } = result;
+      void _omit;
+      return clean;
     });
-    autoLie = detected.autoLie;
-    remainingToGreenM = detected.remainingToGreenM;
-    autoLieConfidence = detected.confidence;
-  }
-
-  const nowIso = new Date().toISOString();
-  // Atomic 楽観的ロック: UPDATE の WHERE に position_revision を含めることで、
-  // 並行クライアントが同じ expectedRevision で同時更新しても片方しか成功しない
-  // （updateShotPosition と同パターン）
-  let updateQuery = supabase
-    .from('shots')
-    .update({
-      latitude: shotRow.original_latitude,
-      longitude: shotRow.original_longitude,
-      // gps_accuracy_m は復元不能（注記参照）— 既存値が編集時の null なので null のまま
-      auto_lie: autoLie,
-      auto_lie_confidence: autoLieConfidence,
-      remaining_to_green_m: remainingToGreenM,
-      auto_lie_calculated_at: hole ? nowIso : null,
-      gps_source: 'gps',
-      original_latitude: null,
-      original_longitude: null,
-      edited_at: null,
-      position_revision: shotRow.position_revision + 1,
-    })
-    .eq('id', shotId);
-
-  if (expectedRevision !== undefined) {
-    updateQuery = updateQuery.eq('position_revision', expectedRevision);
-  }
-
-  const { data: updated, error: updateErr } = await updateQuery.select('*').maybeSingle();
-
-  if (updateErr) {
-    console.error('revertShotPositionToOriginal failed:', updateErr);
+  } catch (err) {
+    console.error('revertShotPositionToOriginal failed:', err);
     return { error: '元の GPS 値に戻せませんでした。' };
   }
-  if (!updated) {
-    // .maybeSingle() で 0 行返却 = revision 不一致（並行更新が先に走った）
-    const { data: latest } = await supabase
-      .from('shots')
-      .select('*')
-      .eq('id', shotId)
-      .maybeSingle();
-    return { error: 'conflict', latestShot: latest as Shot | undefined };
-  }
-
-  // 両画面を revalidate（updateShotPosition と同パターン）
-  revalidatePath(`/rounds/${shotRow.round_id}`);
-  revalidatePath(`/play/${shotRow.round_id}/score`);
-  return { shot: updated as Shot };
 }

@@ -1,28 +1,28 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedProfileId } from '@/lib/auth-utils';
+import { requireUser, db } from '@/lib/db/neon';
 import type { Club } from '@/features/profile/types';
 
 export async function getClubs(): Promise<Club[]> {
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) return [];
-
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('clubs')
-    .select('*')
-    .eq('profile_id', profileId)
-    .order('distance', { ascending: false, nullsFirst: false });
-
-  return data ?? [];
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const r = await client.query<Club>(
+          `SELECT c.* FROM clubs c
+           JOIN profiles p ON p.id = c.profile_id
+           WHERE p.user_id = current_user_id()::uuid
+           ORDER BY c.distance DESC NULLS LAST`,
+        );
+        return r.rows;
+      });
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function upsertClub(formData: FormData): Promise<{ error?: string }> {
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) return { error: 'プロファイルを先に作成してください。' };
-
   const name = formData.get('name') as string;
   const customName = formData.get('custom_name') as string;
   const clubName = name === '__custom__' ? customName : name;
@@ -55,32 +55,51 @@ export async function upsertClub(formData: FormData): Promise<{ error?: string }
     return { error: '成功率は0〜10の範囲で入力してください。' };
   }
 
-  const clubData = {
-    profile_id: profileId,
-    name: clubName.trim(),
-    distance,
-    distance_half: distanceHalf,
-    success_rate: successRate,
-    is_weak: formData.get('is_weak') === 'true',
-    confidence,
-    note: (formData.get('note') as string) || null,
-  };
-
+  const trimmedName = clubName.trim();
+  const isWeak = formData.get('is_weak') === 'true';
+  const note = (formData.get('note') as string) || null;
   const clubId = formData.get('id') as string;
-  const supabase = await createClient();
 
-  if (clubId) {
-    const { error } = await supabase
-      .from('clubs')
-      .update(clubData)
-      .eq('id', clubId)
-      .eq('profile_id', profileId);
-    if (error) return { error: 'クラブの更新に失敗しました。' };
-  } else {
-    const { error } = await supabase
-      .from('clubs')
-      .insert(clubData);
-    if (error) return { error: 'クラブの追加に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        // 自分の profile.id を取得 (RLS でも user_id 一致が強制される)
+        const profileResult = await client.query<{ id: string }>(
+          'SELECT id FROM profiles WHERE user_id = current_user_id()::uuid LIMIT 1',
+        );
+        if (profileResult.rowCount === 0) {
+          throw new Error('profile_missing');
+        }
+        const profileId = profileResult.rows[0].id;
+
+        if (clubId) {
+          await client.query(
+            `UPDATE clubs SET
+               name = $1, distance = $2, distance_half = $3, success_rate = $4,
+               is_weak = $5, confidence = $6, note = $7
+             WHERE id = $8 AND profile_id = $9`,
+            [trimmedName, distance, distanceHalf, successRate, isWeak, confidence, note, clubId, profileId],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO clubs (profile_id, name, distance, distance_half, success_rate, is_weak, confidence, note)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [profileId, trimmedName, distance, distanceHalf, successRate, isWeak, confidence, note],
+          );
+        }
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === 'profile_missing') {
+        return { error: 'プロファイルを先に作成してください。' };
+      }
+      if (err.message.startsWith('unauthorized')) {
+        return { error: 'ログインが必要です。' };
+      }
+    }
+    console.error('upsertClub error', err);
+    return { error: clubId ? 'クラブの更新に失敗しました。' : 'クラブの追加に失敗しました。' };
   }
 
   revalidatePath('/profile');
@@ -90,17 +109,20 @@ export async function upsertClub(formData: FormData): Promise<{ error?: string }
 export async function deleteClub(clubId: string): Promise<{ error?: string }> {
   if (!clubId) return { error: 'クラブIDが必要です。' };
 
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) return { error: 'ログインが必要です。' };
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('clubs')
-    .delete()
-    .eq('id', clubId)
-    .eq('profile_id', profileId);
-
-  if (error) return { error: 'クラブの削除に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        // RLS により profile.user_id 一致のみ削除可能
+        await client.query('DELETE FROM clubs WHERE id = $1', [clubId]);
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('unauthorized')) {
+      return { error: 'ログインが必要です。' };
+    }
+    console.error('deleteClub error', err);
+    return { error: 'クラブの削除に失敗しました。' };
+  }
 
   revalidatePath('/profile');
   return {};
