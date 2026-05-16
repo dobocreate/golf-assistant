@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/db/neon';
 import { getOrBuildContextSnapshot, buildScoreContext } from '@/features/advice/lib/context-builder';
 import { buildCurrentPositionContext } from '@/features/advice/lib/current-position-context-builder';
 import { createChatSystemPrompt, createChatUserPrompt, MAX_CHAT_TOKENS } from '@/features/advice/lib/prompt-template';
@@ -6,10 +6,6 @@ import { jsonError, createGeminiStream } from '@/lib/llm';
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return jsonError('ログインが必要です。', 401);
-
     if (!process.env.GEMINI_API_KEY) return jsonError('Gemini APIが設定されていません。', 503);
 
     let body: {
@@ -36,21 +32,32 @@ export async function POST(request: Request) {
       return jsonError('質問は500文字以内で入力してください。', 400);
     }
 
-    const snapshotResult = await getOrBuildContextSnapshot(body.roundId, user.id);
-    if (!snapshotResult) return jsonError('ラウンド情報の取得に失敗しました。', 404);
+    const built = await requireUser(async () => {
+      const snapshotResult = await getOrBuildContextSnapshot(body.roundId);
+      if (!snapshotResult) return null;
 
-    // 静的 snapshot + 動的 scoreContext + 動的 currentPositionContext を並列取得して合成
-    // currentPositionContext は GPS 未取得時 null（その場合はセクション省略）
-    const [scoreContext, currentPositionContext] = await Promise.all([
-      buildScoreContext(body.roundId, user.id, snapshotResult.startingCourse, snapshotResult.courseId),
-      buildCurrentPositionContext(body.roundId, user.id, body.holeNumber),
-    ]);
+      // 静的 snapshot + 動的 scoreContext + 動的 currentPositionContext を並列取得
+      const [scoreContext, currentPositionContext] = await Promise.all([
+        buildScoreContext(body.roundId, snapshotResult.startingCourse, snapshotResult.courseId),
+        buildCurrentPositionContext(body.roundId, body.holeNumber),
+      ]);
 
-    const fullContext = [
-      snapshotResult.contextText,
-      scoreContext,
-      currentPositionContext,
-    ]
+      return {
+        snapshotContext: snapshotResult.contextText,
+        scoreContext,
+        currentPositionContext,
+      };
+    }).catch((err) => {
+      if (err instanceof Error && err.message.startsWith('unauthorized')) {
+        return { unauthorized: true as const };
+      }
+      throw err;
+    });
+
+    if (built && 'unauthorized' in built) return jsonError('ログインが必要です。', 401);
+    if (!built) return jsonError('ラウンド情報の取得に失敗しました。', 404);
+
+    const fullContext = [built.snapshotContext, built.scoreContext, built.currentPositionContext]
       .filter((s): s is string => Boolean(s))
       .join('\n\n');
 

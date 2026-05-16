@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db } from '@/lib/db/neon';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -11,10 +10,19 @@ export const metadata: Metadata = {
   title: '統計 | Golf Assistant',
 };
 
+interface RoundJoinedRow {
+  id: string;
+  played_at: string;
+  total_score: number | null;
+  course_id: string;
+  course_name: string | null;
+}
+
 interface RoundRow {
   id: string;
   played_at: string;
   total_score: number | null;
+  course_id: string;
   courses: { name: string } | null;
 }
 
@@ -24,21 +32,71 @@ interface HoleRow {
   par: number;
 }
 
+// 統計ページが参照する scores のカラムだけを型として宣言。
+// 全カラム取得 (SELECT *) は転送量と将来のスキーマ追加で型ずれが出るので避ける。
+type ScoreStatsRow = Pick<
+  Score,
+  | 'round_id'
+  | 'hole_number'
+  | 'strokes'
+  | 'putts'
+  | 'fairway_hit'
+  | 'green_in_reg'
+  | 'first_putt_distance'
+  | 'first_putt_distance_m'
+>;
+
 export default async function RoundStatsPage() {
-  const user = await getAuthenticatedUser();
-  if (!user) redirect('/auth/login');
+  let rounds: RoundRow[];
+  let scores: ScoreStatsRow[];
+  let holes: HoleRow[];
+  try {
+    ({ rounds, scores, holes } = await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const roundsR = await client.query<RoundJoinedRow>(
+          `SELECT r.id, r.played_at, r.total_score, r.course_id,
+                  c.name AS course_name
+             FROM rounds r
+             LEFT JOIN courses c ON c.id = r.course_id
+            WHERE r.user_id = current_user_id()::uuid
+              AND r.status = 'completed'
+            ORDER BY r.played_at ASC`,
+        );
+        const rounds: RoundRow[] = roundsR.rows.map((r) => ({
+          id: r.id,
+          played_at: r.played_at,
+          total_score: r.total_score,
+          course_id: r.course_id,
+          courses: r.course_name ? { name: r.course_name } : null,
+        }));
 
-  const supabase = await createClient();
+        if (rounds.length === 0) {
+          return { rounds, scores: [] as ScoreStatsRow[], holes: [] as HoleRow[] };
+        }
 
-  // Fetch completed rounds
-  const { data: roundsRaw } = await supabase
-    .from('rounds')
-    .select('id, played_at, total_score, course_id, courses(name)')
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .order('played_at', { ascending: true });
+        const roundIds = rounds.map((r) => r.id);
+        const courseIds = [...new Set(rounds.map((r) => r.course_id))];
 
-  const rounds = (roundsRaw ?? []) as unknown as (RoundRow & { course_id: string })[];
+        const [scoresR, holesR] = await Promise.all([
+          client.query<ScoreStatsRow>(
+            `SELECT round_id, hole_number, strokes, putts, fairway_hit, green_in_reg,
+                    first_putt_distance, first_putt_distance_m
+               FROM scores
+              WHERE round_id = ANY($1::uuid[])
+              ORDER BY hole_number`,
+            [roundIds],
+          ),
+          client.query<HoleRow>(
+            `SELECT course_id, hole_number, par FROM holes WHERE course_id = ANY($1::uuid[])`,
+            [courseIds],
+          ),
+        ]);
+        return { rounds, scores: scoresR.rows, holes: holesR.rows };
+      });
+    }));
+  } catch {
+    redirect('/auth/login');
+  }
 
   if (rounds.length === 0) {
     return (
@@ -58,27 +116,8 @@ export default async function RoundStatsPage() {
     );
   }
 
-  // Fetch all scores for these rounds
-  const roundIds = rounds.map((r) => r.id);
-  const { data: scoresRaw } = await supabase
-    .from('scores')
-    .select('*')
-    .in('round_id', roundIds)
-    .order('hole_number');
-
-  const scores = (scoresRaw as Score[]) ?? [];
-
-  // Fetch hole info for par data
-  const courseIds = [...new Set(rounds.map((r) => r.course_id))];
-  const { data: holesRaw } = await supabase
-    .from('holes')
-    .select('course_id, hole_number, par')
-    .in('course_id', courseIds);
-
-  const holes = (holesRaw as HoleRow[]) ?? [];
-
   // Build lookup maps
-  const scoresByRound = new Map<string, Score[]>();
+  const scoresByRound = new Map<string, ScoreStatsRow[]>();
   for (const s of scores) {
     const list = scoresByRound.get(s.round_id) ?? [];
     list.push(s);

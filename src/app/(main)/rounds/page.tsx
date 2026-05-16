@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db } from '@/lib/db/neon';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ButtonLink } from '@/components/ui/button';
@@ -10,18 +9,33 @@ export const metadata: Metadata = {
   title: 'ラウンド履歴 | Golf Assistant',
 };
 
+interface RoundRow {
+  id: string;
+  played_at: string;
+  total_score: number | null;
+  status: string;
+  course_name: string | null;
+}
+
 export default async function RoundsPage() {
-  const user = await getAuthenticatedUser();
-  if (!user) redirect('/auth/login');
-
-  const supabase = await createClient();
-  const { data: rounds } = await supabase
-    .from('rounds')
-    .select('id, played_at, total_score, status, courses(name)')
-    .eq('user_id', user.id)
-    .order('played_at', { ascending: false });
-
-  const roundList = rounds ?? [];
+  let rounds: RoundRow[];
+  try {
+    rounds = await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const r = await client.query<RoundRow>(
+          `SELECT r.id, r.played_at, r.total_score, r.status,
+                  c.name AS course_name
+             FROM rounds r
+             LEFT JOIN courses c ON c.id = r.course_id
+            WHERE r.user_id = current_user_id()::uuid
+            ORDER BY r.played_at DESC`,
+        );
+        return r.rows;
+      });
+    });
+  } catch {
+    redirect('/auth/login');
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -37,7 +51,7 @@ export default async function RoundsPage() {
         </ButtonLink>
       </div>
 
-      {roundList.length === 0 ? (
+      {rounds.length === 0 ? (
         <div className="text-center py-12">
           <Flag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">ラウンド履歴がありません</p>
@@ -51,8 +65,8 @@ export default async function RoundsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {roundList.map(round => {
-            const courseName = ((round.courses as unknown) as { name: string } | null)?.name ?? '不明なコース';
+          {rounds.map(round => {
+            const courseName = round.course_name ?? '不明なコース';
             return (
               <Link
                 key={round.id}
