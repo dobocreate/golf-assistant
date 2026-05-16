@@ -64,6 +64,13 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    ".agents/**",
+    ".claude/**",
+    ".playwright-mcp/**",
+    ".serena/**",
+    "_migration-backups/**",
+    "screenshots/**",
+    "youtube_downloads/**",
     "next-env.d.ts",
   ]),
 ]);

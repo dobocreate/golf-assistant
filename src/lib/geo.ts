@@ -49,7 +49,10 @@ export interface HoleViewConfig {
   ref_start_lng: number;
   ref_end_lat: number;
   ref_end_lng: number;
+  object_key: string | null;
+  object_key_gsi: string | null;
   cached_image_url: string | null;
+  cached_image_url_gsi?: string | null;
   metadata_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;

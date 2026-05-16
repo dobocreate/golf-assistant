@@ -15,6 +15,10 @@ BEGIN;
 ALTER TABLE hole_view_configs
   ADD COLUMN IF NOT EXISTS object_key TEXT;
 
+-- 既存本番には手動 migration 済み。新規環境の再現性のためここでも保証する。
+ALTER TABLE hole_view_configs
+  ADD COLUMN IF NOT EXISTS cached_image_url_gsi TEXT;
+
 -- GSI aerial 画像の R2 key
 ALTER TABLE hole_view_configs
   ADD COLUMN IF NOT EXISTS object_key_gsi TEXT;

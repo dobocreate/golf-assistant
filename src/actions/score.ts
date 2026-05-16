@@ -1,8 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db, type PoolClient } from '@/lib/db/neon';
 import type { Score } from '@/features/score/types';
 import { isValidUUID } from '@/lib/utils';
 
@@ -23,6 +22,33 @@ function validateEnum(value: string | null, allowed: string[], label: string): s
   return null;
 }
 
+async function assertRoundOwned(
+  client: PoolClient,
+  roundId: string,
+  options?: { includeCompleted?: boolean },
+): Promise<void> {
+  const statuses = options?.includeCompleted ? ['in_progress', 'completed'] : ['in_progress'];
+  const r = await client.query<{ id: string }>(
+    `SELECT id FROM rounds
+      WHERE id = $1
+        AND user_id = current_user_id()::uuid
+        AND status = ANY($2::text[])`,
+    [roundId, statuses],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('round_not_found');
+  }
+}
+
+function mapError(err: unknown, fallback: string): { error: string } {
+  if (err instanceof Error) {
+    if (err.message === 'round_not_found') return { error: 'ラウンドが見つかりません。' };
+    if (err.message.startsWith('unauthorized')) return { error: 'ログインが必要です。' };
+  }
+  console.error(fallback, err);
+  return { error: fallback };
+}
+
 export async function upsertScore(data: {
   roundId: string;
   holeNumber: number;
@@ -41,9 +67,6 @@ export async function upsertScore(data: {
   windStrength: string | null;
   skipRevalidate?: boolean;
 }): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
 
   const validationError =
@@ -61,55 +84,65 @@ export async function upsertScore(data: {
     validateEnum(data.windStrength, ['calm', 'light', 'moderate', 'strong'], '風の強さ');
   if (validationError) return { error: validationError };
 
-  const supabase = await createClient();
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertRoundOwned(client, data.roundId, { includeCompleted: true });
 
-  // ラウンドの所有確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', data.roundId)
-    .eq('user_id', user.id)
-    .in('status', ['in_progress', 'completed'])
-    .single();
+        await client.query(
+          `INSERT INTO scores (
+              round_id, hole_number, strokes, putts, fairway_hit, green_in_reg,
+              tee_shot_lr, tee_shot_fb, ob_count, bunker_count, penalty_count,
+              first_putt_distance, first_putt_distance_m, wind_direction, wind_strength
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ON CONFLICT (round_id, hole_number) DO UPDATE SET
+              strokes = EXCLUDED.strokes,
+              putts = EXCLUDED.putts,
+              fairway_hit = EXCLUDED.fairway_hit,
+              green_in_reg = EXCLUDED.green_in_reg,
+              tee_shot_lr = EXCLUDED.tee_shot_lr,
+              tee_shot_fb = EXCLUDED.tee_shot_fb,
+              ob_count = EXCLUDED.ob_count,
+              bunker_count = EXCLUDED.bunker_count,
+              penalty_count = EXCLUDED.penalty_count,
+              first_putt_distance = EXCLUDED.first_putt_distance,
+              first_putt_distance_m = EXCLUDED.first_putt_distance_m,
+              wind_direction = EXCLUDED.wind_direction,
+              wind_strength = EXCLUDED.wind_strength`,
+          [
+            data.roundId,
+            data.holeNumber,
+            data.strokes,
+            data.putts,
+            data.fairwayHit,
+            data.greenInReg,
+            data.teeShotLr,
+            data.teeShotFb,
+            data.obCount,
+            data.bunkerCount,
+            data.penaltyCount,
+            data.firstPuttDistance,
+            data.firstPuttDistanceM ?? null,
+            data.windDirection,
+            data.windStrength,
+          ],
+        );
 
-  if (!round) return { error: 'ラウンドが見つかりません。' };
-
-  const { error } = await supabase
-    .from('scores')
-    .upsert(
-      {
-        round_id: data.roundId,
-        hole_number: data.holeNumber,
-        strokes: data.strokes,
-        putts: data.putts,
-        fairway_hit: data.fairwayHit,
-        green_in_reg: data.greenInReg,
-        tee_shot_lr: data.teeShotLr,
-        tee_shot_fb: data.teeShotFb,
-        ob_count: data.obCount,
-        bunker_count: data.bunkerCount,
-        penalty_count: data.penaltyCount,
-        first_putt_distance: data.firstPuttDistance,
-        first_putt_distance_m: data.firstPuttDistanceM ?? null,
-        wind_direction: data.windDirection,
-        wind_strength: data.windStrength,
-      },
-      { onConflict: 'round_id,hole_number' }
-    );
-
-  if (error) return { error: 'スコアの保存に失敗しました。' };
-
-  // total_score 再計算
-  const { data: allScores } = await supabase
-    .from('scores')
-    .select('strokes')
-    .eq('round_id', data.roundId);
-  if (allScores) {
-    const total = allScores.reduce((sum: number, s: { strokes: number }) => sum + s.strokes, 0);
-    await supabase
-      .from('rounds')
-      .update({ total_score: total })
-      .eq('id', data.roundId);
+        // total_score 再計算
+        const totalR = await client.query<{ total: string | null }>(
+          'SELECT COALESCE(SUM(strokes), 0)::text AS total FROM scores WHERE round_id = $1',
+          [data.roundId],
+        );
+        const total = Number(totalR.rows[0]?.total ?? 0);
+        await client.query(
+          'UPDATE rounds SET total_score = $2 WHERE id = $1 AND user_id = current_user_id()::uuid',
+          [data.roundId, total > 0 ? total : null],
+        );
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'スコアの保存に失敗しました。');
   }
 
   if (!data.skipRevalidate) {
@@ -128,8 +161,6 @@ export async function updateFirstPuttDistance(data: {
   firstPuttDistance: string | null;
   firstPuttDistanceM: number | null;
 }): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(data.roundId)) return { error: 'ラウンドIDが不正です。' };
 
   if (data.firstPuttDistance !== null && !['short', 'mid', 'long', 'very_long'].includes(data.firstPuttDistance)) {
@@ -138,99 +169,96 @@ export async function updateFirstPuttDistance(data: {
   const distMError = validateFirstPuttDistanceM(data.firstPuttDistanceM);
   if (distMError) return { error: distMError };
 
-  const supabase = await createClient();
-
-  // ラウンドの所有確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', data.roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return { error: 'ラウンドが見つかりません。' };
-
-  const { error } = await supabase
-    .from('scores')
-    .update({
-      first_putt_distance: data.firstPuttDistance,
-      first_putt_distance_m: data.firstPuttDistanceM,
-    })
-    .eq('round_id', data.roundId)
-    .eq('hole_number', data.holeNumber);
-
-  if (error) return { error: 'パット距離の保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertRoundOwned(client, data.roundId, { includeCompleted: true });
+        await client.query(
+          `UPDATE scores SET
+              first_putt_distance = $3,
+              first_putt_distance_m = $4
+            WHERE round_id = $1 AND hole_number = $2`,
+          [data.roundId, data.holeNumber, data.firstPuttDistance, data.firstPuttDistanceM],
+        );
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'パット距離の保存に失敗しました。');
+  }
   return {};
 }
 
 export async function getScores(roundId: string): Promise<Score[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
   if (!isValidUUID(roundId)) return [];
-
-  const supabase = await createClient();
-
-  // ラウンドの所有確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return [];
-
-  const { data } = await supabase
-    .from('scores')
-    .select('*')
-    .eq('round_id', roundId)
-    .order('hole_number');
-
-  return (data as Score[]) ?? [];
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        await assertRoundOwned(client, roundId, { includeCompleted: true });
+        const r = await client.query<Score>(
+          'SELECT * FROM scores WHERE round_id = $1 ORDER BY hole_number',
+          [roundId],
+        );
+        return r.rows;
+      });
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function getScoresWithHoles(roundId: string) {
-  const user = await getAuthenticatedUser();
-  if (!user) return null;
   if (!isValidUUID(roundId)) return null;
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const roundR = await client.query<{
+          id: string;
+          course_id: string;
+          status: string;
+          starting_course: string;
+          weather: string | null;
+          target_score: number | null;
+          course_name: string | null;
+        }>(
+          `SELECT r.id, r.course_id, r.status, r.starting_course, r.weather, r.target_score,
+                  c.name AS course_name
+             FROM rounds r
+             LEFT JOIN courses c ON c.id = r.course_id
+            WHERE r.id = $1 AND r.user_id = current_user_id()::uuid`,
+          [roundId],
+        );
+        const round = roundR.rows[0];
+        if (!round) return null;
 
-  const supabase = await createClient();
+        const [holesR, scoresR] = await Promise.all([
+          client.query<{ hole_number: number; par: number; distance: number | null }>(
+            'SELECT hole_number, par, distance FROM holes WHERE course_id = $1 ORDER BY hole_number',
+            [round.course_id],
+          ),
+          client.query<Score>(
+            'SELECT * FROM scores WHERE round_id = $1 ORDER BY hole_number',
+            [roundId],
+          ),
+        ]);
 
-  // ラウンド + コース情報を取得
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id, course_id, status, starting_course, weather, target_score, courses(id, name)')
-    .eq('id', roundId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!round) return null;
-
-  // ホール情報とスコアを並列取得
-  const [holesResult, scoresResult] = await Promise.all([
-    supabase
-      .from('holes')
-      .select('hole_number, par, distance')
-      .eq('course_id', round.course_id)
-      .order('hole_number'),
-    supabase
-      .from('scores')
-      .select('*')
-      .eq('round_id', roundId)
-      .order('hole_number'),
-  ]);
-
-  return {
-    round: {
-      id: round.id,
-      courseId: round.course_id,
-      courseName: ((round.courses as unknown) as { name: string } | null)?.name ?? '',
-      status: round.status as string,
-      startingCourse: (round.starting_course === 'in' ? 'in' : 'out') as 'out' | 'in',
-      weather: (round.weather as string) ?? null,
-      targetScore: (round.target_score as number) ?? null,
-    },
-    holes: holesResult.data ?? [],
-    scores: (scoresResult.data as Score[]) ?? [],
-  };
+        return {
+          round: {
+            id: round.id,
+            courseId: round.course_id,
+            courseName: round.course_name ?? '',
+            status: round.status,
+            startingCourse: (round.starting_course === 'in' ? 'in' : 'out') as 'out' | 'in',
+            weather: round.weather ?? null,
+            targetScore: round.target_score ?? null,
+          },
+          holes: holesR.rows,
+          scores: scoresR.rows,
+        };
+      });
+    });
+  } catch {
+    return null;
+  }
 }
 
 // FormData版（未使用だが互換性のため残す）

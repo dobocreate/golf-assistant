@@ -1,9 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
-import type { GamePlanSet, GamePlanHole, GamePlanSetWithHoles, RiskLevel } from '@/features/game-plan/types';
+import { requireUser, db, type PoolClient } from '@/lib/db/neon';
+import type {
+  GamePlanSet,
+  GamePlanHole,
+  GamePlanSetWithHoles,
+  RiskLevel,
+} from '@/features/game-plan/types';
 import { RISK_LEVEL_VALUES } from '@/features/game-plan/types';
 import { isValidUUID } from '@/lib/utils';
 
@@ -11,77 +15,112 @@ function revalidateGamePlanSetPaths() {
   revalidatePath('/game-plans');
 }
 
+function mapError(err: unknown, fallback: string): { error: string } {
+  if (err instanceof Error) {
+    if (err.message === 'set_not_found') return { error: 'プランセットが見つかりません。' };
+    if (err.message === 'round_not_found') return { error: 'ラウンドが見つかりません。' };
+    if (err.message.startsWith('unauthorized')) return { error: 'ログインが必要です。' };
+  }
+  console.error(fallback, err);
+  return { error: fallback };
+}
+
+async function assertSetOwned(client: PoolClient, setId: string): Promise<void> {
+  const r = await client.query<{ id: string }>(
+    `SELECT id FROM game_plan_sets
+      WHERE id = $1 AND user_id = current_user_id()::uuid`,
+    [setId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('set_not_found');
+  }
+}
+
+async function assertRoundOwned(client: PoolClient, roundId: string): Promise<void> {
+  const r = await client.query<{ id: string }>(
+    'SELECT id FROM rounds WHERE id = $1 AND user_id = current_user_id()::uuid',
+    [roundId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('round_not_found');
+  }
+}
+
 /** ユーザーの全プランセット一覧（コース名付き） */
 export async function getGamePlanSets(): Promise<(GamePlanSet & { course_name: string })[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('game_plan_sets')
-    .select('*, courses(name)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Failed to fetch game plan sets:', error.message);
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const r = await client.query<GamePlanSet & { course_name: string | null }>(
+          `SELECT gps.*, c.name AS course_name
+             FROM game_plan_sets gps
+             LEFT JOIN courses c ON c.id = gps.course_id
+            WHERE gps.user_id = current_user_id()::uuid
+            ORDER BY gps.created_at DESC`,
+        );
+        return r.rows.map((row) => ({
+          ...row,
+          course_name: row.course_name ?? '不明なコース',
+        }));
+      });
+    });
+  } catch (err) {
+    console.error('Failed to fetch game plan sets:', err);
     return [];
   }
-
-  return (data ?? []).map(d => ({
-    ...d,
-    course_name: ((d.courses as unknown) as { name: string } | null)?.name ?? '不明なコース',
-  })) as (GamePlanSet & { course_name: string })[];
 }
 
 /** 特定コースのプランセット一覧 */
 export async function getGamePlanSetsByCourse(courseId: string): Promise<GamePlanSet[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
   if (!isValidUUID(courseId)) return [];
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('game_plan_sets')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('course_id', courseId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Failed to fetch game plan sets by course:', error.message);
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const r = await client.query<GamePlanSet>(
+          `SELECT * FROM game_plan_sets
+            WHERE user_id = current_user_id()::uuid
+              AND course_id = $1
+            ORDER BY created_at DESC`,
+          [courseId],
+        );
+        return r.rows;
+      });
+    });
+  } catch (err) {
+    console.error('Failed to fetch game plan sets by course:', err);
     return [];
   }
-
-  return (data as GamePlanSet[]) ?? [];
 }
 
 /** プランセット＋ホール詳細を取得 */
 export async function getGamePlanSetWithHoles(setId: string): Promise<GamePlanSetWithHoles | null> {
-  const user = await getAuthenticatedUser();
-  if (!user) return null;
   if (!isValidUUID(setId)) return null;
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const setR = await client.query<GamePlanSet>(
+          `SELECT * FROM game_plan_sets
+            WHERE id = $1 AND user_id = current_user_id()::uuid`,
+          [setId],
+        );
+        if (setR.rowCount === 0) return null;
 
-  const supabase = await createClient();
-  const { data: set } = await supabase
-    .from('game_plan_sets')
-    .select('*')
-    .eq('id', setId)
-    .eq('user_id', user.id)
-    .single();
+        const holesR = await client.query<GamePlanHole>(
+          `SELECT * FROM game_plan_holes
+            WHERE game_plan_set_id = $1
+            ORDER BY hole_number`,
+          [setId],
+        );
 
-  if (!set) return null;
-
-  const { data: holes } = await supabase
-    .from('game_plan_holes')
-    .select('*')
-    .eq('game_plan_set_id', setId)
-    .order('hole_number');
-
-  return {
-    ...(set as GamePlanSet),
-    holes: (holes as GamePlanHole[]) ?? [],
-  };
+        return {
+          ...setR.rows[0],
+          holes: holesR.rows,
+        };
+      });
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** プランセット作成 */
@@ -90,8 +129,6 @@ export async function createGamePlanSet(data: {
   name: string;
   targetScore?: number | null;
 }): Promise<{ error?: string; id?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(data.courseId)) return { error: 'コースIDが不正です。' };
 
   const trimmed = data.name.trim();
@@ -104,22 +141,25 @@ export async function createGamePlanSet(data: {
     }
   }
 
-  const supabase = await createClient();
-  const { data: result, error } = await supabase
-    .from('game_plan_sets')
-    .insert({
-      user_id: user.id,
-      course_id: data.courseId,
-      name: trimmed,
-      target_score: data.targetScore ?? null,
-    })
-    .select('id')
-    .single();
-
-  if (error) return { error: 'プランセットの作成に失敗しました。' };
+  let id: string;
+  try {
+    id = await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const r = await client.query<{ id: string }>(
+          `INSERT INTO game_plan_sets (user_id, course_id, name, target_score)
+             VALUES (current_user_id()::uuid, $1, $2, $3)
+           RETURNING id`,
+          [data.courseId, trimmed, data.targetScore ?? null],
+        );
+        return r.rows[0].id;
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'プランセットの作成に失敗しました。');
+  }
 
   revalidateGamePlanSetPaths();
-  return { id: result.id };
+  return { id };
 }
 
 /** プランセット更新（名前・目標スコア） */
@@ -128,8 +168,6 @@ export async function updateGamePlanSet(data: {
   name: string;
   targetScore?: number | null;
 }): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(data.setId)) return { error: 'IDが不正です。' };
 
   const trimmed = data.name.trim();
@@ -142,14 +180,21 @@ export async function updateGamePlanSet(data: {
     }
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('game_plan_sets')
-    .update({ name: trimmed, target_score: data.targetScore ?? null })
-    .eq('id', data.setId)
-    .eq('user_id', user.id);
-
-  if (error) return { error: 'プランセットの更新に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const r = await client.query(
+          `UPDATE game_plan_sets
+              SET name = $2, target_score = $3
+            WHERE id = $1 AND user_id = current_user_id()::uuid`,
+          [data.setId, trimmed, data.targetScore ?? null],
+        );
+        if (r.rowCount === 0) throw new Error('set_not_found');
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'プランセットの更新に失敗しました。');
+  }
 
   revalidateGamePlanSetPaths();
   return {};
@@ -157,18 +202,21 @@ export async function updateGamePlanSet(data: {
 
 /** プランセット削除 */
 export async function deleteGamePlanSet(setId: string): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(setId)) return { error: 'IDが不正です。' };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('game_plan_sets')
-    .delete()
-    .eq('id', setId)
-    .eq('user_id', user.id);
-
-  if (error) return { error: 'プランセットの削除に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await client.query(
+          `DELETE FROM game_plan_sets
+            WHERE id = $1 AND user_id = current_user_id()::uuid`,
+          [setId],
+        );
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'プランセットの削除に失敗しました。');
+  }
 
   revalidateGamePlanSetPaths();
   return {};
@@ -185,8 +233,6 @@ export async function upsertGamePlanHolesBatch(data: {
     targetStrokes?: number | null;
   }>;
 }): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(data.setId)) return { error: 'IDが不正です。' };
   if (data.holes.length === 0) return {};
   if (data.holes.length > 18) return { error: 'ホールは最大18件です。' };
@@ -197,7 +243,9 @@ export async function upsertGamePlanHolesBatch(data: {
     }
     if (h.planText && h.planText.length > 2000) return { error: 'プランテキストが長すぎます。' };
     if (h.alertText && h.alertText.length > 1000) return { error: 'アラートテキストが長すぎます。' };
-    if (h.riskLevel && !RISK_LEVEL_VALUES.includes(h.riskLevel)) return { error: 'リスクレベルが不正です。' };
+    if (h.riskLevel && !RISK_LEVEL_VALUES.includes(h.riskLevel)) {
+      return { error: 'リスクレベルが不正です。' };
+    }
     if (h.targetStrokes !== undefined && h.targetStrokes !== null) {
       if (!Number.isInteger(h.targetStrokes) || h.targetStrokes < 1 || h.targetStrokes > 20) {
         return { error: '目標打数が不正です。' };
@@ -205,31 +253,36 @@ export async function upsertGamePlanHolesBatch(data: {
     }
   }
 
-  // セットの所有権確認
-  const supabase = await createClient();
-  const { data: set } = await supabase
-    .from('game_plan_sets')
-    .select('id')
-    .eq('id', data.setId)
-    .eq('user_id', user.id)
-    .single();
-  if (!set) return { error: 'プランセットが見つかりません。' };
-
-  const { error } = await supabase
-    .from('game_plan_holes')
-    .upsert(
-      data.holes.map(h => ({
-        game_plan_set_id: data.setId,
-        hole_number: h.holeNumber,
-        plan_text: h.planText ?? null,
-        alert_text: h.alertText ?? null,
-        risk_level: h.riskLevel ?? null,
-        target_strokes: h.targetStrokes ?? null,
-      })),
-      { onConflict: 'game_plan_set_id,hole_number' }
-    );
-
-  if (error) return { error: 'ホールデータの保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await assertSetOwned(client, data.setId);
+        for (const h of data.holes) {
+          await client.query(
+            `INSERT INTO game_plan_holes (
+                 game_plan_set_id, hole_number, plan_text, alert_text, risk_level, target_strokes
+               )
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (game_plan_set_id, hole_number) DO UPDATE SET
+                 plan_text = EXCLUDED.plan_text,
+                 alert_text = EXCLUDED.alert_text,
+                 risk_level = EXCLUDED.risk_level,
+                 target_strokes = EXCLUDED.target_strokes`,
+            [
+              data.setId,
+              h.holeNumber,
+              h.planText ?? null,
+              h.alertText ?? null,
+              h.riskLevel ?? null,
+              h.targetStrokes ?? null,
+            ],
+          );
+        }
+      });
+    });
+  } catch (err) {
+    return mapError(err, 'ホールデータの保存に失敗しました。');
+  }
 
   revalidateGamePlanSetPaths();
   return {};
@@ -240,65 +293,69 @@ export async function applyGamePlanSetToRound(data: {
   setId: string;
   roundId: string;
 }): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(data.setId) || !isValidUUID(data.roundId)) return { error: 'IDが不正です。' };
 
-  const supabase = await createClient();
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        const setR = await client.query<{ id: string; target_score: number | null }>(
+          `SELECT id, target_score FROM game_plan_sets
+            WHERE id = $1 AND user_id = current_user_id()::uuid`,
+          [data.setId],
+        );
+        if (setR.rowCount === 0) throw new Error('set_not_found');
+        const set = setR.rows[0];
 
-  // セット所有権確認
-  const { data: set } = await supabase
-    .from('game_plan_sets')
-    .select('id, target_score')
-    .eq('id', data.setId)
-    .eq('user_id', user.id)
-    .single();
-  if (!set) return { error: 'プランセットが見つかりません。' };
+        await assertRoundOwned(client, data.roundId);
 
-  // ラウンド所有権確認
-  const { data: round } = await supabase
-    .from('rounds')
-    .select('id')
-    .eq('id', data.roundId)
-    .eq('user_id', user.id)
-    .single();
-  if (!round) return { error: 'ラウンドが見つかりません。' };
+        const holesR = await client.query<{
+          hole_number: number;
+          plan_text: string | null;
+          alert_text: string | null;
+          risk_level: RiskLevel | null;
+          target_strokes: number | null;
+        }>(
+          `SELECT hole_number, plan_text, alert_text, risk_level, target_strokes
+             FROM game_plan_holes
+            WHERE game_plan_set_id = $1`,
+          [data.setId],
+        );
+        if (holesR.rowCount === 0) {
+          throw new Error('empty_holes');
+        }
 
-  // ホールデータ取得
-  const { data: holes } = await supabase
-    .from('game_plan_holes')
-    .select('*')
-    .eq('game_plan_set_id', data.setId);
+        await client.query('DELETE FROM game_plans WHERE round_id = $1', [data.roundId]);
 
-  if (!holes || holes.length === 0) return { error: 'プランにホールデータがありません。' };
+        for (const h of holesR.rows) {
+          await client.query(
+            `INSERT INTO game_plans (
+                 round_id, hole_number, plan_text, alert_text, risk_level, target_strokes
+               )
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              data.roundId,
+              h.hole_number,
+              h.plan_text,
+              h.alert_text,
+              h.risk_level,
+              h.target_strokes,
+            ],
+          );
+        }
 
-  // 既存のラウンドプランを削除してからコピー
-  await supabase
-    .from('game_plans')
-    .delete()
-    .eq('round_id', data.roundId);
-
-  const { error: insertError } = await supabase
-    .from('game_plans')
-    .insert(
-      holes.map(h => ({
-        round_id: data.roundId,
-        hole_number: h.hole_number,
-        plan_text: h.plan_text,
-        alert_text: h.alert_text,
-        risk_level: h.risk_level,
-        target_strokes: h.target_strokes,
-      }))
-    );
-
-  if (insertError) return { error: 'プランのコピーに失敗しました。' };
-
-  // 目標スコアもコピー
-  if (set.target_score) {
-    await supabase
-      .from('rounds')
-      .update({ target_score: set.target_score })
-      .eq('id', data.roundId);
+        if (set.target_score !== null) {
+          await client.query(
+            'UPDATE rounds SET target_score = $1 WHERE id = $2 AND user_id = current_user_id()::uuid',
+            [set.target_score, data.roundId],
+          );
+        }
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'empty_holes') {
+      return { error: 'プランにホールデータがありません。' };
+    }
+    return mapError(err, 'プランのコピーに失敗しました。');
   }
 
   revalidatePath(`/play/${data.roundId}/score`);

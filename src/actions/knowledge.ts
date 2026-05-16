@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/auth-utils';
+import { requireUser, db } from '@/lib/db/neon';
 import type { Knowledge } from '@/features/knowledge/types';
 import { isValidUUID } from '@/lib/utils';
 
@@ -30,88 +29,95 @@ function parseKnowledgeForm(formData: FormData): {
     }
   }
 
-  const tags = tagsRaw
-    ? tagsRaw.split(/[,、]/).map(t => t.trim()).filter(Boolean)
-    : [];
+  const tags = tagsRaw ? tagsRaw.split(/[,、]/).map((t) => t.trim()).filter(Boolean) : [];
 
   return { data: { title, content, category, tags, source_url: sourceUrl } };
 }
 
 export async function getKnowledgeList(category?: string | null): Promise<Knowledge[]> {
-  const user = await getAuthenticatedUser();
-  if (!user) return [];
-
-  const supabase = await createClient();
-  let query = supabase
-    .from('knowledge')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false });
-
-  if (category) {
-    query = query.eq('category', category);
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const sql = category
+          ? `SELECT * FROM knowledge WHERE user_id = current_user_id()::uuid AND category = $1 ORDER BY updated_at DESC`
+          : `SELECT * FROM knowledge WHERE user_id = current_user_id()::uuid ORDER BY updated_at DESC`;
+        const params = category ? [category] : [];
+        const r = await client.query<Knowledge>(sql, params);
+        return r.rows;
+      });
+    });
+  } catch {
+    return [];
   }
-
-  const { data } = await query;
-  return (data as Knowledge[]) ?? [];
 }
 
 export async function getKnowledge(id: string): Promise<Knowledge | null> {
-  const user = await getAuthenticatedUser();
-  if (!user) return null;
   if (!isValidUUID(id)) return null;
-
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('knowledge')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single();
-
-  return (data as Knowledge) ?? null;
+  try {
+    return await requireUser(async () => {
+      return db.userRead(async (client) => {
+        const r = await client.query<Knowledge>(
+          'SELECT * FROM knowledge WHERE id = $1 AND user_id = current_user_id()::uuid',
+          [id],
+        );
+        return r.rows[0] ?? null;
+      });
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function createKnowledge(formData: FormData): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   const parsed = parseKnowledgeForm(formData);
   if (parsed.error) return { error: parsed.error };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('knowledge').insert({
-    user_id: user.id,
-    ...parsed.data,
-  });
-
-  if (error) return { error: 'ナレッジの保存に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await client.query(
+          `INSERT INTO knowledge (user_id, title, content, category, tags, source_url)
+           VALUES (current_user_id()::uuid, $1, $2, $3, $4, $5)`,
+          [parsed.data.title, parsed.data.content, parsed.data.category, parsed.data.tags, parsed.data.source_url],
+        );
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('unauthorized')) {
+      return { error: 'ログインが必要です。' };
+    }
+    console.error('createKnowledge error', err);
+    return { error: 'ナレッジの保存に失敗しました。' };
+  }
 
   revalidatePath('/knowledge');
   redirect('/knowledge');
 }
 
 export async function updateKnowledge(formData: FormData): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
-
   const id = formData.get('id') as string;
   if (!id || !isValidUUID(id)) return { error: 'IDが不正です。' };
 
   const parsed = parseKnowledgeForm(formData);
   if (parsed.error) return { error: parsed.error };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('knowledge')
-    .update({
-      ...parsed.data,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .eq('user_id', user.id);
-
-  if (error) return { error: 'ナレッジの更新に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await client.query(
+          `UPDATE knowledge SET title = $1, content = $2, category = $3, tags = $4, source_url = $5, updated_at = now()
+           WHERE id = $6 AND user_id = current_user_id()::uuid`,
+          [parsed.data.title, parsed.data.content, parsed.data.category, parsed.data.tags, parsed.data.source_url, id],
+        );
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('unauthorized')) {
+      return { error: 'ログインが必要です。' };
+    }
+    console.error('updateKnowledge error', err);
+    return { error: 'ナレッジの更新に失敗しました。' };
+  }
 
   revalidatePath('/knowledge');
   revalidatePath(`/knowledge/${id}`);
@@ -119,18 +125,24 @@ export async function updateKnowledge(formData: FormData): Promise<{ error?: str
 }
 
 export async function deleteKnowledge(id: string): Promise<{ error?: string }> {
-  const user = await getAuthenticatedUser();
-  if (!user) return { error: 'ログインが必要です。' };
   if (!isValidUUID(id)) return { error: 'IDが不正です。' };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('knowledge')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id);
-
-  if (error) return { error: 'ナレッジの削除に失敗しました。' };
+  try {
+    await requireUser(async () => {
+      return db.transaction(async (client) => {
+        await client.query(
+          'DELETE FROM knowledge WHERE id = $1 AND user_id = current_user_id()::uuid',
+          [id],
+        );
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('unauthorized')) {
+      return { error: 'ログインが必要です。' };
+    }
+    console.error('deleteKnowledge error', err);
+    return { error: 'ナレッジの削除に失敗しました。' };
+  }
 
   revalidatePath('/knowledge');
   redirect('/knowledge');
