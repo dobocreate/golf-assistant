@@ -32,9 +32,23 @@ interface HoleRow {
   par: number;
 }
 
+// 統計ページが参照する scores のカラムだけを型として宣言。
+// 全カラム取得 (SELECT *) は転送量と将来のスキーマ追加で型ずれが出るので避ける。
+type ScoreStatsRow = Pick<
+  Score,
+  | 'round_id'
+  | 'hole_number'
+  | 'strokes'
+  | 'putts'
+  | 'fairway_hit'
+  | 'green_in_reg'
+  | 'first_putt_distance'
+  | 'first_putt_distance_m'
+>;
+
 export default async function RoundStatsPage() {
   let rounds: RoundRow[];
-  let scores: Score[];
+  let scores: ScoreStatsRow[];
   let holes: HoleRow[];
   try {
     ({ rounds, scores, holes } = await requireUser(async () => {
@@ -57,15 +71,19 @@ export default async function RoundStatsPage() {
         }));
 
         if (rounds.length === 0) {
-          return { rounds, scores: [] as Score[], holes: [] as HoleRow[] };
+          return { rounds, scores: [] as ScoreStatsRow[], holes: [] as HoleRow[] };
         }
 
         const roundIds = rounds.map((r) => r.id);
         const courseIds = [...new Set(rounds.map((r) => r.course_id))];
 
         const [scoresR, holesR] = await Promise.all([
-          client.query<Score>(
-            `SELECT * FROM scores WHERE round_id = ANY($1::uuid[]) ORDER BY hole_number`,
+          client.query<ScoreStatsRow>(
+            `SELECT round_id, hole_number, strokes, putts, fairway_hit, green_in_reg,
+                    first_putt_distance, first_putt_distance_m
+               FROM scores
+              WHERE round_id = ANY($1::uuid[])
+              ORDER BY hole_number`,
             [roundIds],
           ),
           client.query<HoleRow>(
@@ -99,7 +117,7 @@ export default async function RoundStatsPage() {
   }
 
   // Build lookup maps
-  const scoresByRound = new Map<string, Score[]>();
+  const scoresByRound = new Map<string, ScoreStatsRow[]>();
   for (const s of scores) {
     const list = scoresByRound.get(s.round_id) ?? [];
     list.push(s);

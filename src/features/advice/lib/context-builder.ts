@@ -189,7 +189,8 @@ async function buildAdviceContextInternal(
       ),
 
       client.query<HoleArea>(
-        `SELECT ha.*
+        `SELECT ha.id, ha.hole_id, ha.area_type, ha.coordinates, ha.name,
+                ha.sort_order, ha.created_at, ha.updated_at
            FROM hole_areas ha
            JOIN holes h ON h.id = ha.hole_id
           WHERE h.course_id = $1
@@ -198,7 +199,8 @@ async function buildAdviceContextInternal(
       ),
 
       client.query<HoleMapPoint>(
-        `SELECT mp.*
+        `SELECT mp.id, mp.hole_id, mp.point_kind, mp.name, mp.lat, mp.lng,
+                mp.elevation_m, mp.hsrc, mp.is_tee_reference, mp.sort_order
            FROM hole_map_points mp
            JOIN holes h ON h.id = mp.hole_id
           WHERE h.course_id = $1
