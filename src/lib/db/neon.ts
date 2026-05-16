@@ -1,19 +1,15 @@
-// @ts-nocheck
-/* eslint-disable */
-//
 // ============================================================================
 // src/lib/db/neon.ts
-// Phase 1 D-3 で骨組み作成、Phase 5 で実装 + 型チェック有効化
+// Phase 2 で本実装、Phase 3 で middleware / Server Action 経路と統合
 //
 // この file は Section 4.0 / 4.2 (Round 6 Critical 1 / Round 7 Major 1) の
-// 設計をそのまま反映した「型のみ scaffolding」です。Phase 5 で以下を行います:
-//   1. `pnpm add pg @clerk/nextjs` で依存追加
-//   2. ファイル冒頭の `@ts-nocheck` と `eslint-disable` を外す
-//   3. `import { Pool, PoolClient } from 'pg'` を有効化
-//   4. middleware から withResolvedUser を呼び、internalUserId を context 注入
+// 設計を反映した DB helper です。Phase 3 の Server Action 切替時に各 action から
+// `requireUser(...)` または直接 `withResolvedUser(...)` で context を確立して使う。
 //
-// 既存 Supabase クライアント (src/lib/supabase/*) と並走させて段階移行する
-// ため、Phase 5 完了まで実 runtime には到達しません。
+// Phase 3 で必要な追加作業 (TODO):
+//   - middleware で Clerk auth を取り、Server Action 入口で `requireUser()` を呼ぶ
+//   - Supabase クライアント (`src/lib/supabase/*`) を呼ぶ Server Action を本 helper 経由に置換
+//   - profiles.clerk_user_id への mapping を確立 (kishida を手動で Clerk 作成後)
 // ============================================================================
 
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -89,6 +85,35 @@ export function getCurrentInternalUserId(): string {
   const ctx = userContextStore.getStore();
   if (!ctx) throw new UserContextMissingError();
   return ctx.internalUserId;
+}
+
+/**
+ * Server Action / Route Handler 入口で auth を解決し context をセットするヘルパー。
+ *
+ * Phase 3 で Clerk へ移行後の使い方:
+ * ```ts
+ * 'use server';
+ * import { requireUser, db } from '@/lib/db/neon';
+ *
+ * export async function updateRound(roundId: string, ...) {
+ *   return requireUser(async () => {
+ *     return db.transaction(async (client) => {
+ *       await client.query('UPDATE rounds SET ... WHERE id = $1', [roundId]);
+ *     });
+ *   });
+ * }
+ * ```
+ *
+ * Phase 3 で `@clerk/nextjs/server` の `auth()` を呼び出すよう実装する。
+ * 現状はインポートできるが Clerk middleware を統合していないため、Phase 3 完了
+ * までは Server Action から呼ばないこと (Supabase 経路と二重認証になる)。
+ */
+export async function requireUser<T>(fn: () => Promise<T>): Promise<T> {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new Error('unauthorized: no Clerk session');
+  }
+  return withResolvedUser(userId, fn);
 }
 
 // ----------------------------------------------------------------------------

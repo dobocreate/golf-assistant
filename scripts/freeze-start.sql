@@ -3,7 +3,7 @@
 -- Phase 7 cutover の最後、Phase 8.1 (即時ロールバック準備) の DB 層 gate
 -- Section 8.1.1 Layer 3 / Round 4 Major 1
 --
--- 実行方法: Neon SQL editor or psql で migration_owner として実行
+-- 実行方法: Neon SQL editor or psql で neondb_owner として実行
 --   psql "$NEON_DATABASE_URL_MIGRATION_OWNER" -f scripts/freeze-start.sql
 --
 -- 効果: assistant_app / mapper_admin の DML 権限と、SECURITY DEFINER mutating
@@ -18,7 +18,7 @@ REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM assistant_app;
 REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM mapper_admin;
 
 -- (b) 将来テーブル分の default privileges を REVOKE (FOR ROLE 限定、Round 5 Major 2)
-ALTER DEFAULT PRIVILEGES FOR ROLE migration_owner IN SCHEMA public
+ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   REVOKE INSERT, UPDATE, DELETE ON TABLES FROM assistant_app;
 -- mapper_admin には default DML grant が無いため REVOKE 対象なし
 
