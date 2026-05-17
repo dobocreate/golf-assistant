@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut } from 'lucide-react';
-import { logout } from '@/actions/auth';
+import { SignOutButton } from '@clerk/nextjs';
 import { mainNavItems } from './nav-items';
 
 export function SidebarNav() {
@@ -41,15 +41,15 @@ export function SidebarNav() {
         </nav>
 
         <div className="border-t border-gray-200 dark:border-gray-800 p-2">
-          <form action={logout}>
+          <SignOutButton redirectUrl="/clerk-sign-in">
             <button
-              type="submit"
+              type="button"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <LogOut className="h-5 w-5 shrink-0" />
               ログアウト
             </button>
-          </form>
+          </SignOutButton>
         </div>
       </div>
     </aside>
