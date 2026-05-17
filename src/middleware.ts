@@ -40,6 +40,14 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   const onAuthPage = isAuthPage(pathname);
   const onPublicPath = isPublicPath(pathname);
 
+  // 旧 Supabase 時代の /auth/* ブックマーク救済 (PR #243 で実体ページは削除済)。
+  // ページが無いので 404 になっていたのを Clerk 用ページにリダイレクトする。
+  if (pathname === '/auth' || pathname.startsWith('/auth/')) {
+    const url = request.nextUrl.clone();
+    url.pathname = userId ? '/' : '/clerk-sign-in';
+    return NextResponse.redirect(url);
+  }
+
   // 認証済 + auth page にいる → ダッシュボードへ
   if (userId && onAuthPage) {
     const url = request.nextUrl.clone();
