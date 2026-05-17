@@ -48,7 +48,7 @@ export function ShotPositionRecorder({ index, form, dispatch, roundId, holeNumbe
   // 進行中の computeShotPosition 結果が古い場合は dispatch しない（race 防止）
   const captureTokenRef = useRef(0);
 
-  // GPS-ready コースの map data（hole_view_configs.cached_image_url + metadata + hole_areas）
+  // GPS-ready コースの map data（hole_view_configs.object_key → R2 URL + metadata + hole_areas）
   // ホール変更時にフェッチし直す。GPS-ready でないコースでは null
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [mapLightboxOpen, setMapLightboxOpen] = useState(false);

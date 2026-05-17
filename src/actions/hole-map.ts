@@ -5,7 +5,7 @@
 // 認証チェック不要のため db.read (assistant_app_readonly) を使う。
 
 import { db } from '@/lib/db/neon';
-import { resolveAerialImageUrl } from '@/lib/r2';
+import { buildR2PublicUrl } from '@/lib/r2';
 import type {
   HoleMapPoint,
   HoleElevationGrid,
@@ -103,7 +103,7 @@ export async function getHoleViewConfigsForCourse(
       for (const config of r.rows) {
         result[config.hole_id] = {
           ...config,
-          cached_image_url: resolveAerialImageUrl(config.object_key, config.cached_image_url),
+          aerial_image_url: buildR2PublicUrl(config.object_key),
         };
       }
       return result;
@@ -166,11 +166,10 @@ function parseRefPoint(latRaw: unknown, lngRaw: unknown): CenterlinePoint | null
 }
 
 const VC_COLUMNS =
-  'object_key, cached_image_url, metadata_json, centerline_json_a, centerline_json_b, ref_start_lat, ref_start_lng, ref_end_lat, ref_end_lng';
+  'object_key, metadata_json, centerline_json_a, centerline_json_b, ref_start_lat, ref_start_lng, ref_end_lat, ref_end_lng';
 
 interface VcRow {
   object_key: string | null;
-  cached_image_url: string | null;
   metadata_json: unknown;
   centerline_json_a: unknown;
   centerline_json_b: unknown;
@@ -185,7 +184,7 @@ async function buildHoleMapData(
   areas: HoleArea[],
 ): Promise<HoleMapData | null> {
   if (!vc) return null;
-  const aerialImageUrl = resolveAerialImageUrl(vc.object_key, vc.cached_image_url);
+  const aerialImageUrl = buildR2PublicUrl(vc.object_key);
   if (!aerialImageUrl) return null;
   const { parseAerialImageMetadata } = await import('@/lib/geo');
   const metadata = parseAerialImageMetadata(vc.metadata_json);
@@ -328,7 +327,7 @@ export async function getHoleMapDataAllForCourse(
     const { parseAerialImageMetadata } = await import('@/lib/geo');
     const entries: HoleMapDataEntry[] = [];
     for (const vc of vcs) {
-      const aerialImageUrl = resolveAerialImageUrl(vc.object_key, vc.cached_image_url);
+      const aerialImageUrl = buildR2PublicUrl(vc.object_key);
       if (!aerialImageUrl) continue;
       const metadata = parseAerialImageMetadata(vc.metadata_json);
       if (!metadata) continue;

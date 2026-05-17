@@ -213,7 +213,7 @@ export function HoleList({ courseId, holes, holeNotes, mapPoints, viewConfigs, h
 
                   {/* Right: aerial image (preferred) or layout image (fallback) */}
                   {(() => {
-                    const aerialUrl = viewConfigs?.[hole.id]?.cached_image_url ?? null;
+                    const aerialUrl = viewConfigs?.[hole.id]?.aerial_image_url ?? null;
                     const displayUrl = aerialUrl ?? hole.image_url;
                     if (!displayUrl) return null;
                     const isAerial = !!aerialUrl;

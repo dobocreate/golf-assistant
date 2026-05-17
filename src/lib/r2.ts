@@ -13,10 +13,3 @@ export function buildR2PublicUrl(objectKey: string | null | undefined): string |
   if (!baseUrl) return null;
   return `${baseUrl}/${trimSlashes(objectKey)}`;
 }
-
-export function resolveAerialImageUrl(
-  objectKey: string | null | undefined,
-  cachedImageUrl: string | null | undefined,
-): string | null {
-  return buildR2PublicUrl(objectKey) ?? cachedImageUrl ?? null;
-}
