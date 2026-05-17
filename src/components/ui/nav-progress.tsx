@@ -10,7 +10,15 @@ import { usePathname } from 'next/navigation';
 export function NavProgress() {
   const pathname = usePathname();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [lastPathname, setLastPathname] = useState(pathname);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // pathname 変更で完了（render 中で前回値と比較し、変更時にリセット）
+  // 進行中の timeout は isNavigating effect の cleanup でクリアされる
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
+    setIsNavigating(false);
+  }
 
   // リンククリックで開始
   useEffect(() => {
@@ -27,12 +35,6 @@ export function NavProgress() {
     document.addEventListener('click', handleClick, true);
     return () => document.removeEventListener('click', handleClick, true);
   }, []);
-
-  // pathname 変更で完了（Next.js App Router のクライアントナビゲーション検出）
-  useEffect(() => {
-    setIsNavigating(false);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  }, [pathname]);
 
   // 安全弁: 5秒経っても完了しない場合は非表示
   useEffect(() => {

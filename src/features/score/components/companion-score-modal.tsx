@@ -35,13 +35,13 @@ export function CompanionScoreModal({
   // モーダル内 draft state: open が false→true に遷移した時のみ inputs でシード
   // （open 中に親の inputs 参照が変わっても draft を上書きしないためガード）
   const [draft, setDraft] = useState<CompanionHoleInput[]>(inputs);
-  const prevOpenRef = useRef(open);
-  useEffect(() => {
-    if (open && !prevOpenRef.current) {
+  const [lastOpen, setLastOpen] = useState(open);
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    if (open) {
       setDraft(inputs);
     }
-    prevOpenRef.current = open;
-  }, [open, inputs]);
+  }
 
   useEffect(() => {
     if (open) okButtonRef.current?.focus();

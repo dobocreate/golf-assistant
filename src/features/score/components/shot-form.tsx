@@ -44,9 +44,9 @@ export function ShotForm({ slot, form, dispatch, clubs, roundId, holeNumber }: S
   const isPutt = form.shotType === 'putt';
 
   // --- dispatchアダプター ---
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fieldUpdater = (key: keyof ShotFormState) =>
-    (value: any) => dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, [key]: value }) });
+  const fieldUpdater = <K extends keyof ShotFormState>(key: K) =>
+    (value: ShotFormState[K]) =>
+      dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({ ...f, [key]: value }) });
 
   const handleResultChange = (value: string | null) =>
     dispatch({ type: 'UPDATE_FIELD', index: slot.index, updater: f => ({

@@ -37,12 +37,9 @@ export function useSpeechRecognition() {
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSupported, setIsSupported] = useState(false);
+  // ブラウザサポート判定は lazy init で 1 度だけ実行 (SSR は window が無いので false)
+  const [isSupported] = useState(() => getSpeechRecognitionConstructor() !== null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-
-  useEffect(() => {
-    setIsSupported(getSpeechRecognitionConstructor() !== null);
-  }, []);
 
   const start = useCallback(() => {
     const SpeechRecognition = getSpeechRecognitionConstructor();

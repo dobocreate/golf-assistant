@@ -22,7 +22,10 @@ export function useStreamFetch(options?: {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  // 最新の options を毎 render 後に ref に同期 (render 中の ref 書き込みを避ける)
+  useEffect(() => {
+    optionsRef.current = options;
+  });
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();

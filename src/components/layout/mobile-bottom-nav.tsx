@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, LogOut } from 'lucide-react';
@@ -11,11 +11,13 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const { isSignedIn } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [lastPathname, setLastPathname] = useState(pathname);
 
-  // ページ遷移時に閉じる
-  useEffect(() => {
+  // ページ遷移時に閉じる (React 公式推奨: render 中で前回値と比較)
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
     setIsOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <div className="md:hidden">

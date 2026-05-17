@@ -8,18 +8,17 @@ import { useState, useCallback, useRef, useEffect } from 'react';
  */
 export function useSpeechSynthesis() {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isSupported, setIsSupported] = useState(false);
+  // ブラウザサポート判定は lazy init で 1 度だけ実行
+  const [isSupported] = useState(
+    () => typeof window !== 'undefined' && 'speechSynthesis' in window,
+  );
   const [rate, setRate] = useState(1.0);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // ブラウザサポート判定 + 音声リスト取得
+  // 音声リスト取得 + voiceschanged 購読 (外部購読なので Effect で OK、setState は callback)
   useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setIsSupported(false);
-      return;
-    }
-    setIsSupported(true);
+    if (!isSupported) return;
 
     const updateVoices = () => {
       setVoices(window.speechSynthesis.getVoices());
@@ -32,7 +31,7 @@ export function useSpeechSynthesis() {
       window.speechSynthesis.removeEventListener('voiceschanged', updateVoices);
       window.speechSynthesis.cancel();
     };
-  }, []);
+  }, [isSupported]);
 
   const getJapaneseVoice = useCallback((): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;

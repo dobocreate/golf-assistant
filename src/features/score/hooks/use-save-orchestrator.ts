@@ -361,9 +361,11 @@ export function useSaveOrchestrator(roundId: string) {
   );
 
   // --- Executor for the OperationQueue ---
+  // 各 render で latest closures (collectAndFlush 等) を ref に同期する。
+  // render 中の ref 書き込みは React の警告対象なので useEffect 経由で更新する。
 
   const executorRef = useRef<((op: SaveOperation) => Promise<void>) | null>(null);
-  executorRef.current = async (op: SaveOperation): Promise<void> => {
+  const executor = async (op: SaveOperation): Promise<void> => {
     switch (op.type) {
       case 'holeSwitch': {
         // 1. Collect & flush prevHole to IndexedDB
@@ -448,15 +450,28 @@ export function useSaveOrchestrator(roundId: string) {
     }
   };
 
-  // --- Initialize OperationQueue once ---
+  // executor の最新版を render 後に ref へ反映 (render 中の ref 書き込みを避ける)
+  useEffect(() => {
+    executorRef.current = executor;
+  });
 
+  // queue 処理時 (render 外、async) に呼ばれる executor 呼び出し helper
+  const callExecutor = useCallback(
+    (op: SaveOperation) => executorRef.current?.(op) ?? Promise.resolve(),
+    [],
+  );
+
+  // --- Initialize OperationQueue once ---
+  // ref の lazy init: 1 度だけ生成 (再 render では既に non-null)。
+  // callExecutor は closure 内で executorRef を deref するが、queue 処理時の
+  // async callback として呼ばれるので render 外。lint の static analysis が
+  // ref-during-render と誤検知するため disable。
   const opQueueRef = useRef<OperationQueue | null>(null);
   if (opQueueRef.current === null) {
-    opQueueRef.current = new OperationQueue(
-      (op) => executorRef.current?.(op) ?? Promise.resolve(),
-      setIsProcessing,
-    );
+    // eslint-disable-next-line react-hooks/refs
+    opQueueRef.current = new OperationQueue(callExecutor, setIsProcessing);
   }
+  const opQueue = opQueueRef.current;
 
   // --- Registration functions (stable refs) ---
 
@@ -475,15 +490,15 @@ export function useSaveOrchestrator(roundId: string) {
   // --- Trigger functions ---
 
   const onHoleSwitch = useCallback((prevHole: number, newHole: number): void => {
-    opQueueRef.current?.enqueue({ type: 'holeSwitch', prevHole, newHole });
+    opQueue.enqueue({ type: 'holeSwitch', prevHole, newHole });
   }, []);
 
   const onSaveButton = useCallback((holeNumber: number): void => {
-    opQueueRef.current?.enqueue({ type: 'saveButton', holeNumber });
+    opQueue.enqueue({ type: 'saveButton', holeNumber });
   }, []);
 
   const onBackgroundSave = useCallback((holeNumber: number): void => {
-    opQueueRef.current?.enqueue({ type: 'backgroundSave', holeNumber });
+    opQueue.enqueue({ type: 'backgroundSave', holeNumber });
   }, []);
 
   const onOnlineRestore = useCallback(async (): Promise<void> => {

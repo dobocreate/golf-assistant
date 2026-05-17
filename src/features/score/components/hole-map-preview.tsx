@@ -133,10 +133,16 @@ export function HoleMapLightbox({
 }: Props & { open: boolean; onClose: () => void }) {
   // viewport リサイズ・デバイス回転に追従するため state で管理
   const [size, setSize] = useState(() => computeLightboxSize());
+  const [lastOpen, setLastOpen] = useState(open);
+
+  // open になった瞬間に最新サイズを取得 (render 中の adjusting state パターン)
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    if (open) setSize(computeLightboxSize());
+  }
 
   useEffect(() => {
     if (!open) return;
-    setSize(computeLightboxSize()); // open 時に最新値を取得
     const onResize = () => setSize(computeLightboxSize());
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
