@@ -15,14 +15,6 @@ export function MemoList({ roundId, holeNumber, refreshKey }: MemoListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
-  // 旧 callback 互換用に handleDelete のロールバックで使う fetchMemos
-  const fetchMemos = useCallback(async () => {
-    setIsLoading(true);
-    const holeMemos = await getMemos(roundId, holeNumber);
-    setMemos(holeMemos);
-    setIsLoading(false);
-  }, [roundId, holeNumber]);
-
   // ホール/refresh 変更で再取得 (cleanup で stale な setState を防ぐ)
   useEffect(() => {
     let ignore = false;

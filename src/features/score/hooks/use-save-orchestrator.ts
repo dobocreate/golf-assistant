@@ -463,12 +463,12 @@ export function useSaveOrchestrator(roundId: string) {
 
   // --- Initialize OperationQueue once ---
   // ref の lazy init: 1 度だけ生成 (再 render では既に non-null)。
-  // callExecutor は closure 内で executorRef を deref するが、queue 処理時の
-  // async callback として呼ばれるので render 外。lint の static analysis が
-  // ref-during-render と誤検知するため disable。
+  // useState の lazy initializer に切り替える Gemini 提案は試したが、callExecutor
+  // closure 内の executorRef 参照を react-hooks/refs が依然として誤検知するため
+  // 同 disable が必要になる。実質同じなので ref 版を維持。
   const opQueueRef = useRef<OperationQueue | null>(null);
   if (opQueueRef.current === null) {
-    // eslint-disable-next-line react-hooks/refs
+    // eslint-disable-next-line react-hooks/refs -- lazy init 1 回のみ、closure 内 deref は queue 処理時 (render 外)
     opQueueRef.current = new OperationQueue(callExecutor, setIsProcessing);
   }
   const opQueue = opQueueRef.current;
