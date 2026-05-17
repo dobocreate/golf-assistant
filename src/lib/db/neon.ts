@@ -124,38 +124,15 @@ export function getCurrentInternalUserId(): string {
  * }
  * ```
  *
- * Phase 5 transition period:
- *   1. Clerk middleware が設定されていれば Clerk userId → profiles.clerk_user_id lookup
- *   2. 未設定なら Supabase Auth から user.id を取得して直接 profiles.user_id として使用
- *   両者の結果はどちらも `app.current_user_id` に同じ UUID 文字列をセットする。
- *
- * Phase 7 cutover 完了後、Supabase Auth フォールバックを削除する (TODO)。
+ * Phase 7 cutover 後: Clerk のみ。Clerk セッションが無い / `profiles.clerk_user_id`
+ * 未紐付けの場合は throw する。
  */
 export async function requireUser<T>(fn: () => Promise<T>): Promise<T> {
-  // (1) Clerk auth を優先
-  try {
-    const { userId: clerkUserId } = await auth();
-    if (clerkUserId) {
-      return await withResolvedUser(clerkUserId, fn);
-    }
-  } catch {
-    // Clerk middleware 未設定時は auth() が throw する → Supabase に fallback
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) {
+    throw new Error('unauthorized: no Clerk session');
   }
-
-  // (2) Supabase Auth フォールバック (Phase 5 transition、Phase 7 で削除)
-  const { createClient } = await import('@/lib/supabase/server');
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error('unauthorized: no Clerk session and no Supabase session');
-  }
-  // Supabase user.id == auth.users.id == profiles.user_id (既存 schema での FK 関係)
-  return userContextStore.run(
-    { clerkUserId: `supabase:${user.id}`, internalUserId: user.id },
-    fn,
-  );
+  return withResolvedUser(clerkUserId, fn);
 }
 
 // ----------------------------------------------------------------------------

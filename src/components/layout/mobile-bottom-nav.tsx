@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, LogOut } from 'lucide-react';
-import { logout } from '@/actions/auth';
+import { SignOutButton, useAuth } from '@clerk/nextjs';
 import { mainNavItems } from './nav-items';
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const { isSignedIn } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   // ページ遷移時に閉じる
@@ -71,17 +72,19 @@ export function MobileBottomNav() {
             })}
           </nav>
 
-          <div className="border-t border-gray-200 dark:border-gray-800 p-2">
-            <form action={logout}>
-              <button
-                type="submit"
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors min-h-[48px]"
-              >
-                <LogOut className="h-5 w-5 shrink-0" />
-                ログアウト
-              </button>
-            </form>
-          </div>
+          {isSignedIn && (
+            <div className="border-t border-gray-200 dark:border-gray-800 p-2">
+              <SignOutButton redirectUrl="/clerk-sign-in">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors min-h-[48px]"
+                >
+                  <LogOut className="h-5 w-5 shrink-0" />
+                  ログアウト
+                </button>
+              </SignOutButton>
+            </div>
+          )}
         </div>
       </aside>
     </div>
