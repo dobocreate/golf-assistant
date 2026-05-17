@@ -17,7 +17,7 @@ AIキャディーアプリ。ゴルフプレー中にAIが戦略的アドバイ�
 - **External:** 楽天GORA API, Web Speech API (ブラウザ内蔵)
 - **Package Manager:** pnpm
 
-> **移行履歴**: 元々 Supabase (DB + Auth + Storage) で運用していたが、Free tier 2 アクティブ枠の制約のため 2026-05-15〜2026-05-18 に Neon (DB) + Clerk (Auth) + R2 (Storage) へ全面移行 (PR #236〜#243)。Supabase project 削除は Phase 8 として未実施。
+> **移行履歴**: 元々 Supabase (DB + Auth + Storage) で運用していたが、Free tier 2 アクティブ枠の制約のため 2026-05-15〜2026-05-18 に Neon (DB) + Clerk (Auth) + R2 (Storage) へ全面移行 (PR #236〜#243)。Phase 8 で Supabase project 削除 + 旧 `cached_image_url*` 列撤去まで完了。
 
 ## 設計思想
 
@@ -33,7 +33,7 @@ AIキャディーアプリ。ゴルフプレー中にAIが戦略的アドバイ�
 
 ## 開発状況
 
-**現在のフェーズ:** Supabase → Neon + Clerk + R2 移行完了 (PR #243 マージで Phase 7 完了)。アプリ側のコードは全て Neon + Clerk + R2 単独運用に切替済み。
+**現在のフェーズ:** Supabase → Neon + Clerk + R2 移行完了 (Phase 1〜8 完了、PR #236〜#243 + cleanup PR)。アプリ側のコードは全て Neon + Clerk + R2 単独運用、Supabase project も削除済み。
 
 ### 完了済みスプリント
 
@@ -49,15 +49,16 @@ AIキャディーアプリ。ゴルフプレー中にAIが戦略的アドバイ�
 | Post-MVP | Sprint 3 | UI/UX改善・データ分析基盤・スコアカード画面 | PR #51〜#62 |
 | Post-MVP | Sprint 4 | データ駆動型マネジメント支援（弱点アラート＋ゲームプラン） | PR #63〜#65 |
 | Post-MVP | Sprint 5-7 | GPS マップ・ショット位置記録・自動軌跡 | PR #228〜#235 |
-| Migration | Phase 1-7 | Supabase → Neon + Clerk + R2 移行 | PR #236〜#243 |
+| Migration | Phase 1-8 | Supabase → Neon + Clerk + R2 移行 | PR #236〜#243 + cleanup |
 
-### Migration Phase 1-7 の主な変更 (PR #236〜#243)
+### Migration Phase 1-8 の主な変更 (PR #236〜#243 + cleanup)
 - **Phase 1 (PR #236)**: scaffolding (Neon `src/lib/db/neon.ts` / R2 / Clerk skelton + ESLint 制約)
 - **Phase 2 (PR #237)**: DB 移行 (20 テーブル restore + 3 ロール + 62 RLS + 00040 RPC / 00041 clerk_user_id / 00042 roles)
 - **Phase 3 (PR #238 + #240 + #241 + #242)**: Clerk 認証統合 (ClerkProvider + clerkMiddleware + `/clerk-sign-in` `/clerk-sign-up` + DB Server Actions 13 本 Neon helper 化)
 - **Phase 4 (PR #237 commit d2b407a)**: Storage 移行 (Supabase Storage → R2、71 objects、URL builder `src/lib/r2.ts`)
 - **Phase 5 (PR #239 + #240)**: API routes / pages / context-builders を Neon helper 化、`@/lib/auth-utils.ts` を requireUser 経由に統一
 - **Phase 7 (PR #243)**: Supabase Auth 完全撤去 (auth pages 削除、`@supabase/supabase-js` / `@supabase/ssr` アンインストール、SignOutButton 採用)
+- **Phase 8 (2026-05-18)**: Supabase project `tdbgcnoebbbbyrpsmoth` 削除 + `hole_view_configs.cached_image_url` / `cached_image_url_gsi` 列撤去 (migration 00045)、`HoleViewConfig.cached_image_url` を `aerial_image_url` に rename して R2 から都度ビルド
 - **kishida 紐付け済**: Clerk User ID `user_3DozSZYql1ARkjVcMdWbCoRhG9y` ↔ 内部 UUID `f63edd8e-707f-437c-b0b8-8f728dedad57`
 
 ### Sprint 4 の主な変更 (PR #63〜#65)
@@ -140,7 +141,7 @@ src/
 | courses | コース情報（楽天GORAから取得） | 00001 |
 | holes | ホール情報（12カラム: Par, 距離, HDCP, ドッグレッグ, 高低差, ティー別距離, ハザード, OB等） | 00001, 00004 |
 | hole_notes | ホール別ユーザーメモ | 00001 |
-| hole_view_configs | ホール画像 + 参照点 (R2 `object_key` + 旧 Supabase `cached_image_url`) | 00031, 00032, 00043, 00044 |
+| hole_view_configs | ホール画像 + 参照点 (R2 `object_key` / `object_key_gsi` から URL を都度ビルド) | 00031, 00032, 00043, 00044, 00045 |
 | hole_areas, hole_map_points, hole_elevation_grids | GPS マップデータ | 00027, 00028, 00033 |
 | rounds | ラウンド（ステータス, スタートコース, 天候, 風, 目標スコア, 使用グリーン） | 00001, 00010, 00014, 00016, 00034 |
 | scores | ホール別スコア（打数, パット, FW, GIR, ティーショット方向, OB/バンカー/ペナルティ, ファーストパット距離, ファーストパット距離(数値m), 風向き/風の強さ） | 00001, 00005, 00013, 00015, 00018 |

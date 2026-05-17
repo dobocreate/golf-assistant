@@ -35,7 +35,7 @@ interface Props {
  * GPS 取得結果を視覚確認できるようにする。タップで lightbox 拡大。
  *
  * 描画レイヤ（z 順、後ろ→前）:
- *   1. 衛星画像（cached_image_url）
+ *   1. 衛星画像（aerial_image_url）
  *   2. AerialAreaOverlay（hole_areas SVG）
  *   3. 現在地マーカー（精度円付き emerald 円 + 中央ドット）
  */
