@@ -25,7 +25,9 @@ const AUTH_PATHS = ['/auth', '/clerk-sign-in', '/clerk-sign-up'];
 const PUBLIC_PATHS = ['/'];
 
 function isAuthPage(pathname: string): boolean {
-  return AUTH_PATHS.some((prefix) => pathname.startsWith(prefix));
+  // 完全一致 or 直下のサブパス (`/auth/login`) のみ true。
+  // `/author` `/authenticated` 等の誤検知を避ける (Gemini PR#242 High 指摘)。
+  return AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'));
 }
 
 function isPublicPath(pathname: string): boolean {

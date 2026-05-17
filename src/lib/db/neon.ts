@@ -29,14 +29,12 @@ export type { PoolClient } from 'pg';
 // 渡すと "Objects are not valid as a React child (found: [object Date])" で
 // 落ちる (2026-05-17 動作確認時に発覚)。
 //
-// 互換性確保のため、以下の型 OID を文字列で受け取る:
-//   1082 = date          (例: played_at)
-//   1114 = timestamp     (timezone なし)
-//   1184 = timestamptz   (例: created_at, updated_at)
+// 互換性確保のため、date / timestamp / timestamptz をすべて文字列で受け取る
+// (`pgTypes.builtins` から OID を解決、ハードコード回避: Gemini PR#242 指摘)
 // ----------------------------------------------------------------------------
-pgTypes.setTypeParser(1082, (val: string) => val);
-pgTypes.setTypeParser(1114, (val: string) => val);
-pgTypes.setTypeParser(1184, (val: string) => val);
+pgTypes.setTypeParser(pgTypes.builtins.DATE, (val: string) => val);
+pgTypes.setTypeParser(pgTypes.builtins.TIMESTAMP, (val: string) => val);
+pgTypes.setTypeParser(pgTypes.builtins.TIMESTAMPTZ, (val: string) => val);
 
 // ----------------------------------------------------------------------------
 // 接続プール (Section 4.2)
