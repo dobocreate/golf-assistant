@@ -1,20 +1,58 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { NextResponse, type NextRequest } from 'next/server';
 
-// Phase 3: Clerk と Supabase の Auth を並走させる。
+// Phase 7 cutover (中間状態): middleware は Clerk のみで完結させる。
 //
-// なぜ並走か:
-//   - Clerk が primary。auth() を Server Action / Route Handler で使えるよう
-//     clerkMiddleware で外側を包む必要がある。
-//   - cutover (Phase 7) まで Supabase Auth セッションも維持する。既存ユーザは
-//     /auth/login (Supabase) で引き続きログイン可能、`requireUser()` 内で
-//     Clerk → Supabase の順に fallback して内部 user_id を解決する
-//     (`src/lib/db/neon.ts:requireUser`)。
+// 経緯 (2026-05-17):
+//   - profiles.clerk_user_id を kishida 用に設定済 (requireUser の Clerk 経路成功)
+//   - Supabase project は free tier 上限のため auto-pause 状態
+//   - Supabase auth-js は fetch failed で 25 秒リトライするため、middleware 内で
+//     Supabase 経路を試行するとリクエストが遅延する。
+//   - 結論: middleware は Clerk のみで判定、Supabase Auth 経路は廃止。
+//     (Phase 7 cutover 完了の最終形態と同等)
 //
-// TODO (Phase 5): Section 8.1.1 Layer 2 — WRITE_FREEZE_ACTIVE=true 中は
+// 仕様:
+//   - 認証済 (Clerk session あり) + auth page (/clerk-sign-in, /clerk-sign-up, /auth/*)
+//     にいる場合は `/` にリダイレクト
+//   - 未認証 + 認証必須 path (= auth page 以外かつ公開パス以外) は /clerk-sign-in に
+//     リダイレクト
+//   - それ以外はそのまま通過
+//
+// TODO (Phase 5 / Section 8.1.1 Layer 2): WRITE_FREEZE_ACTIVE=true 中は
 //   mutating method (POST/PUT/PATCH/DELETE) を 503 で blocking する。
-export default clerkMiddleware(async (_auth, request) => {
-  return await updateSession(request);
+
+const AUTH_PATHS = ['/auth', '/clerk-sign-in', '/clerk-sign-up'];
+const PUBLIC_PATHS = ['/'];
+
+function isAuthPage(pathname: string): boolean {
+  return AUTH_PATHS.some((prefix) => pathname.startsWith(prefix));
+}
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.includes(pathname);
+}
+
+export default clerkMiddleware(async (auth, request: NextRequest) => {
+  const { userId } = await auth();
+  const pathname = request.nextUrl.pathname;
+  const onAuthPage = isAuthPage(pathname);
+  const onPublicPath = isPublicPath(pathname);
+
+  // 認証済 + auth page にいる → ダッシュボードへ
+  if (userId && onAuthPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    return NextResponse.redirect(url);
+  }
+
+  // 未認証 + 認証必須ページ → /clerk-sign-in へ
+  if (!userId && !onAuthPage && !onPublicPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/clerk-sign-in';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 });
 
 export const config = {

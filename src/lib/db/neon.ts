@@ -13,12 +13,30 @@
 // ============================================================================
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types as pgTypes } from 'pg';
 import { auth } from '@clerk/nextjs/server';
 
 // Re-export PoolClient type so Server Actions can reference query callback types
 // without importing pg directly (forbidden by eslint no-restricted-imports).
 export type { PoolClient } from 'pg';
+
+// ----------------------------------------------------------------------------
+// 型パーサ設定: date/timestamp を string で返す
+//
+// pg driver はデフォルトで PostgreSQL の date/timestamp/timestamptz を JS の Date
+// オブジェクトに変換する。一方 Supabase の PostgREST は ISO 8601 文字列で返す。
+// 既存コード (pages や JSX) は文字列前提で書かれているため、JS Date を JSX に
+// 渡すと "Objects are not valid as a React child (found: [object Date])" で
+// 落ちる (2026-05-17 動作確認時に発覚)。
+//
+// 互換性確保のため、以下の型 OID を文字列で受け取る:
+//   1082 = date          (例: played_at)
+//   1114 = timestamp     (timezone なし)
+//   1184 = timestamptz   (例: created_at, updated_at)
+// ----------------------------------------------------------------------------
+pgTypes.setTypeParser(1082, (val: string) => val);
+pgTypes.setTypeParser(1114, (val: string) => val);
+pgTypes.setTypeParser(1184, (val: string) => val);
 
 // ----------------------------------------------------------------------------
 // 接続プール (Section 4.2)
