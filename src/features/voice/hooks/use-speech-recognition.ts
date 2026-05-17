@@ -37,10 +37,14 @@ export function useSpeechRecognition() {
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ブラウザサポート判定は client mount 後に行う (SSR-safe)。
+  // useState の lazy initializer を使うと server 側で false 固定になり hydration 後も
+  // 更新されないため、useEffect 経由で client でだけ判定する (Gemini #245 High 指摘)。
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only API 検出のための意図的な setState
     setIsSupported(getSpeechRecognitionConstructor() !== null);
   }, []);
 

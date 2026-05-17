@@ -8,17 +8,18 @@ import { useState, useCallback, useRef, useEffect } from 'react';
  */
 export function useSpeechSynthesis() {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  // ブラウザサポート判定は client mount 後に行う (SSR-safe)。
+  // useState の lazy initializer を使うと server 側で false 固定になり hydration 後も
+  // 更新されないため、useEffect 経由で client でだけ判定する (Gemini #245 High 指摘)。
   const [isSupported, setIsSupported] = useState(false);
   const [rate, setRate] = useState(1.0);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // ブラウザサポート判定 + 音声リスト取得
+  // client mount 後にサポート判定 + 音声リスト取得 + voiceschanged 購読
   useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setIsSupported(false);
-      return;
-    }
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only API 検出のための意図的な setState
     setIsSupported(true);
 
     const updateVoices = () => {

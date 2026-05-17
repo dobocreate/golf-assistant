@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 type FormState =
   | { success: true; error?: never }
   | { error: string; success?: never }
-  | {};
+  | Record<string, never>;
 
 async function profileAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const result = await upsertProfile(formData);

@@ -22,14 +22,16 @@ export function ChatPanel({ roundId, holeNumber }: ChatPanelProps) {
   } = useSpeechRecognition();
 
   const [question, setQuestion] = useState('');
+  const [lastTranscript, setLastTranscript] = useState(transcript);
   const answerRef = useRef<HTMLDivElement>(null);
 
-  // 音声入力の結果を質問欄に反映
-  useEffect(() => {
+  // 音声入力の結果を質問欄に反映 (render 中で前回値と比較)
+  if (transcript !== lastTranscript) {
+    setLastTranscript(transcript);
     if (transcript) {
       setQuestion(transcript);
     }
-  }, [transcript]);
+  }
 
   // ストリーミング開始時に自動スクロール
   const prevIsStreaming = useRef(false);
