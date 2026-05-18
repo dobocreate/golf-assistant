@@ -21,7 +21,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 // TODO (Phase 5 / Section 8.1.1 Layer 2): WRITE_FREEZE_ACTIVE=true 中は
 //   mutating method (POST/PUT/PATCH/DELETE) を 503 で blocking する。
 
-const AUTH_PATHS = ['/auth', '/clerk-sign-in', '/clerk-sign-up'];
+// 現役の認証ページ (Clerk のみ)。旧 /auth/* はレガシー救済ブロックで個別処理。
+const AUTH_PATHS = ['/clerk-sign-in', '/clerk-sign-up'];
 const PUBLIC_PATHS = ['/'];
 
 function isAuthPage(pathname: string): boolean {
@@ -39,6 +40,14 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   const pathname = request.nextUrl.pathname;
   const onAuthPage = isAuthPage(pathname);
   const onPublicPath = isPublicPath(pathname);
+
+  // 旧 Supabase 時代の /auth/* ブックマーク救済 (PR #243 で実体ページは削除済)。
+  // ページが無いので 404 になっていたのを Clerk 用ページにリダイレクトする。
+  if (pathname === '/auth' || pathname.startsWith('/auth/')) {
+    const url = request.nextUrl.clone();
+    url.pathname = userId ? '/' : '/clerk-sign-in';
+    return NextResponse.redirect(url);
+  }
 
   // 認証済 + auth page にいる → ダッシュボードへ
   if (userId && onAuthPage) {
