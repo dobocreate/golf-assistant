@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAreaContext } from './context-builder';
+import { buildAreaContext, formatGamePlanSection } from './context-builder';
 import type { HoleArea } from '@/lib/geo';
 
 const TEE: { lat: number; lng: number } = { lat: 34.0437698649341, lng: 131.964884042019 };
@@ -190,5 +190,101 @@ describe('buildAreaContext', () => {
     it('areas が空 → 空文字列', () => {
       expect(buildAreaContext([], TEE, null)).toBe('');
     });
+  });
+});
+
+describe('formatGamePlanSection', () => {
+  it('plan が undefined → 空文字列', () => {
+    expect(formatGamePlanSection(undefined, 7)).toBe('');
+  });
+
+  it('全フィールド空 → 空文字列', () => {
+    expect(
+      formatGamePlanSection(
+        { plan_text: null, alert_text: null, risk_level: null, target_strokes: null },
+        7,
+      ),
+    ).toBe('');
+  });
+
+  it('target_strokes のみ → 目標打数行のみ出力', () => {
+    const out = formatGamePlanSection(
+      { plan_text: null, alert_text: null, risk_level: null, target_strokes: 4 },
+      7,
+    );
+    expect(out).toContain('## 現在ホールのゲームプラン (Hole 7)');
+    expect(out).toContain('- 目標打数: 4打');
+    expect(out).not.toContain('リスク:');
+    expect(out).not.toContain('プラン:');
+    expect(out).not.toContain('弱点アラート:');
+  });
+
+  it('risk_level あり → 目標打数行に (リスク: 中) を併記', () => {
+    const out = formatGamePlanSection(
+      { plan_text: null, alert_text: null, risk_level: 'medium', target_strokes: 5 },
+      11,
+    );
+    expect(out).toContain('- 目標打数: 5打 (リスク: 中)');
+  });
+
+  it('plan_text のみ → プラン行のみ', () => {
+    const out = formatGamePlanSection(
+      { plan_text: 'フェアウェイ右目', alert_text: null, risk_level: null, target_strokes: null },
+      7,
+    );
+    expect(out).toContain('- プラン: フェアウェイ右目');
+    expect(out).not.toContain('目標打数');
+  });
+
+  it('alert_text のみ → 弱点アラート行のみ', () => {
+    const out = formatGamePlanSection(
+      { plan_text: null, alert_text: '左 OB 注意', risk_level: null, target_strokes: null },
+      7,
+    );
+    expect(out).toContain('- 弱点アラート: 左 OB 注意');
+  });
+
+  it('全フィールドあり → 4 行 (見出し + 目標 + プラン + アラート)', () => {
+    const out = formatGamePlanSection(
+      {
+        plan_text: 'ティーは 3W で刻む',
+        alert_text: '右ドッグレッグ',
+        risk_level: 'high',
+        target_strokes: 4,
+      },
+      14,
+    );
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toBe('## 現在ホールのゲームプラン (Hole 14)');
+    expect(lines[1]).toBe('- 目標打数: 4打 (リスク: 高)');
+    expect(lines[2]).toBe('- プラン: ティーは 3W で刻む');
+    expect(lines[3]).toBe('- 弱点アラート: 右ドッグレッグ');
+  });
+
+  it('holeNumber が undefined → 見出しにホール番号を含めない', () => {
+    const out = formatGamePlanSection(
+      { plan_text: null, alert_text: null, risk_level: null, target_strokes: 4 },
+      undefined,
+    );
+    expect(out).toContain('## 現在ホールのゲームプラン');
+    expect(out).not.toMatch(/\(Hole \d+\)/);
+  });
+
+  it('未知の risk_level → raw 値で出力 (graceful degradation)', () => {
+    const out = formatGamePlanSection(
+      // 型は narrow だが DB 値が壊れる可能性に備えた防御テスト
+      { plan_text: null, alert_text: null, risk_level: 'unknown' as 'low', target_strokes: 4 },
+      7,
+    );
+    expect(out).toContain('リスク: unknown');
+  });
+
+  it('target_strokes = 0 → 0打 (正常出力、null と区別)', () => {
+    const out = formatGamePlanSection(
+      { plan_text: null, alert_text: null, risk_level: null, target_strokes: 0 },
+      7,
+    );
+    expect(out).toContain('- 目標打数: 0打');
   });
 });

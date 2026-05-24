@@ -162,11 +162,18 @@ export function ManagementBand({
       aria-live="polite"
     >
       {/* トーン行 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className={`text-sm font-semibold ${toneStyle?.text ?? riskStyle.text}`}>
           {toneInfo && toneStyle ? `${toneStyle.icon} ${toneInfo.label}` : plan.alert_text?.slice(0, 25) ?? 'プラン'}
         </p>
-        {toneInfo && <span className="text-xs text-gray-400">{toneInfo.paceText}</span>}
+        <div className="flex items-center gap-2 shrink-0">
+          {plan.target_strokes != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-800/60 text-xs text-gray-200 font-medium">
+              🎯 目標 {plan.target_strokes}打
+            </span>
+          )}
+          {toneInfo && <span className="text-xs text-gray-400">{toneInfo.paceText}</span>}
+        </div>
       </div>
 
       {/* 弱点アラート */}

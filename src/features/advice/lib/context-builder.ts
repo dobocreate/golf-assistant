@@ -11,6 +11,14 @@ import {
   haversineDistance,
 } from '@/lib/geo';
 import { fetchShotPatternStats, formatShotStats } from './shot-stats';
+import { RISK_LEVEL_LABELS } from '@/features/game-plan/types';
+
+interface GamePlanRow {
+  plan_text: string | null;
+  alert_text: string | null;
+  risk_level: 'low' | 'medium' | 'high' | null;
+  target_strokes: number | null;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -539,12 +547,16 @@ export function formatContextForPrompt(context: AdviceContext): string {
 /**
  * 当日のスコア推移コンテキストを構築する。
  *
+ * `holeNumber` が指定された場合、該当ホールの game_plan セクションも併せて返す
+ * (チャット時のホール連動コンテキスト)。
+ *
  * 呼び出し側で `requireUser()` のコンテキストが必要。
  */
 export async function buildScoreContext(
   roundId: string,
   startingCourse?: string | null,
   courseId?: string | null,
+  holeNumber?: number,
 ): Promise<string> {
   if (!UUID_RE.test(roundId)) return '';
 
@@ -560,7 +572,10 @@ export async function buildScoreContext(
       resolvedCourseId = r.rows[0].course_id;
     }
 
-    const [scoresR, holesR] = await Promise.all([
+    const wantGamePlan =
+      Number.isInteger(holeNumber) && (holeNumber as number) >= 1 && (holeNumber as number) <= 18;
+
+    const [scoresR, holesR, gamePlanR] = await Promise.all([
       client.query<{
         hole_number: number;
         strokes: number;
@@ -577,12 +592,29 @@ export async function buildScoreContext(
         `SELECT hole_number, par FROM holes WHERE course_id = $1 ORDER BY hole_number`,
         [resolvedCourseId],
       ),
+      wantGamePlan
+        ? client
+            .query<GamePlanRow>(
+              `SELECT plan_text, alert_text, risk_level, target_strokes
+                 FROM game_plans
+                WHERE round_id = $1 AND hole_number = $2
+                LIMIT 1`,
+              [roundId, holeNumber],
+            )
+            .catch((err) => {
+              // 非クリティカル: game_plan 取得失敗で advice 全体は落とさない
+              console.error('game_plans fetch failed (degrading to empty plan):', err);
+              return { rows: [] as GamePlanRow[] };
+            })
+        : Promise.resolve({ rows: [] as GamePlanRow[] }),
     ]);
 
     const rawScores = scoresR.rows;
     const holes = holesR.rows;
+    const gamePlanSection = formatGamePlanSection(gamePlanR.rows[0], holeNumber);
 
-    if (rawScores.length === 0) return '';
+    // スコア未入力でも game_plan があれば返す (ラウンド開始直後のプラン参照を許容)
+    if (rawScores.length === 0) return gamePlanSection;
 
     const playOrder =
       startingCourse === 'in'
@@ -684,6 +716,35 @@ export async function buildScoreContext(
       }
     }
 
-    return lines.join('\n');
+    const scoreSection = lines.join('\n');
+    return [scoreSection, gamePlanSection].filter(Boolean).join('\n\n');
   });
+}
+
+/**
+ * game_plans の 1 ホール分を AI プロンプト用テキストに整形。
+ * すべてのフィールドが空なら空文字列を返す。
+ *
+ * @internal exported for testing
+ */
+export function formatGamePlanSection(
+  plan: GamePlanRow | undefined,
+  holeNumber: number | undefined,
+): string {
+  if (!plan) return '';
+  // `== null` は null/undefined 両方を捕捉する意図 (DB は null だが defensive)
+  if (!plan.plan_text && !plan.alert_text && plan.target_strokes == null) return '';
+  const header = holeNumber != null
+    ? `## 現在ホールのゲームプラン (Hole ${holeNumber})`
+    : '## 現在ホールのゲームプラン';
+  const lines = [header];
+  if (plan.target_strokes != null) {
+    const risk = plan.risk_level
+      ? ` (リスク: ${RISK_LEVEL_LABELS[plan.risk_level] ?? plan.risk_level})`
+      : '';
+    lines.push(`- 目標打数: ${plan.target_strokes}打${risk}`);
+  }
+  if (plan.plan_text) lines.push(`- プラン: ${plan.plan_text}`);
+  if (plan.alert_text) lines.push(`- 弱点アラート: ${plan.alert_text}`);
+  return lines.join('\n');
 }
