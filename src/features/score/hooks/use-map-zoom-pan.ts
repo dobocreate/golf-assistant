@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -35,7 +35,7 @@ interface Pointer {
  * を判定し、マーカーでない場合のみ `onBackgroundPointerDown` を呼ぶ。
  * pointerMove/Up はコンテナで一括して受け、内部状態で pan or pinch を分岐する。
  */
-export function useMapZoomPan(getContainerSize: () => { width: number; height: number } | null) {
+export function useMapZoomPan(getContainerRect: () => DOMRect | null) {
   const [state, setState] = useState<ZoomPanState>(INITIAL);
   // pointer event handlers から最新 state を読みたいので ref で同期 (render 中 mutate は不可なため effect 経由)
   const stateRef = useRef<ZoomPanState>(INITIAL);
@@ -47,7 +47,7 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
   const pointersRef = useRef<Map<number, Pointer>>(new Map());
   // pan 用: pointerDown 時の state と pointer 座標
   const panStartRef = useRef<{ tx: number; ty: number; px: number; py: number } | null>(null);
-  // pinch 用: 2 pointer 間の初期距離と初期 scale/中心点
+  // pinch 用: 2 pointer 間の初期距離と初期 scale/中心点 (pivot 維持のため)
   const pinchStartRef = useRef<{
     dist: number;
     scale: number;
@@ -64,17 +64,17 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
   const clampTranslate = useCallback(
     (scale: number, tx: number, ty: number): { tx: number; ty: number } => {
       if (scale <= 1) return { tx: 0, ty: 0 };
-      const size = getContainerSize();
-      if (!size) return { tx, ty };
+      const rect = getContainerRect();
+      if (!rect) return { tx, ty };
       // (scale-1) × half_size までは中央から外れ可能 (端まで pan できる)
-      const maxX = (size.width * (scale - 1)) / 2;
-      const maxY = (size.height * (scale - 1)) / 2;
+      const maxX = (rect.width * (scale - 1)) / 2;
+      const maxY = (rect.height * (scale - 1)) / 2;
       return {
         tx: Math.max(-maxX, Math.min(maxX, tx)),
         ty: Math.max(-maxY, Math.min(maxY, ty)),
       };
     },
-    [getContainerSize],
+    [getContainerRect],
   );
 
   const setStateClamped = useCallback(
@@ -84,6 +84,35 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
       setState({ scale, translateX: tx, translateY: ty });
     },
     [clampTranslate],
+  );
+
+  /**
+   * 指定した画面座標 (pivotScreenX/Y) が transform 前後で同じ画像位置を指すように
+   * scale 変更時の translate を補正する (zoom-to-cursor / zoom-to-pinch-center)。
+   *
+   * transform-origin: center center 前提。
+   * pivot の container 中心からのオフセット = (pivotScreen - rect.center)
+   * pivot の論理座標 (wrapper space, 中心=0) = (offset - oldTranslate) / oldScale
+   * 同じ論理座標を維持するため newTranslate = offset - newScale * 論理座標
+   */
+  const zoomAroundPivot = useCallback(
+    (newScale: number, pivotScreenX: number, pivotScreenY: number) => {
+      const rect = getContainerRect();
+      const s = stateRef.current;
+      const clampedNewScale = clampScale(newScale);
+      if (!rect) {
+        setStateClamped({ ...s, scale: clampedNewScale });
+        return;
+      }
+      const offsetX = pivotScreenX - rect.left - rect.width / 2;
+      const offsetY = pivotScreenY - rect.top - rect.height / 2;
+      const logicalX = (offsetX - s.translateX) / s.scale;
+      const logicalY = (offsetY - s.translateY) / s.scale;
+      const newTx = offsetX - clampedNewScale * logicalX;
+      const newTy = offsetY - clampedNewScale * logicalY;
+      setStateClamped({ scale: clampedNewScale, translateX: newTx, translateY: newTy });
+    },
+    [getContainerRect, setStateClamped],
   );
 
   const zoomIn = useCallback(() => {
@@ -145,11 +174,27 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
         const [p1, p2] = arr;
         const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         const ratio = dist / pinchStartRef.current.dist;
-        setStateClamped({
-          scale: pinchStartRef.current.scale * ratio,
-          translateX: pinchStartRef.current.tx,
-          translateY: pinchStartRef.current.ty,
-        });
+        // pinch center を pivot として zoomAroundPivot 相当の補正をインラインで計算
+        // (pinchStartRef.tx/ty/scale が初期、現中心 (centerX/Y) を維持する)
+        const rect = getContainerRect();
+        const newScale = clampScale(pinchStartRef.current.scale * ratio);
+        if (rect) {
+          const offsetX = pinchStartRef.current.centerX - rect.left - rect.width / 2;
+          const offsetY = pinchStartRef.current.centerY - rect.top - rect.height / 2;
+          const logicalX = (offsetX - pinchStartRef.current.tx) / pinchStartRef.current.scale;
+          const logicalY = (offsetY - pinchStartRef.current.ty) / pinchStartRef.current.scale;
+          setStateClamped({
+            scale: newScale,
+            translateX: offsetX - newScale * logicalX,
+            translateY: offsetY - newScale * logicalY,
+          });
+        } else {
+          setStateClamped({
+            scale: newScale,
+            translateX: pinchStartRef.current.tx,
+            translateY: pinchStartRef.current.ty,
+          });
+        }
       } else if (panStartRef.current) {
         const dx = e.clientX - panStartRef.current.px;
         const dy = e.clientY - panStartRef.current.py;
@@ -160,29 +205,53 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
         });
       }
     },
-    [setStateClamped],
+    [getContainerRect, setStateClamped],
   );
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLElement>) => {
     pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) pinchStartRef.current = null;
-    if (pointersRef.current.size === 0) panStartRef.current = null;
+    if (pointersRef.current.size === 0) {
+      pinchStartRef.current = null;
+      panStartRef.current = null;
+    } else if (pointersRef.current.size === 1) {
+      // pinch → pan 移行: 残った 1 本指から panStartRef を初期化してスムーズに pan 継続
+      pinchStartRef.current = null;
+      const remaining = Array.from(pointersRef.current.values())[0];
+      if (remaining && stateRef.current.scale > 1) {
+        panStartRef.current = {
+          tx: stateRef.current.translateX,
+          ty: stateRef.current.translateY,
+          px: remaining.x,
+          py: remaining.y,
+        };
+      }
+    }
   }, []);
 
   // pointerCancel は Android で長押し / システム interruption 等で発火する。
   // up/cancel どちらでも pointersRef から確実に削除し、orphan state を残さない。
   const onPointerCancel = onPointerUp;
 
-  // PC ホイールズーム
-  const onWheel = useCallback(
-    (e: React.WheelEvent<HTMLElement>) => {
-      if (e.deltaY === 0) return;
-      e.preventDefault();
-      const s = stateRef.current;
-      const next = s.scale * (1 - e.deltaY * WHEEL_SCALE_FACTOR);
-      setStateClamped({ ...s, scale: next });
+  /**
+   * ホイールイベントを {passive: false} で attach する helper (react SyntheticEvent では
+   * preventDefault が passive 警告を出すケースがあるため、native listener で確実にブロック)。
+   * 呼び出し側で `useEffect(() => attachWheelListener(ref), [])` のように使う。
+   */
+  const attachWheelListener = useCallback(
+    (ref: RefObject<HTMLElement | null>) => {
+      const el = ref.current;
+      if (!el) return undefined;
+      const handler = (e: WheelEvent) => {
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        const s = stateRef.current;
+        const next = s.scale * (1 - e.deltaY * WHEEL_SCALE_FACTOR);
+        zoomAroundPivot(next, e.clientX, e.clientY);
+      };
+      el.addEventListener('wheel', handler, { passive: false });
+      return () => el.removeEventListener('wheel', handler);
     },
-    [setStateClamped],
+    [zoomAroundPivot],
   );
 
   const transformStyle: React.CSSProperties = {
@@ -201,7 +270,7 @@ export function useMapZoomPan(getContainerSize: () => { width: number; height: n
     onPointerMove,
     onPointerUp,
     onPointerCancel,
-    onWheel,
+    attachWheelListener,
     canZoomIn: state.scale < MAX_SCALE,
     canZoomOut: state.scale > MIN_SCALE,
   };

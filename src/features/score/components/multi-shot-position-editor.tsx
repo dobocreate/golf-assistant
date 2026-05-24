@@ -108,13 +108,18 @@ export function MultiShotPositionEditor({
   } | null>(null);
 
   // 地図ズーム/パン (transform は zoomable wrapper にかける)
-  const getContainerSize = useCallback(() => {
+  const getContainerRect = useCallback(() => {
     const el = containerRef.current;
     if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    return { width: rect.width, height: rect.height };
+    return el.getBoundingClientRect();
   }, []);
-  const zoomPan = useMapZoomPan(getContainerSize);
+  const zoomPan = useMapZoomPan(getContainerRect);
+
+  // ホイールイベントは passive 警告回避のため native listener で登録
+  useEffect(() => {
+    if (!open) return;
+    return zoomPan.attachWheelListener(containerRef);
+  }, [open, zoomPan.attachWheelListener, zoomPan]);
 
   // モーダルが閉じる (open=false) と早期 return で本コンポーネントは unmount され、
   // detailEditOpen / dragRef は自動破棄される。明示的な reset effect は不要 (lint set-state-in-effect 回避)
@@ -383,7 +388,6 @@ export function MultiShotPositionEditor({
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerCancel}
-        onWheel={zoomPan.onWheel}
       >
         {/* zoomable wrapper: scale + translate を当てる。eventToLatLng は wrapper.rect (transform 後) を
             参照するため、zoom 中も image pixel 座標が正しく取れる */}
