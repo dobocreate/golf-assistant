@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
       // 静的 snapshot + 動的 scoreContext + 動的 currentPositionContext を並列取得
       const [scoreContext, currentPositionContext] = await Promise.all([
-        buildScoreContext(body.roundId, snapshotResult.startingCourse, snapshotResult.courseId),
+        buildScoreContext(body.roundId, snapshotResult.startingCourse, snapshotResult.courseId, body.holeNumber),
         buildCurrentPositionContext(body.roundId, body.holeNumber),
       ]);
 
