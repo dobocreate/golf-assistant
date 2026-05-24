@@ -3,7 +3,13 @@ import type { AdviceContext } from '../types';
 import type { StartingCourse } from '@/features/round/types';
 import { SHOT_SHAPES, SCORE_LEVELS } from '@/features/profile/types';
 import type { HoleArea, HoleMapPoint } from '@/lib/geo';
-import { calcDistanceToPolygon } from '@/lib/geo';
+import {
+  calcDistanceToPolygon,
+  calcMaxDistanceToPolygon,
+  pointInPolygon,
+  polygonCentroid,
+  haversineDistance,
+} from '@/lib/geo';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -275,6 +281,41 @@ export function buildAreaContext(
     }
   }
 
+  // fairway は距離順 (ティーから最近接が #1) に並べる
+  // 複数 fairway はドッグレッグの曲がり前後 (#1 = ティーショット狙い目 / #2 = セカンド狙い目) が典型
+  const fairways = areas
+    .filter((a) => a.area_type === 'fairway')
+    .map((fw) => ({
+      fw,
+      minDist: teePoint ? calcDistanceToPolygon(teePoint, fw.coordinates) : Infinity,
+    }))
+    .sort((a, b) => a.minDist - b.minDist);
+  fairways.forEach(({ fw }, idx) => {
+    const label = fairways.length > 1 ? `フェアウェイ #${idx + 1}` : 'フェアウェイ';
+    if (!teePoint) {
+      lines.push(label);
+      return;
+    }
+    const minDist = calcDistanceToPolygon(teePoint, fw.coordinates);
+    const maxDist = calcMaxDistanceToPolygon(teePoint, fw.coordinates);
+    if (!isFinite(minDist) || maxDist === 0) {
+      lines.push(label);
+      return;
+    }
+    // 中央距離はポリゴン幾何重心 (= 「最も狙いやすい広いエリア」) までのティー距離。
+    // minDist/maxDist の中点ではない。凹型ポリゴン (重心がエリア外) では「中央」を省略する。
+    const centroid = polygonCentroid(fw.coordinates);
+    const centroidInside = pointInPolygon(centroid, fw.coordinates);
+    if (centroidInside) {
+      const centerDist = Math.round(haversineDistance(teePoint, centroid));
+      lines.push(
+        `${label}: ${toYards(minDist)}y〜${toYards(maxDist)}y（中央 約${toYards(centerDist)}y）`,
+      );
+    } else {
+      lines.push(`${label}: ${toYards(minDist)}y〜${toYards(maxDist)}y`);
+    }
+  });
+
   const obLines = areas.filter((a) => a.area_type === 'ob_line');
   for (const ob of obLines) {
     const label = ob.name ?? 'OBライン';
@@ -290,35 +331,29 @@ export function buildAreaContext(
     }
   }
 
-  const bunkers = areas.filter((a) => a.area_type === 'bunker');
-  if (bunkers.length > 0 && teePoint) {
-    const dists = bunkers
-      .map((b) => calcDistanceToPolygon(teePoint, b.coordinates))
+  // 件数 + 最近接距離フォーマットの共通処理 (water_pond/water_river/bunker/hazard)
+  const pushCountedDistance = (type: typeof areas[number]['area_type'], label: string) => {
+    const items = areas.filter((a) => a.area_type === type);
+    if (items.length === 0) return;
+    if (!teePoint) {
+      lines.push(`${label}: ${items.length}箇所`);
+      return;
+    }
+    const dists = items
+      .map((it) => calcDistanceToPolygon(teePoint, it.coordinates))
       .filter(isFinite)
       .sort((a, b) => a - b);
     if (dists.length > 0) {
-      lines.push(`バンカー: ${bunkers.length}箇所（最近接 約${toYards(dists[0])}y）`);
+      lines.push(`${label}: ${items.length}箇所（最近接 約${toYards(dists[0])}y）`);
     } else {
-      lines.push(`バンカー: ${bunkers.length}箇所`);
+      lines.push(`${label}: ${items.length}箇所`);
     }
-  } else if (bunkers.length > 0) {
-    lines.push(`バンカー: ${bunkers.length}箇所`);
-  }
+  };
 
-  const hazards = areas.filter((a) => a.area_type === 'hazard');
-  if (hazards.length > 0 && teePoint) {
-    const dists = hazards
-      .map((h) => calcDistanceToPolygon(teePoint, h.coordinates))
-      .filter(isFinite)
-      .sort((a, b) => a - b);
-    if (dists.length > 0) {
-      lines.push(`ハザード（池・川等）: ${hazards.length}箇所（最近接 約${toYards(dists[0])}y）`);
-    } else {
-      lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
-    }
-  } else if (hazards.length > 0) {
-    lines.push(`ハザード（池・川等）: ${hazards.length}箇所`);
-  }
+  pushCountedDistance('water_pond', '水ハザード（池）');
+  pushCountedDistance('water_river', '水ハザード（川）');
+  pushCountedDistance('bunker', 'バンカー');
+  pushCountedDistance('hazard', 'ハザード（池・川等）');
 
   return lines.join('\n');
 }

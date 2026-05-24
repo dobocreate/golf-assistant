@@ -5,6 +5,8 @@ import {
   pointInPolygon,
   polygonCentroid,
   haversineDistance,
+  calcDistanceToPolygon,
+  calcMaxDistanceToPolygon,
   type AerialImageMetadata,
 } from './geo';
 
@@ -279,5 +281,38 @@ describe('haversineDistance', () => {
     // 周南CC #1 の ref_start 〜 ref_end は約 390m（パー4 の典型距離）
     expect(d).toBeGreaterThan(300);
     expect(d).toBeLessThan(500);
+  });
+});
+
+describe('calcMaxDistanceToPolygon', () => {
+  it('returns 0 for empty polygon', () => {
+    expect(calcMaxDistanceToPolygon({ lat: 34, lng: 131 }, [])).toBe(0);
+  });
+
+  it('returns the farthest vertex distance', () => {
+    const point = { lat: 0, lng: 0 };
+    const coords = [
+      { lat: 0, lng: 0.0001 }, // 近い
+      { lat: 0, lng: 0.001 }, // 遠い
+      { lat: 0, lng: 0.0005 }, // 中間
+    ];
+    const max = calcMaxDistanceToPolygon(point, coords);
+    const min = calcDistanceToPolygon(point, coords);
+    expect(max).toBeGreaterThan(min);
+    // 最遠の頂点 (0, 0.001) との haversine と一致
+    expect(max).toBe(Math.round(haversineDistance(point, coords[1])));
+  });
+
+  it('returns the same value for min and max when polygon has one vertex', () => {
+    const point = { lat: 34, lng: 131 };
+    const coords = [{ lat: 34.001, lng: 131.001 }];
+    expect(calcMaxDistanceToPolygon(point, coords)).toBe(calcDistanceToPolygon(point, coords));
+  });
+
+  it('returns realistic distance for 周南CC green polygon from ref_start', () => {
+    const max = calcMaxDistanceToPolygon(SHUNAN_HOLE1_REF_START, SHUNAN_HOLE1_GREEN_A);
+    // ref_start からグリーン最遠頂点までは数百メートル
+    expect(max).toBeGreaterThan(100);
+    expect(max).toBeLessThan(1000);
   });
 });
