@@ -11,12 +11,12 @@ import {
   haversineDistance,
 } from '@/lib/geo';
 import { fetchShotPatternStats, formatShotStats } from './shot-stats';
-import { RISK_LEVEL_LABELS } from '@/features/game-plan/types';
+import { RISK_LEVEL_LABELS, type RiskLevel } from '@/features/game-plan/types';
 
 interface GamePlanRow {
   plan_text: string | null;
   alert_text: string | null;
-  risk_level: 'low' | 'medium' | 'high' | null;
+  risk_level: RiskLevel | null;
   target_strokes: number | null;
 }
 
@@ -572,8 +572,9 @@ export async function buildScoreContext(
       resolvedCourseId = r.rows[0].course_id;
     }
 
+    // typeof で narrow すれば as number キャストが不要 (Number.isInteger は型ガードではない)
     const wantGamePlan =
-      Number.isInteger(holeNumber) && (holeNumber as number) >= 1 && (holeNumber as number) <= 18;
+      typeof holeNumber === 'number' && Number.isInteger(holeNumber) && holeNumber >= 1 && holeNumber <= 18;
 
     const [scoresR, holesR, gamePlanR] = await Promise.all([
       client.query<{
