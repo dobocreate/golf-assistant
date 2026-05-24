@@ -345,6 +345,24 @@ export function calcDistanceToPolygon(
 }
 
 /**
+ * ある点からポリゴン頂点のうち最も遠い点までの距離（メートル）を返す。
+ * coords が空の場合は 0 を返す。
+ * fairway の距離レンジ（最短〜最遠）算出に使用。
+ */
+export function calcMaxDistanceToPolygon(
+  point: { lat: number; lng: number },
+  coords: { lat: number; lng: number }[],
+): number {
+  if (coords.length === 0) return 0;
+  let maxDist = 0;
+  for (const c of coords) {
+    const d = haversineDistance(point, c);
+    if (d > maxDist) maxDist = d;
+  }
+  return Math.round(maxDist);
+}
+
+/**
  * Effective felt distance accounting for elevation change.
  * 1m of elevation change ≈ 1m of effective distance (linear approximation).
  * elevDiff = destination elevation - source elevation (positive = uphill).
