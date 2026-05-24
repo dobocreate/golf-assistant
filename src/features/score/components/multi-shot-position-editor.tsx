@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, MapPin, Check, Edit3, Undo2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, MapPin, Check, Edit3, Undo2, AlertCircle, Loader2, Plus, Minus, RotateCcw } from 'lucide-react';
 import { pixelToLatLng, type AerialImageMetadata, type HoleArea } from '@/lib/geo';
+import { useMapZoomPan } from '@/features/score/hooks/use-map-zoom-pan';
 import { metersToYards } from '@/lib/geolocation/lie-detection';
 import { AerialAreaOverlay } from '@/features/course/components/aerial-area-overlay';
 import { MultiShotOverlay } from './multi-shot-overlay';
@@ -75,6 +76,8 @@ export function MultiShotPositionEditor({
   holeNumber,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // zoomable wrapper を直接参照 (eventToLatLng は transform 適用後の rect を使うため container ではなく wrapper)
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const {
     shots: liveShots,
@@ -104,6 +107,15 @@ export function MultiShotPositionEditor({
     moved: boolean;
   } | null>(null);
 
+  // 地図ズーム/パン (transform は zoomable wrapper にかける)
+  const getContainerSize = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }, []);
+  const zoomPan = useMapZoomPan(getContainerSize);
+
   // モーダルが閉じる (open=false) と早期 return で本コンポーネントは unmount され、
   // detailEditOpen / dragRef は自動破棄される。明示的な reset effect は不要 (lint set-state-in-effect 回避)
 
@@ -125,29 +137,33 @@ export function MultiShotPositionEditor({
   const finalHeight = metadata.final_height ?? metadata.rotated_height;
 
   /**
-   * コンテナ座標 → 画像内ピクセル座標 → lat/lng
-   * (EditPositionModal と同じロジック、object-contain レターボックス対応)
+   * 画面座標 → 画像内ピクセル座標 → lat/lng
+   *
+   * zoomable wrapper の getBoundingClientRect() は transform 適用後の rect を返す。
+   * object-contain のレターボックス計算もこの transform 後サイズ基準で行うことで、
+   * zoom 倍率に関わらず正しい image pixel を取得できる (scale は計算ロジック内で自動吸収)。
    */
   const eventToLatLng = useCallback(
     (clientX: number, clientY: number): { lat: number; lng: number } | null => {
-      const container = containerRef.current;
-      if (!container) return null;
-      const rect = container.getBoundingClientRect();
-      const containerW = rect.width;
-      const containerH = rect.height;
-      const scale = Math.min(containerW / finalWidth, containerH / finalHeight);
-      const displayedW = finalWidth * scale;
-      const displayedH = finalHeight * scale;
-      const offsetX = (containerW - displayedW) / 2;
-      const offsetY = (containerH - displayedH) / 2;
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return null;
+      const rect = wrapper.getBoundingClientRect();
+      const wrapperW = rect.width;
+      const wrapperH = rect.height;
+      if (wrapperW <= 0 || wrapperH <= 0) return null;
+      const fitScale = Math.min(wrapperW / finalWidth, wrapperH / finalHeight);
+      const displayedW = finalWidth * fitScale;
+      const displayedH = finalHeight * fitScale;
+      const offsetX = (wrapperW - displayedW) / 2;
+      const offsetY = (wrapperH - displayedH) / 2;
 
       const x = clientX - rect.left;
       const y = clientY - rect.top;
       if (x < offsetX || x > offsetX + displayedW) return null;
       if (y < offsetY || y > offsetY + displayedH) return null;
 
-      const imagePxX = (x - offsetX) / scale;
-      const imagePxY = (y - offsetY) / scale;
+      const imagePxX = (x - offsetX) / fitScale;
+      const imagePxY = (y - offsetY) / fitScale;
       return pixelToLatLng(imagePxX, imagePxY, metadata);
     },
     [finalWidth, finalHeight, metadata],
@@ -200,40 +216,56 @@ export function MultiShotPositionEditor({
     }
   };
 
-  // コンテナ全体への pointerMove (選択中マーカードラッグ)
+  // コンテナ全体への pointerMove (マーカードラッグ優先 / なければ zoom/pan)
   const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx, dy) >= TAP_THRESHOLD_PX) {
-      drag.moved = true;
+    if (drag && drag.pointerId === e.pointerId) {
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) >= TAP_THRESHOLD_PX) {
+        drag.moved = true;
+      }
+      if (!drag.moved) return;
+      const latLng = eventToLatLng(e.clientX, e.clientY);
+      if (!latLng) return;
+      dragTo(drag.shotId, latLng.lat, latLng.lng);
+      return;
     }
-    if (!drag.moved) return;
-    // 閾値超え後はドラッグとして扱い、draft 更新
-    const latLng = eventToLatLng(e.clientX, e.clientY);
-    if (!latLng) return;
-    dragTo(drag.shotId, latLng.lat, latLng.lng);
+    // マーカードラッグ中でなければ zoom/pan handler に委譲
+    zoomPan.onPointerMove(e);
   };
 
   const handleContainerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    // moved=false なら tap → 選択解除 (toggle)
-    if (!drag.moved) {
-      select(drag.shotId);
+    if (drag && drag.pointerId === e.pointerId) {
+      // moved=false なら tap → 選択解除 (toggle)
+      if (!drag.moved) {
+        select(drag.shotId);
+      }
+      dragRef.current = null;
+      return;
     }
-    dragRef.current = null;
+    zoomPan.onPointerUp(e);
   };
 
   // pointercancel: タッチ中断 (電話・通知等)。moved 後の半端 draft は破棄、selection 誤 toggle も防止
   const handleContainerPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    if (drag.moved) {
-      discardDraft(drag.shotId);
+    if (drag && drag.pointerId === e.pointerId) {
+      if (drag.moved) {
+        discardDraft(drag.shotId);
+      }
+      dragRef.current = null;
+      return;
     }
-    dragRef.current = null;
+    zoomPan.onPointerCancel(e);
+  };
+
+  // 背景 (画像/エリアオーバーレイ層) への pointerDown → pan/pinch 開始
+  const handleBackgroundPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // マーカードラッグが進行中なら無視 (pointerCapture により既に処理されているはず)
+    if (dragRef.current) return;
+    zoomPan.onBackgroundPointerDown(e);
   };
 
   // フッターアクション
@@ -345,32 +377,69 @@ export function MultiShotPositionEditor({
       {/* マップ本体 */}
       <div
         ref={containerRef}
-        className="flex-1 relative bg-gray-900 select-none"
+        className="flex-1 relative bg-gray-900 select-none overflow-hidden"
         style={{ touchAction: 'none' }}
+        onPointerDown={handleBackgroundPointerDown}
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerCancel}
+        onWheel={zoomPan.onWheel}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={aerialImageUrl}
-          alt=""
-          className="w-full h-full object-contain pointer-events-none select-none"
-          draggable={false}
-        />
-        {areas.length > 0 && (
-          <div className="absolute inset-0 pointer-events-none">
-            <AerialAreaOverlay areas={areas} metadata={metadata} />
-          </div>
-        )}
-        <MultiShotOverlay
-          shots={liveShots}
-          metadata={metadata}
-          mode={overlayMode}
-          drafts={drafts}
-          selectedShotId={selectedShotId}
-          onShotPointerDown={handleShotPointerDown}
-        />
+        {/* zoomable wrapper: scale + translate を当てる。eventToLatLng は wrapper.rect (transform 後) を
+            参照するため、zoom 中も image pixel 座標が正しく取れる */}
+        <div ref={wrapperRef} className="absolute inset-0" style={zoomPan.transformStyle}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={aerialImageUrl}
+            alt=""
+            className="w-full h-full object-contain pointer-events-none select-none"
+            draggable={false}
+          />
+          {areas.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none">
+              <AerialAreaOverlay areas={areas} metadata={metadata} />
+            </div>
+          )}
+          <MultiShotOverlay
+            shots={liveShots}
+            metadata={metadata}
+            mode={overlayMode}
+            drafts={drafts}
+            selectedShotId={selectedShotId}
+            onShotPointerDown={handleShotPointerDown}
+          />
+        </div>
+
+        {/* ズームコントロール (右下オーバーレイ) */}
+        <div className="absolute bottom-3 right-3 flex flex-col gap-1.5 z-10">
+          <button
+            type="button"
+            onClick={zoomPan.zoomIn}
+            disabled={!zoomPan.canZoomIn}
+            aria-label="拡大"
+            className="w-10 h-10 rounded-lg bg-gray-900/80 hover:bg-gray-800 disabled:opacity-40 disabled:hover:bg-gray-900/80 text-white flex items-center justify-center border border-gray-700 shadow-lg"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={zoomPan.zoomOut}
+            disabled={!zoomPan.canZoomOut}
+            aria-label="縮小"
+            className="w-10 h-10 rounded-lg bg-gray-900/80 hover:bg-gray-800 disabled:opacity-40 disabled:hover:bg-gray-900/80 text-white flex items-center justify-center border border-gray-700 shadow-lg"
+          >
+            <Minus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={zoomPan.reset}
+            disabled={zoomPan.state.scale === 1 && zoomPan.state.translateX === 0 && zoomPan.state.translateY === 0}
+            aria-label="リセット"
+            className="w-10 h-10 rounded-lg bg-gray-900/80 hover:bg-gray-800 disabled:opacity-40 disabled:hover:bg-gray-900/80 text-white flex items-center justify-center border border-gray-700 shadow-lg"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* エラーバー */}
