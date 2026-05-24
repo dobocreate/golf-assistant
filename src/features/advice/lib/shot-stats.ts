@@ -56,8 +56,11 @@ export async function fetchShotPatternStats(client: PoolClient): Promise<ShotPat
     )
     -- TODO(perf): kishida 261 行で <50ms。万行規模になったら shots(user_id, lie, club) 相当の
     -- partial index 追加か、window で集計対象を制限することを検討。
-    -- 注: MODE() WITHIN GROUP は同点時 arbitrary (PG doc 通り)。
-    -- ビジネス的に「どちらでも構わない」ため受容。決定性が必要になったら DISTINCT ON 書き換え
+    -- 注: MODE() WITHIN GROUP は同点時 arbitrary (PG doc)。result tie 時は alphabetical 順
+    -- (excellent < fair < good < poor) で「good vs fair」tie 時に fair が優先される可能性あり。
+    -- ORDER BY CASE で意味順にしても MODE() の戻り値は sort_expression の型 (= int) になり
+    -- top_result (text) が取れなくなる。決定性を完全に確保したい場合は DISTINCT ON で書き換え必要。
+    -- 現状: tie 発生は稀 (グループあたり数件) + ラベル表示のみで実害小のため許容
     SELECT
       lie,
       distance_bucket,

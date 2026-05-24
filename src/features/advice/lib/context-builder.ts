@@ -218,7 +218,11 @@ async function buildAdviceContextInternal(
         [courseId],
       ),
 
-      fetchShotPatternStats(client),
+      // 過去ショット傾向は非クリティカル: 失敗しても advice context 全体は維持
+      fetchShotPatternStats(client).catch((err) => {
+        console.error('fetchShotPatternStats failed (degrading to empty stats):', err);
+        return [];
+      }),
     ]);
 
   // hole_notes の元の shape (.holes.hole_number) に合わせて変換
