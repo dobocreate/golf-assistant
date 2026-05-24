@@ -283,20 +283,20 @@ export function buildAreaContext(
 
   // fairway は距離順 (ティーから最近接が #1) に並べる
   // 複数 fairway はドッグレッグの曲がり前後 (#1 = ティーショット狙い目 / #2 = セカンド狙い目) が典型
+  // 比較演算子で書くのは Infinity 同士の引き算が NaN になりソート不安定になるため
   const fairways = areas
     .filter((a) => a.area_type === 'fairway')
     .map((fw) => ({
       fw,
       minDist: teePoint ? calcDistanceToPolygon(teePoint, fw.coordinates) : Infinity,
     }))
-    .sort((a, b) => a.minDist - b.minDist);
-  fairways.forEach(({ fw }, idx) => {
+    .sort((a, b) => (a.minDist === b.minDist ? 0 : a.minDist < b.minDist ? -1 : 1));
+  fairways.forEach(({ fw, minDist }, idx) => {
     const label = fairways.length > 1 ? `フェアウェイ #${idx + 1}` : 'フェアウェイ';
     if (!teePoint) {
       lines.push(label);
       return;
     }
-    const minDist = calcDistanceToPolygon(teePoint, fw.coordinates);
     const maxDist = calcMaxDistanceToPolygon(teePoint, fw.coordinates);
     if (!isFinite(minDist) || maxDist === 0) {
       lines.push(label);
