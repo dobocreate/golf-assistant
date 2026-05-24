@@ -1,6 +1,7 @@
 import type { ShotLie, ShotSlopeFB, ShotSlopeLR } from '@/features/score/types';
 import type { StartingCourse } from '@/features/round/types';
 import type { HoleArea, HoleMapPoint } from '@/lib/geo';
+import type { ShotPatternStat } from './lib/shot-stats';
 
 export type SlopeFB = ShotSlopeFB;
 export type SlopeLR = ShotSlopeLR;
@@ -37,4 +38,6 @@ export interface AdviceContext {
   map_points: HoleMapPoint[];
   /** 使用グリーン（ツーグリーン制コースのみ） */
   active_green: 'A' | 'B' | null;
+  /** 過去ショット傾向（lie × 距離 × クラブ別、サンプル3件以上、Top10）。AI が個別実績に基づくアドバイスを生成するため */
+  shot_stats: ShotPatternStat[];
 }
