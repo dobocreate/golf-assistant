@@ -10,6 +10,7 @@ import {
   polygonCentroid,
   haversineDistance,
 } from '@/lib/geo';
+import { fetchShotPatternStats, formatShotStats } from './shot-stats';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,6 +20,9 @@ const levelLabels = Object.fromEntries(SCORE_LEVELS.map(({ value, label }) => [v
 /**
  * スナップショットからコンテキストテキストを取得、なければ構築してキャッシュする。
  * 2 回目以降のアドバイスリクエストでは 1 クエリで済む。
+ *
+ * shot_stats を含む全データは当ラウンド開始時点でスナップショット固定。
+ * ラウンド中の新規ショットは含まれず、buildScoreContext 側で当ラウンド推移を扱う。
  *
  * 呼び出し側で `requireUser()` のコンテキストが必要。
  */
@@ -142,7 +146,7 @@ async function buildAdviceContextInternal(
   );
   const profile = profileR.rows[0];
 
-  const [clubsR, courseR, holesR, holeNotesR, recentRoundsR, knowledgeR, holeAreasR, mapPointsR] =
+  const [clubsR, courseR, holesR, holeNotesR, recentRoundsR, knowledgeR, holeAreasR, mapPointsR, shotStats] =
     await Promise.all([
       profile?.id
         ? client.query(
@@ -213,6 +217,8 @@ async function buildAdviceContextInternal(
           ORDER BY h.hole_number, mp.sort_order`,
         [courseId],
       ),
+
+      fetchShotPatternStats(client),
     ]);
 
   // hole_notes の元の shape (.holes.hole_number) に合わせて変換
@@ -247,6 +253,7 @@ async function buildAdviceContextInternal(
     hole_areas: holeAreasR.rows,
     map_points: mapPointsR.rows,
     active_green: activeGreen,
+    shot_stats: shotStats,
   };
 }
 
@@ -475,6 +482,11 @@ export function formatContextForPrompt(context: AdviceContext): string {
       lines.push(line);
     }
     sections.push(lines.join('\n'));
+  }
+
+  if (context.shot_stats.length > 0) {
+    const text = formatShotStats(context.shot_stats);
+    if (text) sections.push(text);
   }
 
   if (context.knowledge.length > 0) {
